@@ -262,8 +262,8 @@ export function AudioPlayer() {
             2: 'Invalid YouTube URL',
             5: 'YouTube player error',
             100: 'Video not found or removed',
-            101: 'Embedding disabled by owner',
-            150: 'Embedding disabled by owner',
+            101: "Video can't be embedded — the uploader (often a record label) has blocked third-party playback. Open on YouTube to listen.",
+            150: "Video can't be embedded — the uploader (often a record label) has blocked third-party playback. Open on YouTube to listen.",
           };
           setYtError(
             (e.data && codes[e.data]) ||

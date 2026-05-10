@@ -110,10 +110,16 @@ export default function YouTubePlaylistDetailPage() {
         },
         onError: (e: { data?: number }) => {
           const codes: Record<number, string> = {
-            101: 'Embedding disabled by playlist owner',
-            150: 'Embedding disabled by playlist owner',
+            2: 'Invalid YouTube URL',
+            5: 'YouTube player error',
+            100: 'Video not found or removed',
+            101: "Videos in this playlist can't be embedded — the uploaders (labels) have blocked it. Open on YouTube to listen.",
+            150: "Videos in this playlist can't be embedded — the uploaders (labels) have blocked it. Open on YouTube to listen.",
           };
-          setError(codes[e.data || 0] || 'Could not load playlist. It may be private.');
+          setError(
+            codes[e.data || 0] ||
+              'Could not load playlist. It may be private or the videos may have embedding disabled.',
+          );
           setLoading(false);
         },
       },
