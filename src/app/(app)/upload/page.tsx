@@ -5,6 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Upload, Music, CheckCircle, AlertCircle, X, Link2, Plus, Loader2 } from 'lucide-react';
+import {
+  parseYouTubeUrl,
+  extractYouTubePlaylist,
+} from '@/lib/extractYouTubePlaylist';
 
 interface UploadFile {
   file: File;
@@ -24,33 +28,147 @@ export default function UploadPage() {
   // YouTube link state
   const [ytUrl, setYtUrl] = useState('');
   const [ytLoading, setYtLoading] = useState(false);
-  const [ytMessage, setYtMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [ytStatus, setYtStatus] = useState<string>('');
+  const [ytMessage, setYtMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const handleYouTubeAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ytUrl.trim() || ytLoading) return;
     setYtMessage(null);
+    setYtStatus('');
     setYtLoading(true);
 
     try {
-      const res = await fetch('/api/youtube-add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: ytUrl }),
-      });
-      const data = await res.json();
+      const parsed = parseYouTubeUrl(ytUrl);
+      if (!parsed) {
+        setYtMessage({
+          type: 'error',
+          text: 'Could not parse YouTube URL. Paste a video URL or playlist URL.',
+        });
+        setYtLoading(false);
+        return;
+      }
 
-      if (!res.ok) {
-        setYtMessage({ type: 'error', text: data.error || 'Failed to add' });
-      } else {
-        setYtMessage({ type: 'success', text: `Added "${data.song.title}"` });
+      if (parsed.kind === 'playlist') {
+        // Extract every video in the playlist and save each as an individual song
+        setYtStatus('Loading playlist…');
+        let videos;
+        try {
+          videos = await extractYouTubePlaylist(parsed.id);
+        } catch (err) {
+          setYtMessage({
+            type: 'error',
+            text: err instanceof Error ? err.message : 'Could not load playlist',
+          });
+          setYtLoading(false);
+          setYtStatus('');
+          return;
+        }
+
+        setYtStatus(`Found ${videos.length} videos. Saving…`);
+
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          setYtMessage({ type: 'error', text: 'Not signed in' });
+          setYtLoading(false);
+          setYtStatus('');
+          return;
+        }
+
+        // Skip videos already saved as individual songs in this user's library
+        const videoIds = videos.map((v) => v.videoId);
+        const { data: existing } = await supabase
+          .from('songs')
+          .select('youtube_id')
+          .eq('user_id', user.id)
+          .eq('source', 'youtube_embed')
+          .eq('youtube_kind', 'video')
+          .in('youtube_id', videoIds);
+
+        const existingSet = new Set(
+          (existing || []).map((s) => s.youtube_id as string),
+        );
+        const newSongs = videos
+          .filter((v) => !existingSet.has(v.videoId))
+          .map((v) => ({
+            user_id: user.id,
+            title: v.title,
+            artist_name: v.author,
+            cover_url: v.thumbnail,
+            file_url: '',
+            duration: 0,
+            source: 'youtube_embed',
+            youtube_id: v.videoId,
+            youtube_kind: 'video',
+          }));
+
+        if (newSongs.length === 0) {
+          setYtMessage({
+            type: 'success',
+            text: `All ${videos.length} videos were already in your library`,
+          });
+          setYtUrl('');
+          setYtLoading(false);
+          setYtStatus('');
+          return;
+        }
+
+        // Insert in batches of 100 to be safe
+        const batchSize = 100;
+        let inserted = 0;
+        for (let i = 0; i < newSongs.length; i += batchSize) {
+          const batch = newSongs.slice(i, i + batchSize);
+          const { error } = await supabase.from('songs').insert(batch);
+          if (error) {
+            setYtMessage({
+              type: 'error',
+              text: `Saved ${inserted}/${newSongs.length} songs, then failed: ${error.message}`,
+            });
+            setYtLoading(false);
+            setYtStatus('');
+            return;
+          }
+          inserted += batch.length;
+          setYtStatus(`Saving songs… ${inserted}/${newSongs.length}`);
+        }
+
+        const skippedCount = videos.length - newSongs.length;
+        setYtMessage({
+          type: 'success',
+          text:
+            skippedCount > 0
+              ? `Added ${newSongs.length} new songs (${skippedCount} were already in your library)`
+              : `Added ${newSongs.length} songs from the playlist`,
+        });
         setYtUrl('');
+      } else {
+        // Single video — keep using the existing API endpoint
+        const res = await fetch('/api/youtube-add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: ytUrl }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setYtMessage({ type: 'error', text: data.error || 'Failed to add' });
+        } else {
+          setYtMessage({ type: 'success', text: `Added "${data.song.title}"` });
+          setYtUrl('');
+        }
       }
     } catch {
       setYtMessage({ type: 'error', text: 'Network error. Please try again.' });
     }
 
     setYtLoading(false);
+    setYtStatus('');
   };
 
   const handleFiles = (fileList: FileList) => {
@@ -229,6 +347,13 @@ export default function UploadPage() {
           </Button>
         </form>
 
+        {ytStatus && ytLoading && (
+          <div className="px-3 py-2 rounded-lg text-sm flex items-center gap-2 bg-accent-muted text-accent">
+            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+            {ytStatus}
+          </div>
+        )}
+
         {ytMessage && (
           <div
             className={`px-3 py-2 rounded-lg text-sm flex items-start gap-2 ${
@@ -245,6 +370,11 @@ export default function UploadPage() {
             {ytMessage.text}
           </div>
         )}
+
+        <p className="text-xs text-muted-foreground">
+          Pasting a <span className="font-medium text-foreground">playlist URL</span> will
+          extract every video and save each as an individual song in your library.
+        </p>
       </div>
 
       {/* Divider */}
