@@ -6,8 +6,9 @@ import { Song, Playlist, Album } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc } from 'lucide-react';
 import Link from 'next/link';
+import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 
 export default function DashboardPage() {
   const [recentSongs, setRecentSongs] = useState<Song[]>([]);
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [ytTracks, setYtTracks] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [allPlaylistSongs, setAllPlaylistSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInstallHint, setShowInstallHint] = useState(false);
 
@@ -78,6 +80,11 @@ export default function DashboardPage() {
       if (ytRes.data) setYtTracks(ytRes.data);
       if (playlistsRes.data) setPlaylists(playlistsRes.data);
       if (albumsRes.data) setAlbums(albumsRes.data);
+
+      // Songs across ALL playlists, in playlist + position order
+      const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
+      setAllPlaylistSongs(buildCrossPlaylistQueue(playlistsWithSongs));
+
       setLoading(false);
     }
 
@@ -151,6 +158,15 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+      )}
+
+      {/* All songs from your playlists — clicking any plays through ALL playlists */}
+      {allPlaylistSongs.length > 0 && (
+        <Section title="All Songs in Your Playlists" icon={Disc} seeAllHref="/library">
+          {allPlaylistSongs.slice(0, 18).map((song) => (
+            <SongCard key={song.id} song={song} songs={allPlaylistSongs} />
+          ))}
+        </Section>
       )}
 
       {/* Recently Played */}

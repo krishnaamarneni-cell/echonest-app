@@ -13,12 +13,14 @@ import { usePlayerStore } from '@/store/player';
 import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Menu } from '@/components/ui/Menu';
 import Image from 'next/image';
+import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 
 export default function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [crossQueue, setCrossQueue] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const play = usePlayerStore((s) => s.play);
 
@@ -44,6 +46,11 @@ export default function PlaylistDetailPage() {
       if (ps) {
         setSongs(ps.map((p: Record<string, unknown>) => p.song as Song).filter(Boolean));
       }
+
+      // Build the extended queue: this playlist's songs + all subsequent playlists
+      const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
+      setCrossQueue(buildCrossPlaylistQueue(playlistsWithSongs, id as string));
+
       setLoading(false);
     }
 
@@ -95,7 +102,11 @@ export default function PlaylistDetailPage() {
 
             <div className="flex items-center gap-3 mt-4">
               <Button
-                onClick={() => songs.length > 0 && play(songs[0], songs, 'playlist')}
+                onClick={() => {
+                  if (songs.length === 0) return;
+                  const queue = crossQueue.length > 0 ? crossQueue : songs;
+                  play(queue[0], queue, 'playlist');
+                }}
                 disabled={songs.length === 0}
               >
                 <Play className="w-4 h-4 fill-current" />
@@ -104,10 +115,14 @@ export default function PlaylistDetailPage() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  if (songs.length > 0) {
-                    const shuffled = [...songs].sort(() => Math.random() - 0.5);
-                    play(shuffled[0], shuffled, 'playlist');
-                  }
+                  if (songs.length === 0) return;
+                  // Shuffle just this playlist; queue continues into other playlists in normal order
+                  const shuffledHere = [...songs].sort(() => Math.random() - 0.5);
+                  const tail = crossQueue.length > songs.length
+                    ? crossQueue.slice(songs.length)
+                    : [];
+                  const queue = [...shuffledHere, ...tail];
+                  play(queue[0], queue, 'playlist');
                 }}
                 disabled={songs.length === 0}
               >
@@ -155,7 +170,14 @@ export default function PlaylistDetailPage() {
         ) : songs.length > 0 ? (
           <div className="space-y-0.5">
             {songs.map((song, i) => (
-              <SongRow key={song.id} song={song} index={i} showIndex songs={songs} source="playlist" />
+              <SongRow
+                key={song.id}
+                song={song}
+                index={i}
+                showIndex
+                songs={crossQueue.length > 0 ? crossQueue : songs}
+                source="playlist"
+              />
             ))}
           </div>
         ) : (

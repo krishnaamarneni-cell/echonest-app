@@ -1,23 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Song, Album, Artist, Playlist } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { Search as SearchIcon, X } from 'lucide-react';
+import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [allPlaylistSongs, setAllPlaylistSongs] = useState<Song[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [searching, setSearching] = useState(false);
 
+  // Load all songs from playlists once on mount; we filter client-side for instant matches
+  useEffect(() => {
+    fetchAllPlaylistsWithSongs().then((data) => {
+      setAllPlaylistSongs(buildCrossPlaylistQueue(data));
+    });
+  }, []);
+
   const search = useCallback(async (q: string) => {
     if (!q.trim()) {
-      setSongs([]);
       setAlbums([]);
       setArtists([]);
       setPlaylists([]);
@@ -28,26 +35,42 @@ export default function SearchPage() {
     const supabase = createClient();
     const pattern = `%${q}%`;
 
-    const [songsRes, albumsRes, artistsRes, playlistsRes] = await Promise.all([
-      supabase.from('songs').select('*').or(`title.ilike.${pattern},artist_name.ilike.${pattern}`).limit(10),
+    const [albumsRes, artistsRes, playlistsRes] = await Promise.all([
       supabase.from('albums').select('*').or(`title.ilike.${pattern},artist_name.ilike.${pattern}`).limit(6),
       supabase.from('artists').select('*').ilike('name', pattern).limit(6),
       supabase.from('playlists').select('*').ilike('title', pattern).limit(6),
     ]);
 
-    if (songsRes.data) setSongs(songsRes.data);
     if (albumsRes.data) setAlbums(albumsRes.data);
     if (artistsRes.data) setArtists(artistsRes.data);
     if (playlistsRes.data) setPlaylists(playlistsRes.data);
     setSearching(false);
   }, []);
 
+  // Filter playlist songs by query (client-side, instant)
+  const matchingSongs = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return allPlaylistSongs.filter(
+      (s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.artist_name.toLowerCase().includes(q),
+    );
+  }, [query, allPlaylistSongs]);
+
+  // A small "browse" sample when nothing matches
+  const browseSample = useMemo(() => allPlaylistSongs.slice(0, 8), [allPlaylistSongs]);
+
   useEffect(() => {
     const timer = setTimeout(() => search(query), 300);
     return () => clearTimeout(timer);
   }, [query, search]);
 
-  const hasResults = songs.length > 0 || albums.length > 0 || artists.length > 0 || playlists.length > 0;
+  const hasResults =
+    matchingSongs.length > 0 ||
+    albums.length > 0 ||
+    artists.length > 0 ||
+    playlists.length > 0;
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
@@ -77,25 +100,41 @@ export default function SearchPage() {
           <SearchIcon className="w-16 h-16 text-muted mb-4" />
           <h2 className="text-xl font-semibold mb-1">Search your library</h2>
           <p className="text-sm text-muted-foreground">
-            Find songs, albums, artists, and playlists
+            Find songs in your playlists, albums, artists, and more
           </p>
         </div>
       )}
 
       {query && !searching && !hasResults && (
-        <div className="text-center py-16">
-          <p className="text-muted-foreground">
-            No results found for &quot;{query}&quot;
-          </p>
+        <div className="space-y-6">
+          <div className="text-center py-8 bg-card border border-border rounded-2xl">
+            <p className="text-base font-semibold mb-1">
+              Song not found in your playlists
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Nothing matched &quot;{query}&quot; in your added lists.
+            </p>
+          </div>
+
+          {browseSample.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold mb-3">From your playlists</h2>
+              <div className="space-y-0.5">
+                {browseSample.map((song) => (
+                  <SongRow key={song.id} song={song} songs={allPlaylistSongs} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
-      {songs.length > 0 && (
+      {matchingSongs.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold mb-3">Songs</h2>
+          <h2 className="text-lg font-semibold mb-3">Songs in your playlists</h2>
           <div className="space-y-0.5">
-            {songs.map((song) => (
-              <SongRow key={song.id} song={song} songs={songs} />
+            {matchingSongs.map((song) => (
+              <SongRow key={song.id} song={song} songs={allPlaylistSongs} />
             ))}
           </div>
         </section>
