@@ -56,6 +56,7 @@ export function AudioPlayer() {
   const ytPlayerRef = useRef<InstanceType<typeof window.YT.Player> | null>(null);
   const ytIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [ytReady, setYtReady] = useState(false);
+  const [ytError, setYtError] = useState<string | null>(null);
 
   const {
     currentSong,
@@ -107,14 +108,17 @@ export function AudioPlayer() {
       return;
     }
 
+    setYtError(null);
+
     ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
-      height: '0',
-      width: '0',
+      height: '180',
+      width: '320',
       videoId: isYouTubePlaylist ? undefined : currentSong.youtube_id,
       playerVars: {
         autoplay: 1,
         controls: 0,
         playsinline: 1,
+        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         ...(isYouTubePlaylist
           ? { listType: 'playlist', list: currentSong.youtube_id }
           : {}),
@@ -133,6 +137,19 @@ export function AudioPlayer() {
               next();
             }
           }
+        },
+        onError: (e: { data?: number }) => {
+          const codes: Record<number, string> = {
+            2: 'Invalid YouTube URL',
+            5: 'YouTube player error',
+            100: 'Video not found or removed',
+            101: 'Embedding disabled by owner',
+            150: 'Embedding disabled by owner',
+          };
+          setYtError(
+            (e.data && codes[e.data]) ||
+              'Could not play. Playlist may be private — set it to Public or Unlisted.'
+          );
         },
       },
     });
@@ -260,7 +277,46 @@ export function AudioPlayer() {
         onEnded={handleEnded}
         preload="metadata"
       />
-      <div ref={ytContainerRef} className="hidden" aria-hidden />
+      <div
+        style={{
+          position: 'fixed',
+          right: '1rem',
+          bottom: 'calc(var(--player-height) + 8px)',
+          width: isYouTube ? 320 : 1,
+          height: isYouTube ? 180 : 1,
+          opacity: isYouTube ? 1 : 0,
+          pointerEvents: isYouTube ? 'auto' : 'none',
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: isYouTube ? '0 10px 40px rgba(0,0,0,0.5)' : 'none',
+          background: '#000',
+          zIndex: 40,
+        }}
+      >
+        <div ref={ytContainerRef} style={{ width: '100%', height: '100%' }} />
+      </div>
+      {isYouTube && ytError && (
+        <div
+          className="fixed right-4 z-50 max-w-[320px] bg-card border border-destructive rounded-xl p-3 shadow-2xl"
+          style={{ bottom: 'calc(var(--player-height) + 8px)' }}
+        >
+          <p className="text-xs font-medium text-destructive mb-1">{ytError}</p>
+          {currentSong?.youtube_id && (
+            <a
+              href={
+                isYouTubePlaylist
+                  ? `https://www.youtube.com/playlist?list=${currentSong.youtube_id}`
+                  : `https://www.youtube.com/watch?v=${currentSong.youtube_id}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-accent hover:underline"
+            >
+              Open on YouTube ↗
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="fixed bottom-0 lg:bottom-0 left-0 right-0 z-50 h-[var(--player-height)] glass border-t border-border animate-slide-up">
         <div
