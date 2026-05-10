@@ -7,7 +7,8 @@ import { Song } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music } from 'lucide-react';
+import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Menu } from '@/components/ui/Menu';
 import Image from 'next/image';
 
 interface PlaylistVideo {
@@ -242,6 +243,28 @@ export default function YouTubePlaylistDetailPage() {
                   <ExternalLink className="w-4 h-4" /> YouTube
                 </a>
               )}
+              <Menu
+                trigger={
+                  <button className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-card transition-colors">
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                }
+                items={[
+                  {
+                    label: 'Remove from library',
+                    icon: Trash2,
+                    variant: 'danger',
+                    onClick: async () => {
+                      if (!confirm(`Remove "${song?.title}" from your library?`)) return;
+                      const supabase = createClient();
+                      const { error } = await supabase.from('songs').delete().eq('id', id);
+                      if (error) { alert('Failed: ' + error.message); return; }
+                      router.push('/import');
+                      router.refresh();
+                    },
+                  },
+                ]}
+              />
             </div>
           </div>
         </div>

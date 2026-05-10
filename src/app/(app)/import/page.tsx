@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { SongRow } from '@/components/ui/SongRow';
 import { Song } from '@/types';
-import { Link2, CheckCircle, AlertCircle, Plus, ListMusic, ChevronRight } from 'lucide-react';
+import { Link2, CheckCircle, AlertCircle, Plus, ListMusic, ChevronRight, MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Menu } from '@/components/ui/Menu';
 
 export default function ImportPage() {
   const [url, setUrl] = useState('');
@@ -111,39 +112,72 @@ export default function ImportPage() {
           <div className="space-y-0.5">
             {embedded.map((song) =>
               song.youtube_kind === 'playlist' ? (
-                <Link
+                <div
                   key={song.id}
-                  href={`/yt-playlist/${song.id}`}
                   className="group flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-hover transition-colors"
                 >
-                  <div className="w-10 h-10 rounded-md bg-card overflow-hidden flex-shrink-0 relative">
-                    {song.cover_url ? (
-                      <Image
-                        src={song.cover_url}
-                        alt={song.title}
-                        width={40}
-                        height={40}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ListMusic className="w-4 h-4 text-muted" />
+                  <Link
+                    href={`/yt-playlist/${song.id}`}
+                    className="flex items-center gap-3 flex-1 min-w-0"
+                  >
+                    <div className="w-10 h-10 rounded-md bg-card overflow-hidden flex-shrink-0 relative">
+                      {song.cover_url ? (
+                        <Image
+                          src={song.cover_url}
+                          alt={song.title}
+                          width={40}
+                          height={40}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ListMusic className="w-4 h-4 text-muted" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-tl">
+                        PL
                       </div>
-                    )}
-                    <div className="absolute bottom-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-tl">
-                      PL
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{song.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      Playlist · {song.artist_name}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                </Link>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{song.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Playlist · {song.artist_name}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </Link>
+                  <Menu
+                    trigger={
+                      <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    }
+                    items={[
+                      {
+                        label: 'Delete',
+                        icon: Trash2,
+                        variant: 'danger',
+                        onClick: async () => {
+                          if (!confirm(`Delete "${song.title}"?`)) return;
+                          const supabase = createClient();
+                          const { error } = await supabase.from('songs').delete().eq('id', song.id);
+                          if (error) {
+                            alert('Failed to delete: ' + error.message);
+                            return;
+                          }
+                          loadEmbedded();
+                        },
+                      },
+                    ]}
+                  />
+                </div>
               ) : (
-                <SongRow key={song.id} song={song} songs={embedded.filter((s) => s.youtube_kind !== 'playlist')} />
+                <SongRow
+                  key={song.id}
+                  song={song}
+                  songs={embedded.filter((s) => s.youtube_kind !== 'playlist')}
+                  onDeleted={() => loadEmbedded()}
+                />
               )
             )}
           </div>

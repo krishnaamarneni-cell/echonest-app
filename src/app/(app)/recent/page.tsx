@@ -42,7 +42,12 @@ export default function RecentlyPlayedPage() {
       ) : songs.length > 0 ? (
         <div className="space-y-0.5">
           {songs.map((song) => (
-            <SongRow key={song.id} song={song} songs={songs} />
+            <SongRow
+              key={song.id}
+              song={song}
+              songs={songs}
+              onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+            />
           ))}
         </div>
       ) : (

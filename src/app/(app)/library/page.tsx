@@ -105,7 +105,14 @@ export default function LibraryPage() {
             songs.length > 0 ? (
               <div className="space-y-0.5">
                 {songs.map((song, i) => (
-                  <SongRow key={song.id} song={song} index={i} showIndex songs={songs} />
+                  <SongRow
+                    key={song.id}
+                    song={song}
+                    index={i}
+                    showIndex
+                    songs={songs}
+                    onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+                  />
                 ))}
               </div>
             ) : (

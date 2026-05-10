@@ -3,9 +3,11 @@
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
+import { Menu } from './Menu';
+import { createClient } from '@/lib/supabase/client';
 
 interface SongRowProps {
   song: Song;
@@ -15,6 +17,7 @@ interface SongRowProps {
   isLiked?: boolean;
   onLike?: (songId: string) => void;
   onAddToPlaylist?: (songId: string) => void;
+  onDeleted?: (songId: string) => void;
   source?: 'playlist' | 'album' | 'library';
 }
 
@@ -25,10 +28,12 @@ export function SongRow({
   songs,
   isLiked,
   onLike,
+  onDeleted,
   source = 'library',
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const [isHovered, setIsHovered] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const isCurrentSong = currentSong?.id === song.id;
 
   const handlePlay = () => {
@@ -39,13 +44,39 @@ export function SongRow({
     }
   };
 
+  const handleDelete = async () => {
+    if (deleting) return;
+    if (!confirm(`Delete "${song.title}"? This cannot be undone.`)) return;
+    setDeleting(true);
+
+    const supabase = createClient();
+
+    // For uploaded files, also delete the audio file from storage
+    if (song.source === 'upload' && song.file_url) {
+      try {
+        const url = new URL(song.file_url);
+        const path = url.pathname.split('/storage/v1/object/public/audio/')[1];
+        if (path) {
+          await supabase.storage.from('audio').remove([path]);
+        }
+      } catch {}
+    }
+
+    const { error } = await supabase.from('songs').delete().eq('id', song.id);
+    if (error) {
+      alert('Failed to delete: ' + error.message);
+      setDeleting(false);
+      return;
+    }
+
+    onDeleted?.(song.id);
+  };
+
   return (
     <div
       className={`group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-        isCurrentSong
-          ? 'bg-accent-muted'
-          : 'hover:bg-card-hover'
-      }`}
+        isCurrentSong ? 'bg-accent-muted' : 'hover:bg-card-hover'
+      } ${deleting ? 'opacity-50 pointer-events-none' : ''}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handlePlay}
@@ -96,7 +127,7 @@ export function SongRow({
               e.stopPropagation();
               onLike(song.id);
             }}
-            className={`opacity-0 group-hover:opacity-100 transition-opacity ${
+            className={`opacity-0 group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ${
               isLiked ? 'text-accent opacity-100' : 'text-muted-foreground'
             }`}
           >
@@ -106,12 +137,21 @@ export function SongRow({
         <span className="text-xs text-muted tabular-nums w-10 text-right">
           {formatDuration(song.duration)}
         </span>
-        <button
-          onClick={(e) => e.stopPropagation()}
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        <Menu
+          trigger={
+            <button className="text-muted-foreground hover:text-foreground transition-colors p-1">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          }
+          items={[
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: handleDelete,
+              variant: 'danger',
+            },
+          ]}
+        />
       </div>
     </div>
   );
