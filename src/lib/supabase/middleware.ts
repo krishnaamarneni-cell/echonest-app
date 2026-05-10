@@ -54,13 +54,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect "/" to /dashboard when public account is enabled — landing page
-  // doesn't make sense if everyone is auto-signed-in
-  if (path === '/' && publicAccountEnabled) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
-  }
+  // Landing page (/) is always accessible — even when logged in — so users
+  // can click the logo to come back here. The landing page itself shows a
+  // 'Open library' button for logged-in visitors.
 
   return supabaseResponse;
 }

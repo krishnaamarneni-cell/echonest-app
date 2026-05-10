@@ -94,9 +94,9 @@ export function Sidebar() {
       className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-full bg-background border-r border-border"
       style={{ paddingTop: 'var(--safe-top)' }}
     >
-      <div className="p-6">
+      <Link href="/" className="p-6 block hover:opacity-80 transition-opacity">
         <Logo />
-      </div>
+      </Link>
 
       <nav className="px-3 space-y-1">
         {mainNav.map((item) => (
