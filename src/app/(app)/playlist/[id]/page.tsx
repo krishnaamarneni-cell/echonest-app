@@ -14,6 +14,7 @@ import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2 } fr
 import { Menu } from '@/components/ui/Menu';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
+import { useOwnerMode } from '@/store/ownerMode';
 
 export default function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,7 @@ export default function PlaylistDetailPage() {
   const [crossQueue, setCrossQueue] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const play = usePlayerStore((s) => s.play);
+  const isOwner = useOwnerMode((s) => s.isOwner);
 
   useEffect(() => {
     if (id === 'new') return;
@@ -129,31 +131,33 @@ export default function PlaylistDetailPage() {
                 <Shuffle className="w-4 h-4" />
                 Shuffle
               </Button>
-              <Menu
-                trigger={
-                  <button className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-card transition-colors">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
-                }
-                items={[
-                  {
-                    label: 'Delete playlist',
-                    icon: Trash2,
-                    variant: 'danger',
-                    onClick: async () => {
-                      if (!confirm(`Delete playlist "${playlist?.title}"? This cannot be undone.`)) return;
-                      const supabase = createClient();
-                      const { error } = await supabase.from('playlists').delete().eq('id', id);
-                      if (error) {
-                        alert('Failed to delete: ' + error.message);
-                        return;
-                      }
-                      router.push('/library');
-                      router.refresh();
+              {isOwner && (
+                <Menu
+                  trigger={
+                    <button className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-card transition-colors">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                  }
+                  items={[
+                    {
+                      label: 'Delete playlist',
+                      icon: Trash2,
+                      variant: 'danger',
+                      onClick: async () => {
+                        if (!confirm(`Delete playlist "${playlist?.title}"? This cannot be undone.`)) return;
+                        const supabase = createClient();
+                        const { error } = await supabase.from('playlists').delete().eq('id', id);
+                        if (error) {
+                          alert('Failed to delete: ' + error.message);
+                          return;
+                        }
+                        router.push('/library');
+                        router.refresh();
+                      },
                     },
-                  },
-                ]}
-              />
+                  ]}
+                />
+              )}
             </div>
           </div>
         </div>

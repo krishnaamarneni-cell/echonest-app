@@ -10,12 +10,14 @@ import { Link2, CheckCircle, AlertCircle, Plus, ListMusic, ChevronRight, MoreHor
 import Link from 'next/link';
 import Image from 'next/image';
 import { Menu } from '@/components/ui/Menu';
+import { useOwnerMode } from '@/store/ownerMode';
 
 export default function ImportPage() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [embedded, setEmbedded] = useState<Song[]>([]);
+  const isOwner = useOwnerMode((s) => s.isOwner);
 
   const loadEmbedded = async () => {
     const supabase = createClient();
@@ -146,30 +148,32 @@ export default function ImportPage() {
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </Link>
-                  <Menu
-                    trigger={
-                      <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    }
-                    items={[
-                      {
-                        label: 'Delete',
-                        icon: Trash2,
-                        variant: 'danger',
-                        onClick: async () => {
-                          if (!confirm(`Delete "${song.title}"?`)) return;
-                          const supabase = createClient();
-                          const { error } = await supabase.from('songs').delete().eq('id', song.id);
-                          if (error) {
-                            alert('Failed to delete: ' + error.message);
-                            return;
-                          }
-                          loadEmbedded();
+                  {isOwner && (
+                    <Menu
+                      trigger={
+                        <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      }
+                      items={[
+                        {
+                          label: 'Delete',
+                          icon: Trash2,
+                          variant: 'danger',
+                          onClick: async () => {
+                            if (!confirm(`Delete "${song.title}"?`)) return;
+                            const supabase = createClient();
+                            const { error } = await supabase.from('songs').delete().eq('id', song.id);
+                            if (error) {
+                              alert('Failed to delete: ' + error.message);
+                              return;
+                            }
+                            loadEmbedded();
+                          },
                         },
-                      },
-                    ]}
-                  />
+                      ]}
+                    />
+                  )}
                 </div>
               ) : (
                 <SongRow

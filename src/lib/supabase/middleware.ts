@@ -37,13 +37,26 @@ export async function updateSession(request: NextRequest) {
   const isPasswordPage = path === '/forgot-password' || path === '/reset-password';
   const isPublicPage = path === '/' || isAuthPage || isPasswordPage;
 
-  if (!user && !isPublicPage) {
+  // If the deployment has a public account configured, treat the whole site
+  // as accessible without auth — the client will auto-sign-in as the public
+  // account on mount.
+  const publicAccountEnabled = !!process.env.PUBLIC_USER_EMAIL && !!process.env.PUBLIC_USER_PASSWORD;
+
+  if (!user && !isPublicPage && !publicAccountEnabled) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
   if (user && isAuthPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect "/" to /dashboard when public account is enabled — landing page
+  // doesn't make sense if everyone is auto-signed-in
+  if (path === '/' && publicAccountEnabled) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);

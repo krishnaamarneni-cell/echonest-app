@@ -11,6 +11,7 @@ import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizonta
 import { Menu } from '@/components/ui/Menu';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
+import { useOwnerMode } from '@/store/ownerMode';
 import Image from 'next/image';
 
 interface PlaylistVideo {
@@ -32,6 +33,7 @@ export default function YouTubePlaylistDetailPage() {
   const play = usePlayerStore((s) => s.play);
   const { ytLikedVideoIds, loadLikes, toggleYouTubeLike } = useLikesStore();
   const openPlaylistDialog = usePlaylistDialog((s) => s.open);
+  const isOwner = useOwnerMode((s) => s.isOwner);
 
   useEffect(() => { loadLikes(); }, [loadLikes]);
 
@@ -255,28 +257,30 @@ export default function YouTubePlaylistDetailPage() {
                   <ExternalLink className="w-4 h-4" /> YouTube
                 </a>
               )}
-              <Menu
-                trigger={
-                  <button className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-card transition-colors">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
-                }
-                items={[
-                  {
-                    label: 'Remove from library',
-                    icon: Trash2,
-                    variant: 'danger',
-                    onClick: async () => {
-                      if (!confirm(`Remove "${song?.title}" from your library?`)) return;
-                      const supabase = createClient();
-                      const { error } = await supabase.from('songs').delete().eq('id', id);
-                      if (error) { alert('Failed: ' + error.message); return; }
-                      router.push('/import');
-                      router.refresh();
+              {isOwner && (
+                <Menu
+                  trigger={
+                    <button className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-card transition-colors">
+                      <MoreHorizontal className="w-5 h-5" />
+                    </button>
+                  }
+                  items={[
+                    {
+                      label: 'Remove from library',
+                      icon: Trash2,
+                      variant: 'danger',
+                      onClick: async () => {
+                        if (!confirm(`Remove "${song?.title}" from your library?`)) return;
+                        const supabase = createClient();
+                        const { error } = await supabase.from('songs').delete().eq('id', id);
+                        if (error) { alert('Failed: ' + error.message); return; }
+                        router.push('/import');
+                        router.refresh();
+                      },
                     },
-                  },
-                ]}
-              />
+                  ]}
+                />
+              )}
             </div>
           </div>
         </div>

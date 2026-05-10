@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { Menu } from './Menu';
 import { createClient } from '@/lib/supabase/client';
 import { usePlaylistDialog } from '@/store/playlistDialog';
+import { useOwnerMode } from '@/store/ownerMode';
 
 interface SongRowProps {
   song: Song;
@@ -32,6 +33,7 @@ export function SongRow({
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
   const openPlaylistDialog = usePlaylistDialog((s) => s.open);
+  const isOwner = useOwnerMode((s) => s.isOwner);
   const [isHovered, setIsHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isCurrentSong = currentSong?.id === song.id;
@@ -174,12 +176,16 @@ export function SongRow({
                       }),
                   },
                 ]),
-            {
-              label: 'Delete',
-              icon: Trash2,
-              onClick: handleDelete,
-              variant: 'danger',
-            },
+            ...(isOwner
+              ? [
+                  {
+                    label: 'Delete',
+                    icon: Trash2,
+                    onClick: handleDelete,
+                    variant: 'danger' as const,
+                  },
+                ]
+              : []),
           ]}
         />
       </div>

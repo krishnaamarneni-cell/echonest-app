@@ -5,6 +5,7 @@ import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { Play, Music, MoreVertical, Trash2, Heart, ListPlus } from 'lucide-react';
 import { usePlaylistDialog } from '@/store/playlistDialog';
+import { useOwnerMode } from '@/store/ownerMode';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect } from 'react';
@@ -21,6 +22,7 @@ export function SongCard({ song, songs, onDeleted }: SongCardProps) {
   const { play } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
   const openPlaylistDialog = usePlaylistDialog((s) => s.open);
+  const isOwner = useOwnerMode((s) => s.isOwner);
   const isPlaylist = song.youtube_kind === 'playlist';
   const isLiked = likedIds.has(song.id);
   const canLike = song.source !== 'youtube_embed' || song.youtube_kind === 'video';
@@ -117,12 +119,16 @@ export function SongCard({ song, songs, onDeleted }: SongCardProps) {
                         }),
                     },
                   ]),
-              {
-                label: 'Delete',
-                icon: Trash2,
-                variant: 'danger',
-                onClick: handleDelete,
-              },
+              ...(isOwner
+                ? [
+                    {
+                      label: 'Delete',
+                      icon: Trash2,
+                      variant: 'danger' as const,
+                      onClick: handleDelete,
+                    },
+                  ]
+                : []),
             ]}
           />
         </div>
