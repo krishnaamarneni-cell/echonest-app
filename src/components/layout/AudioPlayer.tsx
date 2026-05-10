@@ -53,7 +53,7 @@ declare global {
 export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
-  const ytPlayerRef = useRef<ReturnType<typeof window.YT.Player> | null>(null);
+  const ytPlayerRef = useRef<InstanceType<typeof window.YT.Player> | null>(null);
   const ytIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [ytReady, setYtReady] = useState(false);
 
