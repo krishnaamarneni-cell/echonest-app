@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Upload, Music, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { Upload, Music, CheckCircle, AlertCircle, X, Link2, Plus, Loader2 } from 'lucide-react';
 
 interface UploadFile {
   file: File;
@@ -20,6 +20,38 @@ export default function UploadPage() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // YouTube link state
+  const [ytUrl, setYtUrl] = useState('');
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytMessage, setYtMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleYouTubeAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ytUrl.trim() || ytLoading) return;
+    setYtMessage(null);
+    setYtLoading(true);
+
+    try {
+      const res = await fetch('/api/youtube-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: ytUrl }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setYtMessage({ type: 'error', text: data.error || 'Failed to add' });
+      } else {
+        setYtMessage({ type: 'success', text: `Added "${data.song.title}"` });
+        setYtUrl('');
+      }
+    } catch {
+      setYtMessage({ type: 'error', text: 'Network error. Please try again.' });
+    }
+
+    setYtLoading(false);
+  };
 
   const handleFiles = (fileList: FileList) => {
     const audioFiles = Array.from(fileList).filter((f) =>
@@ -158,10 +190,68 @@ export default function UploadPage() {
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold">Upload Music</h1>
+        <h1 className="text-3xl font-bold">Add Music</h1>
         <p className="text-muted-foreground mt-1">
-          Add songs from your personal collection
+          Upload your own files or paste a YouTube link
         </p>
+      </div>
+
+      {/* YouTube link section */}
+      <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-600/15 flex items-center justify-center flex-shrink-0">
+            <Link2 className="w-5 h-5 text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold">Add from YouTube</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Paste a video or playlist URL — streams via the official embed,
+              no download.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleYouTubeAdd} className="flex flex-col sm:flex-row gap-2">
+          <Input
+            placeholder="youtube.com/watch?v=... or youtube.com/playlist?list=..."
+            value={ytUrl}
+            onChange={(e) => setYtUrl(e.target.value)}
+            className="flex-1"
+            disabled={ytLoading}
+          />
+          <Button type="submit" disabled={ytLoading || !ytUrl.trim()}>
+            {ytLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+            {ytLoading ? 'Adding...' : 'Add'}
+          </Button>
+        </form>
+
+        {ytMessage && (
+          <div
+            className={`px-3 py-2 rounded-lg text-sm flex items-start gap-2 ${
+              ytMessage.type === 'success'
+                ? 'bg-success/10 text-success'
+                : 'bg-destructive/10 text-destructive'
+            }`}
+          >
+            {ytMessage.type === 'success' ? (
+              <CheckCircle className="w-4 h-4 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 mt-0.5" />
+            )}
+            {ytMessage.text}
+          </div>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 text-xs uppercase tracking-wider text-muted">
+        <div className="flex-1 h-px bg-border" />
+        Or upload your files
+        <div className="flex-1 h-px bg-border" />
       </div>
 
       {/* Drop zone */}
