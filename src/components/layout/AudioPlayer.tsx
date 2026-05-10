@@ -17,8 +17,55 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  Heart,
 } from 'lucide-react';
 import Image from 'next/image';
+import { Song } from '@/types';
+import { useLikesStore } from '@/store/likes';
+
+function PlayerLikeButton({ song }: { song: Song }) {
+  const { likedIds, ytLikedVideoIds, toggleLike, toggleYouTubeLike, loadLikes } = useLikesStore();
+
+  useEffect(() => { loadLikes(); }, [loadLikes]);
+
+  const isYTVideo = song.source === 'youtube_embed' && song.youtube_kind === 'video';
+  const isYTPlaylist = song.source === 'youtube_embed' && song.youtube_kind === 'playlist';
+  const isAdHocYT = song.id.startsWith('yt-');
+
+  if (isYTPlaylist) return null;
+
+  let isLiked = false;
+  let onClick: () => void;
+
+  if (isAdHocYT && song.youtube_id) {
+    isLiked = ytLikedVideoIds.has(song.youtube_id);
+    onClick = () =>
+      toggleYouTubeLike(
+        song.youtube_id!,
+        song.title,
+        song.artist_name,
+        song.cover_url || `https://i.ytimg.com/vi/${song.youtube_id}/hqdefault.jpg`,
+      );
+  } else if (isYTVideo && song.youtube_id) {
+    isLiked = likedIds.has(song.id) || ytLikedVideoIds.has(song.youtube_id);
+    onClick = () => toggleLike(song.id);
+  } else {
+    isLiked = likedIds.has(song.id);
+    onClick = () => toggleLike(song.id);
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      className={`p-2 transition-colors flex-shrink-0 ${
+        isLiked ? 'text-accent' : 'text-muted-foreground hover:text-foreground'
+      }`}
+      aria-label={isLiked ? 'Unlike' : 'Like'}
+    >
+      <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+    </button>
+  );
+}
 
 declare global {
   interface Window {
@@ -460,12 +507,13 @@ export function AudioPlayer() {
                 <div className="absolute bottom-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-tl">YT</div>
               )}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{currentSong.title}</p>
               <p className="text-xs text-muted-foreground truncate">
                 {currentSong.artist_name}
               </p>
             </div>
+            <PlayerLikeButton song={currentSong} />
           </div>
 
           <div className="flex flex-col items-center gap-1 lg:flex-1 lg:max-w-lg">
@@ -567,3 +615,4 @@ export function AudioPlayer() {
     </>
   );
 }
+

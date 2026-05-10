@@ -7,8 +7,9 @@ import { Song } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizontal, Trash2, Heart } from 'lucide-react';
 import { Menu } from '@/components/ui/Menu';
+import { useLikesStore } from '@/store/likes';
 import Image from 'next/image';
 
 interface PlaylistVideo {
@@ -28,6 +29,9 @@ export default function YouTubePlaylistDetailPage() {
   const playerRef = useRef<InstanceType<typeof window.YT.Player> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const play = usePlayerStore((s) => s.play);
+  const { ytLikedVideoIds, loadLikes, toggleYouTubeLike } = useLikesStore();
+
+  useEffect(() => { loadLikes(); }, [loadLikes]);
 
   // Load the playlist song record
   useEffect(() => {
@@ -285,39 +289,54 @@ export default function YouTubePlaylistDetailPage() {
           </div>
         ) : videos.length > 0 ? (
           <div className="space-y-0.5">
-            {videos.map((video, i) => (
-              <button
-                key={`${video.videoId}-${i}`}
-                onClick={() => playVideo(video)}
-                className="group w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-hover transition-colors text-left"
-              >
-                <span className="w-6 text-sm text-muted text-center flex-shrink-0">
-                  {i + 1}
-                </span>
-                <div className="w-12 h-12 rounded-md bg-card overflow-hidden flex-shrink-0 relative">
-                  {video.thumbnail ? (
-                    <Image
-                      src={video.thumbnail}
-                      alt={video.title}
-                      width={48}
-                      height={48}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Music className="w-4 h-4 text-muted" />
-                    </div>
-                  )}
+            {videos.map((video, i) => {
+              const isLiked = ytLikedVideoIds.has(video.videoId);
+              return (
+                <div
+                  key={`${video.videoId}-${i}`}
+                  onClick={() => playVideo(video)}
+                  className="group w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-hover transition-colors text-left cursor-pointer"
+                >
+                  <span className="w-6 text-sm text-muted text-center flex-shrink-0">
+                    {i + 1}
+                  </span>
+                  <div className="w-12 h-12 rounded-md bg-card overflow-hidden flex-shrink-0 relative">
+                    {video.thumbnail ? (
+                      <Image
+                        src={video.thumbnail}
+                        alt={video.title}
+                        width={48}
+                        height={48}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Music className="w-4 h-4 text-muted" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{video.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {video.author}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleYouTubeLike(video.videoId, video.title, video.author, video.thumbnail);
+                    }}
+                    className={`p-1 transition-colors ${
+                      isLiked ? 'text-accent' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    aria-label={isLiked ? 'Unlike' : 'Like'}
+                  >
+                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+                  </button>
+                  <Play className="w-4 h-4 text-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{video.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {video.author}
-                  </p>
-                </div>
-                <Play className="w-4 h-4 text-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-              </button>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </div>
