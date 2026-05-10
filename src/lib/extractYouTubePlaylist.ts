@@ -5,6 +5,28 @@ export interface YouTubeVideoMeta {
   thumbnail: string;
 }
 
+/**
+ * Fetch the title + thumbnail of the playlist itself via the oEmbed endpoint.
+ * Returns null if the playlist isn't accessible to oEmbed (private, etc).
+ */
+export async function fetchPlaylistMeta(
+  playlistId: string,
+): Promise<{ title: string; thumbnail: string | null } | null> {
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/playlist?list=${playlistId}&format=json`,
+    );
+    if (!res.ok) return null;
+    const meta = await res.json();
+    return {
+      title: meta.title || 'Imported playlist',
+      thumbnail: meta.thumbnail_url || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type YouTubeUrlKind =
   | { kind: 'video'; id: string }
   | { kind: 'playlist'; id: string }
