@@ -14,6 +14,9 @@ import {
   Repeat,
   Repeat1,
   Music,
+  X,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -56,6 +59,7 @@ export function AudioPlayer() {
   const ytIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [ytReady, setYtReady] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
+  const [ytExpanded, setYtExpanded] = useState(false);
 
   const {
     currentSong,
@@ -109,6 +113,7 @@ export function AudioPlayer() {
     }
 
     setYtError(null);
+    setYtExpanded(false);
 
     // Create a YT-owned child element so React doesn't try to manage what YT replaces
     const wrapper = ytContainerRef.current;
@@ -351,44 +356,81 @@ export function AudioPlayer() {
         onEnded={handleEnded}
         preload="metadata"
       />
+      {/* YT iframe — always rendered to keep iframe alive, sized small/hidden when not needed */}
       <div
         style={{
           position: 'fixed',
-          right: '1rem',
+          right: '0.75rem',
           bottom: 'calc(var(--player-height) + 8px)',
-          width: isYouTube ? 320 : 1,
-          height: isYouTube ? 180 : 1,
-          opacity: isYouTube ? 1 : 0,
-          pointerEvents: isYouTube ? 'auto' : 'none',
+          width: isYouTube ? (ytExpanded ? 320 : 1) : 1,
+          height: isYouTube ? (ytExpanded ? 180 : 1) : 1,
+          opacity: isYouTube && ytExpanded ? 1 : 0,
+          pointerEvents: isYouTube && ytExpanded ? 'auto' : 'none',
           borderRadius: 12,
           overflow: 'hidden',
-          boxShadow: isYouTube ? '0 10px 40px rgba(0,0,0,0.5)' : 'none',
+          boxShadow: isYouTube && ytExpanded ? '0 10px 40px rgba(0,0,0,0.5)' : 'none',
           background: '#000',
           zIndex: 40,
         }}
       >
         <div ref={ytContainerRef} style={{ width: '100%', height: '100%' }} />
       </div>
+
+      {/* Show/hide video toggle button — only visible when YT is playing successfully */}
+      {isYouTube && !ytError && (
+        <button
+          onClick={() => setYtExpanded((v) => !v)}
+          className="fixed right-3 z-40 w-9 h-9 rounded-full bg-card border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          style={{ bottom: 'calc(var(--player-height) + 8px)' }}
+          aria-label={ytExpanded ? 'Hide video' : 'Show video'}
+        >
+          {ytExpanded ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronUp className="w-4 h-4" />
+          )}
+        </button>
+      )}
+
+      {/* Error popup — now dismissable */}
       {isYouTube && ytError && (
         <div
-          className="fixed right-4 z-50 max-w-[320px] bg-card border border-destructive rounded-xl p-3 shadow-2xl"
+          className="fixed right-3 left-3 sm:left-auto sm:right-4 z-50 sm:max-w-[320px] bg-card border border-destructive rounded-xl p-3 shadow-2xl"
           style={{ bottom: 'calc(var(--player-height) + 8px)' }}
         >
-          <p className="text-xs font-medium text-destructive mb-1">{ytError}</p>
-          {currentSong?.youtube_id && (
-            <a
-              href={
-                isYouTubePlaylist
-                  ? `https://www.youtube.com/playlist?list=${currentSong.youtube_id}`
-                  : `https://www.youtube.com/watch?v=${currentSong.youtube_id}`
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-accent hover:underline"
+          <button
+            onClick={() => setYtError(null)}
+            className="absolute top-2 right-2 w-6 h-6 rounded-full hover:bg-card-hover flex items-center justify-center text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <p className="text-xs font-medium text-destructive mb-1 pr-6">{ytError}</p>
+          <div className="flex items-center gap-3 mt-1">
+            {currentSong?.youtube_id && (
+              <a
+                href={
+                  isYouTubePlaylist
+                    ? `https://www.youtube.com/playlist?list=${currentSong.youtube_id}`
+                    : `https://www.youtube.com/watch?v=${currentSong.youtube_id}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-accent hover:underline"
+              >
+                Open on YouTube ↗
+              </a>
+            )}
+            <button
+              onClick={() => {
+                setYtError(null);
+                next();
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Open on YouTube ↗
-            </a>
-          )}
+              Skip track
+            </button>
+          </div>
         </div>
       )}
 
