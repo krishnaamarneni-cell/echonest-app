@@ -18,7 +18,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Playlist } from '@/types';
 
 const mainNav = [
   { label: 'Home', href: '/dashboard', icon: Home },
@@ -33,21 +32,62 @@ const libraryNav = [
   { label: 'YouTube Import', href: '/import', icon: ExternalLink },
 ];
 
+type SidebarPlaylist = {
+  id: string;
+  title: string;
+  href: string;
+  kind: 'app' | 'youtube';
+};
+
 export function Sidebar() {
   const pathname = usePathname();
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [playlists, setPlaylists] = useState<SidebarPlaylist[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from('playlists')
-      .select('id, title')
-      .order('updated_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        if (data) setPlaylists(data as Playlist[]);
-      });
-  }, []);
+
+    async function load() {
+      const [appRes, ytRes] = await Promise.all([
+        supabase
+          .from('playlists')
+          .select('id, title, updated_at')
+          .order('updated_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('songs')
+          .select('id, title, created_at')
+          .eq('source', 'youtube_embed')
+          .eq('youtube_kind', 'playlist')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      const merged: SidebarPlaylist[] = [];
+      if (appRes.data) {
+        for (const p of appRes.data) {
+          merged.push({
+            id: p.id,
+            title: p.title,
+            href: `/playlist/${p.id}`,
+            kind: 'app',
+          });
+        }
+      }
+      if (ytRes.data) {
+        for (const p of ytRes.data) {
+          merged.push({
+            id: p.id,
+            title: p.title,
+            href: `/yt-playlist/${p.id}`,
+            kind: 'youtube',
+          });
+        }
+      }
+      setPlaylists(merged);
+    }
+
+    load();
+  }, [pathname]);
 
   return (
     <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-full bg-background border-r border-border">
@@ -109,17 +149,22 @@ export function Sidebar() {
         <div className="flex-1 overflow-y-auto space-y-0.5 pb-4">
           {playlists.map((playlist) => (
             <Link
-              key={playlist.id}
-              href={`/playlist/${playlist.id}`}
+              key={`${playlist.kind}-${playlist.id}`}
+              href={playlist.href}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                pathname === `/playlist/${playlist.id}`
+                pathname === playlist.href
                   ? 'bg-accent-muted text-accent'
                   : 'text-muted-foreground hover:text-foreground hover:bg-card'
               )}
             >
               <ListMusic className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{playlist.title}</span>
+              <span className="truncate flex-1">{playlist.title}</span>
+              {playlist.kind === 'youtube' && (
+                <span className="text-[9px] font-bold bg-red-600 text-white px-1 py-0.5 rounded flex-shrink-0">
+                  YT
+                </span>
+              )}
             </Link>
           ))}
           {playlists.length === 0 && (

@@ -2,9 +2,10 @@
 
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
+import { useLikesStore } from '@/store/likes';
 import { formatDuration } from '@/lib/utils';
 import { Play, Pause, Heart, MoreHorizontal, Music, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
 import { createClient } from '@/lib/supabase/client';
@@ -14,8 +15,6 @@ interface SongRowProps {
   index?: number;
   showIndex?: boolean;
   songs?: Song[];
-  isLiked?: boolean;
-  onLike?: (songId: string) => void;
   onAddToPlaylist?: (songId: string) => void;
   onDeleted?: (songId: string) => void;
   source?: 'playlist' | 'album' | 'library';
@@ -26,15 +25,17 @@ export function SongRow({
   index,
   showIndex,
   songs,
-  isLiked,
-  onLike,
   onDeleted,
   source = 'library',
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
+  const { likedIds, toggleLike, loadLikes } = useLikesStore();
   const [isHovered, setIsHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isCurrentSong = currentSong?.id === song.id;
+  const isLiked = likedIds.has(song.id);
+
+  useEffect(() => { loadLikes(); }, [loadLikes]);
 
   const handlePlay = () => {
     if (isCurrentSong) {
@@ -121,19 +122,20 @@ export function SongRow({
       </div>
 
       <div className="flex items-center gap-2">
-        {onLike && (
+        {song.source !== 'youtube_embed' || song.youtube_kind === 'video' ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onLike(song.id);
+              toggleLike(song.id);
             }}
-            className={`opacity-0 group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ${
-              isLiked ? 'text-accent opacity-100' : 'text-muted-foreground'
+            className={`transition-colors p-1 ${
+              isLiked ? 'text-accent' : 'text-muted-foreground hover:text-foreground'
             }`}
+            aria-label={isLiked ? 'Unlike' : 'Like'}
           >
             <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
           </button>
-        )}
+        ) : null}
         <span className="text-xs text-muted tabular-nums w-10 text-right">
           {formatDuration(song.duration)}
         </span>

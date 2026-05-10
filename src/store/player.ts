@@ -1,6 +1,21 @@
 import { create } from 'zustand';
 import { Song, RepeatMode, QueueItem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@/lib/supabase/client';
+
+async function logRecentlyPlayed(song: Song) {
+  // Skip ad-hoc YouTube playlist videos (they don't have a real DB id)
+  if (song.id.startsWith('yt-')) return;
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('recently_played').insert({
+      song_id: song.id,
+      user_id: user.id,
+    });
+  } catch {}
+}
 
 interface PlayerState {
   currentSong: Song | null;
@@ -55,6 +70,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       ? newQueue.findIndex((q) => q.song.id === song.id)
       : 0;
 
+    logRecentlyPlayed(song);
+
     set({
       currentSong: song,
       queue: newQueue,
@@ -89,6 +106,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     }
 
+    logRecentlyPlayed(queue[nextIdx].song);
     set({
       currentSong: queue[nextIdx].song,
       queueIndex: nextIdx,
@@ -107,6 +125,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
 
     const prevIdx = queueIndex > 0 ? queueIndex - 1 : queue.length - 1;
+    logRecentlyPlayed(queue[prevIdx].song);
     set({
       currentSong: queue[prevIdx].song,
       queueIndex: prevIdx,

@@ -16,7 +16,6 @@ import {
   Music,
 } from 'lucide-react';
 import Image from 'next/image';
-import { createClient } from '@/lib/supabase/client';
 
 declare global {
   interface Window {
@@ -325,15 +324,7 @@ export function AudioPlayer() {
     } else {
       next();
     }
-
-    if (currentSong) {
-      const supabase = createClient();
-      supabase
-        .from('recently_played')
-        .insert({ song_id: currentSong.id, user_id: currentSong.user_id })
-        .then(() => {});
-    }
-  }, [repeat, next, currentSong]);
+  }, [repeat, next]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);

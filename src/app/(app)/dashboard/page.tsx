@@ -4,13 +4,10 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Song, Playlist, Album } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
-import { SongRow } from '@/components/ui/SongRow';
-import { CardSkeleton, SongRowSkeleton } from '@/components/ui/Skeleton';
-import { usePlayerStore } from '@/store/player';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, ChevronRight, MoreHorizontal, Trash2 } from 'lucide-react';
-import { Menu } from '@/components/ui/Menu';
+import { SongCard } from '@/components/ui/SongCard';
+import { CardSkeleton } from '@/components/ui/Skeleton';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function DashboardPage() {
   const [recentSongs, setRecentSongs] = useState<Song[]>([]);
@@ -19,47 +16,53 @@ export default function DashboardPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
-  const play = usePlayerStore((s) => s.play);
+  const [showInstallHint, setShowInstallHint] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        // @ts-expect-error iOS-specific
+        window.navigator.standalone === true;
+      const dismissed = localStorage.getItem('echonest-bg-hint-dismissed');
+      setShowInstallHint(!standalone && !dismissed);
+    }
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
 
     async function loadData() {
-      const [
-        recentPlayedRes,
-        recentAddedRes,
-        ytRes,
-        playlistsRes,
-        albumsRes,
-      ] = await Promise.all([
-        supabase
-          .from('recently_played')
-          .select('song:songs(*)')
-          .order('played_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('songs')
-          .select('*')
-          .eq('source', 'upload')
-          .order('created_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('songs')
-          .select('*')
-          .eq('source', 'youtube_embed')
-          .order('created_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('playlists')
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(8),
-        supabase
-          .from('albums')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(8),
-      ]);
+      const [recentPlayedRes, recentAddedRes, ytRes, playlistsRes, albumsRes] =
+        await Promise.all([
+          supabase
+            .from('recently_played')
+            .select('played_at, song:songs(*)')
+            .order('played_at', { ascending: false })
+            .limit(20),
+          supabase
+            .from('songs')
+            .select('*')
+            .eq('source', 'upload')
+            .order('created_at', { ascending: false })
+            .limit(12),
+          supabase
+            .from('songs')
+            .select('*')
+            .eq('source', 'youtube_embed')
+            .order('created_at', { ascending: false })
+            .limit(12),
+          supabase
+            .from('playlists')
+            .select('*')
+            .order('updated_at', { ascending: false })
+            .limit(8),
+          supabase
+            .from('albums')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(8),
+        ]);
 
       if (recentPlayedRes.data) {
         const songs = recentPlayedRes.data
@@ -69,7 +72,7 @@ export default function DashboardPage() {
           (s: Song, i: number, arr: Song[]) =>
             arr.findIndex((x: Song) => x.id === s.id) === i
         );
-        setRecentSongs(unique);
+        setRecentSongs(unique.slice(0, 8));
       }
       if (recentAddedRes.data) setRecentlyAdded(recentAddedRes.data);
       if (ytRes.data) setYtTracks(ytRes.data);
@@ -88,6 +91,11 @@ export default function DashboardPage() {
     return 'Good evening';
   };
 
+  const dismissHint = () => {
+    localStorage.setItem('echonest-bg-hint-dismissed', '1');
+    setShowInstallHint(false);
+  };
+
   const hasAnyContent =
     recentSongs.length > 0 ||
     recentlyAdded.length > 0 ||
@@ -103,6 +111,22 @@ export default function DashboardPage() {
           Here&apos;s what&apos;s playing in your world
         </p>
       </div>
+
+      {/* PWA install hint for background play */}
+      {showInstallHint && (
+        <div className="bg-accent-muted border border-accent/30 rounded-xl p-3 sm:p-4 flex items-start gap-3">
+          <Smartphone className="w-5 h-5 text-accent mt-0.5 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <p className="font-medium text-foreground">Want music in the background?</p>
+            <p className="text-muted-foreground text-xs mt-1">
+              Install EchoNest as an app — uploaded songs play in the background and on your lock screen. (YouTube embeds need the screen on, by YouTube&apos;s policy.)
+            </p>
+          </div>
+          <button onClick={dismissHint} className="text-xs text-muted-foreground hover:text-foreground">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Empty state */}
       {!loading && !hasAnyContent && (
@@ -129,211 +153,129 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Recently Added (uploaded songs) */}
-      {(loading || recentlyAdded.length > 0) && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Music className="w-5 h-5 text-accent" />
-              <h2 className="text-lg sm:text-xl font-semibold">Recently Added</h2>
-            </div>
-            <Link
-              href="/library"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              See all
-            </Link>
-          </div>
-          {loading ? (
-            <div className="space-y-1">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <SongRowSkeleton key={i} />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-0.5">
-              {recentlyAdded.slice(0, 5).map((song) => (
-                <SongRow
-                  key={song.id}
-                  song={song}
-                  songs={recentlyAdded}
-                  source="library"
-                  onDeleted={(id) => setRecentlyAdded((prev) => prev.filter((s) => s.id !== id))}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
       {/* Recently Played */}
-      {recentSongs.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-accent" />
-              <h2 className="text-lg sm:text-xl font-semibold">Recently Played</h2>
-            </div>
-            <Link
-              href="/recent"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              See all
-            </Link>
-          </div>
-          <div className="space-y-0.5">
-            {recentSongs.slice(0, 5).map((song) => (
-              <SongRow key={song.id} song={song} songs={recentSongs} source="library" />
-            ))}
-          </div>
-        </section>
+      {(loading || recentSongs.length > 0) && (
+        <Section
+          title="Recently Played"
+          icon={Clock}
+          seeAllHref="/recent"
+          loading={loading}
+          empty={recentSongs.length === 0}
+        >
+          {recentSongs.map((song) => (
+            <SongCard key={song.id} song={song} songs={recentSongs} />
+          ))}
+        </Section>
       )}
 
-      {/* YouTube Tracks */}
+      {/* Recently Added */}
+      {(loading || recentlyAdded.length > 0) && (
+        <Section
+          title="Recently Added"
+          icon={Music}
+          seeAllHref="/library"
+          loading={loading}
+          empty={recentlyAdded.length === 0}
+        >
+          {recentlyAdded.map((song) => (
+            <SongCard
+              key={song.id}
+              song={song}
+              songs={recentlyAdded}
+              onDeleted={(id) => setRecentlyAdded((prev) => prev.filter((s) => s.id !== id))}
+            />
+          ))}
+        </Section>
+      )}
+
+      {/* YouTube */}
       {ytTracks.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ExternalLink className="w-5 h-5 text-accent" />
-              <h2 className="text-lg sm:text-xl font-semibold">From YouTube</h2>
-            </div>
-            <Link
-              href="/import"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              See all
-            </Link>
-          </div>
-          <div className="space-y-0.5">
-            {ytTracks.slice(0, 5).map((song) =>
-              song.youtube_kind === 'playlist' ? (
-                <div
-                  key={song.id}
-                  className="group flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-card-hover transition-colors"
-                >
-                  <Link
-                    href={`/yt-playlist/${song.id}`}
-                    className="flex items-center gap-3 flex-1 min-w-0"
-                  >
-                    <div className="w-10 h-10 rounded-md bg-card overflow-hidden flex-shrink-0 relative">
-                      {song.cover_url ? (
-                        <Image
-                          src={song.cover_url}
-                          alt={song.title}
-                          width={40}
-                          height={40}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ListMusic className="w-4 h-4 text-muted" />
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-tl">
-                        PL
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{song.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        Playlist · {song.artist_name}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </Link>
-                  <Menu
-                    trigger={
-                      <button className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    }
-                    items={[
-                      {
-                        label: 'Delete',
-                        icon: Trash2,
-                        variant: 'danger',
-                        onClick: async () => {
-                          if (!confirm(`Delete "${song.title}"?`)) return;
-                          const supabase = createClient();
-                          const { error } = await supabase.from('songs').delete().eq('id', song.id);
-                          if (error) { alert('Failed to delete: ' + error.message); return; }
-                          setYtTracks((prev) => prev.filter((s) => s.id !== song.id));
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-              ) : (
-                <SongRow
-                  key={song.id}
-                  song={song}
-                  songs={ytTracks.filter((s) => s.youtube_kind !== 'playlist')}
-                  source="library"
-                  onDeleted={(id) => setYtTracks((prev) => prev.filter((s) => s.id !== id))}
-                />
-              )
-            )}
-          </div>
-        </section>
+        <Section title="From YouTube" icon={ExternalLink} seeAllHref="/import">
+          {ytTracks.map((song) => (
+            <SongCard
+              key={song.id}
+              song={song}
+              songs={ytTracks.filter((s) => s.youtube_kind !== 'playlist')}
+              onDeleted={(id) => setYtTracks((prev) => prev.filter((s) => s.id !== id))}
+            />
+          ))}
+        </Section>
       )}
 
-      {/* Your Playlists */}
+      {/* Playlists */}
       {playlists.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ListMusic className="w-5 h-5 text-accent" />
-              <h2 className="text-lg sm:text-xl font-semibold">Your Playlists</h2>
-            </div>
-            <Link
-              href="/library"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              See all
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
-            {playlists.map((playlist) => (
-              <MediaCard
-                key={playlist.id}
-                title={playlist.title}
-                subtitle={playlist.description || 'Playlist'}
-                imageUrl={playlist.cover_url}
-                href={`/playlist/${playlist.id}`}
-              />
-            ))}
-          </div>
-        </section>
+        <Section title="Your Playlists" icon={ListMusic} seeAllHref="/library">
+          {playlists.map((playlist) => (
+            <MediaCard
+              key={playlist.id}
+              title={playlist.title}
+              subtitle={playlist.description || 'Playlist'}
+              imageUrl={playlist.cover_url}
+              href={`/playlist/${playlist.id}`}
+            />
+          ))}
+        </Section>
       )}
 
       {/* Albums */}
       {albums.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-accent" />
-              <h2 className="text-lg sm:text-xl font-semibold">Your Albums</h2>
-            </div>
-            <Link
-              href="/library"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              See all
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
-            {albums.map((album) => (
-              <MediaCard
-                key={album.id}
-                title={album.title}
-                subtitle={album.artist_name}
-                imageUrl={album.cover_url}
-                href={`/album/${album.id}`}
-              />
-            ))}
-          </div>
-        </section>
+        <Section title="Your Albums" icon={TrendingUp} seeAllHref="/library">
+          {albums.map((album) => (
+            <MediaCard
+              key={album.id}
+              title={album.title}
+              subtitle={album.artist_name}
+              imageUrl={album.cover_url}
+              href={`/album/${album.id}`}
+            />
+          ))}
+        </Section>
       )}
     </div>
+  );
+}
+
+function Section({
+  title,
+  icon: Icon,
+  seeAllHref,
+  loading,
+  empty,
+  children,
+}: {
+  title: string;
+  icon: React.ElementType;
+  seeAllHref: string;
+  loading?: boolean;
+  empty?: boolean;
+  children: React.ReactNode;
+}) {
+  if (empty && !loading) return null;
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Icon className="w-5 h-5 text-accent" />
+          <h2 className="text-lg sm:text-xl font-semibold">{title}</h2>
+        </div>
+        <Link
+          href={seeAllHref}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          See all
+        </Link>
+      </div>
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+          {children}
+        </div>
+      )}
+    </section>
   );
 }
