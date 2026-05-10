@@ -4,11 +4,12 @@ import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music, Trash2 } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, Trash2, ListPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
 import { createClient } from '@/lib/supabase/client';
+import { usePlaylistDialog } from '@/store/playlistDialog';
 
 interface SongRowProps {
   song: Song;
@@ -30,6 +31,7 @@ export function SongRow({
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
+  const openPlaylistDialog = usePlaylistDialog((s) => s.open);
   const [isHovered, setIsHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isCurrentSong = currentSong?.id === song.id;
@@ -146,6 +148,32 @@ export function SongRow({
             </button>
           }
           items={[
+            ...(song.youtube_kind === 'playlist'
+              ? []
+              : [
+                  {
+                    label: 'Add to playlist',
+                    icon: ListPlus,
+                    onClick: () =>
+                      openPlaylistDialog({
+                        songId: song.id,
+                        displayTitle: song.title,
+                        ...(song.id.startsWith('yt-') && song.youtube_id
+                          ? {
+                              songId: undefined,
+                              youtubeVideo: {
+                                videoId: song.youtube_id,
+                                title: song.title,
+                                author: song.artist_name,
+                                thumbnail:
+                                  song.cover_url ||
+                                  `https://i.ytimg.com/vi/${song.youtube_id}/hqdefault.jpg`,
+                              },
+                            }
+                          : {}),
+                      }),
+                  },
+                ]),
             {
               label: 'Delete',
               icon: Trash2,

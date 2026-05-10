@@ -3,7 +3,8 @@
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
-import { Play, Music, MoreVertical, Trash2, Heart } from 'lucide-react';
+import { Play, Music, MoreVertical, Trash2, Heart, ListPlus } from 'lucide-react';
+import { usePlaylistDialog } from '@/store/playlistDialog';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect } from 'react';
@@ -19,6 +20,7 @@ interface SongCardProps {
 export function SongCard({ song, songs, onDeleted }: SongCardProps) {
   const { play } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
+  const openPlaylistDialog = usePlaylistDialog((s) => s.open);
   const isPlaylist = song.youtube_kind === 'playlist';
   const isLiked = likedIds.has(song.id);
   const canLike = song.source !== 'youtube_embed' || song.youtube_kind === 'video';
@@ -102,6 +104,19 @@ export function SongCard({ song, songs, onDeleted }: SongCardProps) {
               </button>
             }
             items={[
+              ...(isPlaylist
+                ? []
+                : [
+                    {
+                      label: 'Add to playlist',
+                      icon: ListPlus,
+                      onClick: () =>
+                        openPlaylistDialog({
+                          songId: song.id,
+                          displayTitle: song.title,
+                        }),
+                    },
+                  ]),
               {
                 label: 'Delete',
                 icon: Trash2,

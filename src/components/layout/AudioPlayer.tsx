@@ -17,11 +17,62 @@ import {
   X,
   ChevronUp,
   Heart,
+  MoreHorizontal,
+  ListPlus,
 } from 'lucide-react';
 import Image from 'next/image';
 import { Song } from '@/types';
 import { useLikesStore } from '@/store/likes';
+import { usePlaylistDialog } from '@/store/playlistDialog';
+import { Menu } from '@/components/ui/Menu';
 import { YouTubeView } from './YouTubeView';
+
+function PlayerMoreButton({ song }: { song: Song }) {
+  const openPlaylistDialog = usePlaylistDialog((s) => s.open);
+
+  // Playlists can't be added to a playlist
+  if (song.source === 'youtube_embed' && song.youtube_kind === 'playlist') return null;
+
+  return (
+    <Menu
+      trigger={
+        <button
+          className="p-2 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          aria-label="More options"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      }
+      items={[
+        {
+          label: 'Add to playlist',
+          icon: ListPlus,
+          onClick: () => {
+            const isAdHocYT = song.id.startsWith('yt-');
+            if (isAdHocYT && song.youtube_id) {
+              openPlaylistDialog({
+                youtubeVideo: {
+                  videoId: song.youtube_id,
+                  title: song.title,
+                  author: song.artist_name,
+                  thumbnail:
+                    song.cover_url ||
+                    `https://i.ytimg.com/vi/${song.youtube_id}/hqdefault.jpg`,
+                },
+                displayTitle: song.title,
+              });
+            } else {
+              openPlaylistDialog({
+                songId: song.id,
+                displayTitle: song.title,
+              });
+            }
+          },
+        },
+      ]}
+    />
+  );
+}
 
 function PlayerLikeButton({ song }: { song: Song }) {
   const { likedIds, ytLikedVideoIds, toggleLike, toggleYouTubeLike, loadLikes } = useLikesStore();
@@ -508,6 +559,7 @@ export function AudioPlayer() {
               </p>
             </div>
             <PlayerLikeButton song={currentSong} />
+            <PlayerMoreButton song={currentSong} />
           </div>
 
           <div className="flex flex-col items-center gap-1 lg:flex-1 lg:max-w-lg">

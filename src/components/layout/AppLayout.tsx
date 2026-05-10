@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { AudioPlayer } from './AudioPlayer';
 import { InstallPrompt } from './InstallPrompt';
+import { AddToPlaylistDialog } from '@/components/ui/AddToPlaylistDialog';
 import { usePlayerStore } from '@/store/player';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <AudioPlayer />
       <BottomNav />
       <InstallPrompt />
+      <AddToPlaylistDialog />
     </div>
   );
 }

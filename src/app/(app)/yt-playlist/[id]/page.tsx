@@ -7,9 +7,10 @@ import { Song } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizontal, Trash2, Heart } from 'lucide-react';
+import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizontal, Trash2, Heart, ListPlus } from 'lucide-react';
 import { Menu } from '@/components/ui/Menu';
 import { useLikesStore } from '@/store/likes';
+import { usePlaylistDialog } from '@/store/playlistDialog';
 import Image from 'next/image';
 
 interface PlaylistVideo {
@@ -30,6 +31,7 @@ export default function YouTubePlaylistDetailPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const play = usePlayerStore((s) => s.play);
   const { ytLikedVideoIds, loadLikes, toggleYouTubeLike } = useLikesStore();
+  const openPlaylistDialog = usePlaylistDialog((s) => s.open);
 
   useEffect(() => { loadLikes(); }, [loadLikes]);
 
@@ -333,6 +335,32 @@ export default function YouTubePlaylistDetailPage() {
                   >
                     <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
                   </button>
+                  <Menu
+                    trigger={
+                      <button
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    }
+                    items={[
+                      {
+                        label: 'Add to playlist',
+                        icon: ListPlus,
+                        onClick: () =>
+                          openPlaylistDialog({
+                            youtubeVideo: {
+                              videoId: video.videoId,
+                              title: video.title,
+                              author: video.author,
+                              thumbnail: video.thumbnail,
+                            },
+                            displayTitle: video.title,
+                          }),
+                      },
+                    ]}
+                  />
                   <Play className="w-4 h-4 text-accent opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                 </div>
               );
