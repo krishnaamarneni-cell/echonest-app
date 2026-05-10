@@ -162,8 +162,8 @@ export default function DashboardPage() {
 
       {/* All songs from your playlists — clicking any plays through ALL playlists */}
       {allPlaylistSongs.length > 0 && (
-        <Section title="All Songs in Your Playlists" icon={Disc} seeAllHref="/library">
-          {allPlaylistSongs.slice(0, 18).map((song) => (
+        <Section title={`All Songs in Your Playlists (${allPlaylistSongs.length})`} icon={Disc} seeAllHref="/library">
+          {allPlaylistSongs.map((song) => (
             <SongCard key={song.id} song={song} songs={allPlaylistSongs} />
           ))}
         </Section>

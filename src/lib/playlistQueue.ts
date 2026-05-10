@@ -28,10 +28,16 @@ export async function fetchAllPlaylistsWithSongs(): Promise<PlaylistWithSongs[]>
 
   const byPlaylist = new Map<string, Song[]>();
   for (const row of rows || []) {
-    const r = row as unknown as { playlist_id: string; song: Song | null };
-    if (!r.song) continue;
+    // Supabase can return the joined `song` as either a single object or a one-element array
+    // depending on how it infers the relationship — handle both
+    const r = row as unknown as {
+      playlist_id: string;
+      song: Song | Song[] | null;
+    };
+    const song = Array.isArray(r.song) ? r.song[0] : r.song;
+    if (!song) continue;
     const arr = byPlaylist.get(r.playlist_id) || [];
-    arr.push(r.song);
+    arr.push(song);
     byPlaylist.set(r.playlist_id, arr);
   }
 

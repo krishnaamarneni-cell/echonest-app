@@ -147,6 +147,9 @@ export function NowPlayingScreen() {
     if (animatingX) return; // ignore during commit animation
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     setDragKind('none');
+    // Defensive reset in case any prior gesture left state lingering
+    setDragX(0);
+    setDragY(0);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -176,10 +179,12 @@ export function NowPlayingScreen() {
     if (dragKind === 'vertical' && dragY > 100) {
       closeNowPlaying();
       setDragY(0);
+      setDragX(0);
     } else if (dragKind === 'vertical' && dragY < -50) {
       // Swipe up → open queue sheet
       setQueueOpen(true);
       setDragY(0);
+      setDragX(0);
     } else if (dragKind === 'horizontal' && Math.abs(dragX) > horizontalThreshold) {
       // Per request: swipe left → previous, swipe right → next
       // (Layout: prev cover sits to the right of current, next cover to the left)
@@ -201,9 +206,9 @@ export function NowPlayingScreen() {
         setDragX(0);
       }, 280);
     } else {
-      // Spring back
-      if (dragKind === 'vertical') setDragY(0);
-      else setDragX(0);
+      // Spring back — reset both axes defensively
+      setDragX(0);
+      setDragY(0);
     }
     setDragKind('none');
     touchStart.current = null;
