@@ -142,6 +142,7 @@ declare global {
         loadPlaylist: (args: { list: string; listType: string }) => void;
         nextVideo: () => void;
         previousVideo: () => void;
+        setSize: (w: number, h: number) => void;
         destroy: () => void;
       };
       PlayerState: { PLAYING: number; ENDED: number; PAUSED: number };

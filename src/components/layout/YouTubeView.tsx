@@ -72,7 +72,7 @@ export function YouTubeView({
         >
           <div
             ref={containerRef}
-            className={isFull ? 'w-full h-full' : 'w-full h-full'}
+            className="w-full h-full [&>iframe]:!w-full [&>iframe]:!h-full"
             style={{ width: '100%', height: '100%' }}
           />
 
