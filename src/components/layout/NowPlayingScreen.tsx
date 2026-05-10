@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Menu } from '@/components/ui/Menu';
+import { QueueSheet } from './QueueSheet';
 
 export function NowPlayingScreen() {
   const {
@@ -70,6 +71,7 @@ export function NowPlayingScreen() {
   const [dragX, setDragX] = useState(0);
   const [animatingX, setAnimatingX] = useState(false);
   const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
+  const [queueOpen, setQueueOpen] = useState(false);
 
   // Clear the skip-transition flag after the snap render commits
   useEffect(() => {
@@ -159,7 +161,8 @@ export function NowPlayingScreen() {
       }
     }
 
-    if (dragKind === 'vertical' && dy > 0) {
+    if (dragKind === 'vertical') {
+      // Track in both directions — only translate the screen for downward (close) drags
       setDragY(dy);
     } else if (dragKind === 'horizontal') {
       setDragX(dx);
@@ -172,6 +175,10 @@ export function NowPlayingScreen() {
 
     if (dragKind === 'vertical' && dragY > 100) {
       closeNowPlaying();
+      setDragY(0);
+    } else if (dragKind === 'vertical' && dragY < -50) {
+      // Swipe up → open queue sheet
+      setQueueOpen(true);
       setDragY(0);
     } else if (dragKind === 'horizontal' && Math.abs(dragX) > horizontalThreshold) {
       // Per request: swipe left → previous, swipe right → next
@@ -212,7 +219,8 @@ export function NowPlayingScreen() {
       role="dialog"
       aria-modal="true"
       style={{
-        transform: `translateY(${dragY}px)`,
+        // Only translate down (positive dragY) — up swipe is detected on release without visual drag
+        transform: `translateY(${Math.max(0, dragY)}px)`,
         transition: dragY === 0 ? 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
         opacity: dragY > 0 ? Math.max(0.3, 1 - dragY / 400) : 1,
       }}
@@ -477,8 +485,8 @@ export function NowPlayingScreen() {
           </div>
 
           {/* Quick actions */}
-          {!isYTPlaylist && (
-            <div className="w-full max-w-sm mt-6 flex items-center justify-center gap-2">
+          <div className="w-full max-w-sm mt-6 flex items-center justify-center gap-2 flex-wrap">
+            {!isYTPlaylist && (
               <button
                 onClick={onAddToPlaylist}
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm hover:bg-card-hover transition-colors"
@@ -486,19 +494,30 @@ export function NowPlayingScreen() {
                 <ListPlus className="w-4 h-4" />
                 Add to playlist
               </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={() => setQueueOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm hover:bg-card-hover transition-colors"
+            >
+              <ListMusic className="w-4 h-4" />
+              Queue
+            </button>
+          </div>
         </div>
 
-        {/* Up next */}
+        {/* Up next preview (small list — full list in Queue sheet via swipe up) */}
         {upcoming.length > 0 && (
           <div className="px-4 sm:px-6 py-6 max-w-sm mx-auto w-full">
-            <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => setQueueOpen(true)}
+              className="flex items-center gap-2 mb-3 hover:text-foreground transition-colors w-full"
+            >
               <ListMusic className="w-4 h-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex-1 text-left">
                 Up next
               </h2>
-            </div>
+              <span className="text-xs text-accent font-medium">View all</span>
+            </button>
             <div className="space-y-1">
               {upcoming.map((item) => (
                 <button
@@ -535,6 +554,8 @@ export function NowPlayingScreen() {
           </div>
         )}
       </div>
+
+      <QueueSheet open={queueOpen} onClose={() => setQueueOpen(false)} />
     </div>
   );
 }

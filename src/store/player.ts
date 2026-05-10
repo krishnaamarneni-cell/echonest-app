@@ -158,10 +158,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       queue: [...s.queue, { id: uuidv4(), song, source: 'queue' }],
     })),
 
-  removeFromQueue: (id) =>
-    set((s) => ({
-      queue: s.queue.filter((q) => q.id !== id),
-    })),
+  removeFromQueue: (id) => {
+    const { queue, queueIndex } = get();
+    const removeIdx = queue.findIndex((q) => q.id === id);
+    if (removeIdx === -1) return;
+    // Don't allow removing the currently playing song
+    if (removeIdx === queueIndex) return;
+    const newQueue = queue.filter((q) => q.id !== id);
+    // If we removed an item before the current one, shift the index down
+    const newIndex = removeIdx < queueIndex ? queueIndex - 1 : queueIndex;
+    set({ queue: newQueue, queueIndex: newIndex });
+  },
 
   clearQueue: () => set({ queue: [], queueIndex: -1 }),
   setIsPlaying: (v) => set({ isPlaying: v }),
