@@ -202,6 +202,73 @@ export function AudioPlayer() {
     } catch {}
   }, [volume, isMuted, isYouTube]);
 
+  // Media Session API — lock screen / notification controls
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !currentSong) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentSong.title,
+      artist: currentSong.artist_name,
+      album: currentSong.album_name || 'EchoNest',
+      artwork: currentSong.cover_url
+        ? [
+            { src: currentSong.cover_url, sizes: '96x96', type: 'image/jpeg' },
+            { src: currentSong.cover_url, sizes: '192x192', type: 'image/jpeg' },
+            { src: currentSong.cover_url, sizes: '512x512', type: 'image/jpeg' },
+          ]
+        : [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
+    });
+
+    navigator.mediaSession.setActionHandler('play', () => resume());
+    navigator.mediaSession.setActionHandler('pause', () => pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => previous());
+    navigator.mediaSession.setActionHandler('nexttrack', () => next());
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime === undefined) return;
+      if (isYouTube && ytPlayerRef.current) {
+        try { ytPlayerRef.current.seekTo(details.seekTime, true); } catch {}
+      } else if (audioRef.current) {
+        audioRef.current.currentTime = details.seekTime;
+      }
+      setProgress(details.seekTime);
+    });
+
+    return () => {
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      } catch {}
+    };
+  }, [currentSong, resume, pause, previous, next, isYouTube, setProgress]);
+
+  // Update playback state for Media Session
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [isPlaying]);
+
+  // Update position state for seek bar in Media Session UI
+  useEffect(() => {
+    if (
+      typeof navigator === 'undefined' ||
+      !('mediaSession' in navigator) ||
+      !navigator.mediaSession.setPositionState ||
+      !duration ||
+      !isFinite(duration)
+    )
+      return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        position: Math.min(progress, duration),
+        playbackRate: 1,
+      });
+    } catch {}
+  }, [progress, duration]);
+
   // Native audio src change
   useEffect(() => {
     const audio = audioRef.current;
@@ -271,8 +338,7 @@ export function AudioPlayer() {
   };
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
-
-  if (!isPlayerVisible || !currentSong) return null;
+  const showPlayer = isPlayerVisible && currentSong;
 
   return (
     <>
@@ -324,7 +390,7 @@ export function AudioPlayer() {
         </div>
       )}
 
-      <div className="fixed bottom-0 lg:bottom-0 left-0 right-0 z-50 h-[var(--player-height)] glass border-t border-border animate-slide-up">
+      {showPlayer && currentSong && (<div className="fixed bottom-0 lg:bottom-0 left-0 right-0 z-50 h-[var(--player-height)] glass border-t border-border animate-slide-up">
         <div
           className="absolute top-0 left-0 h-0.5 bg-accent transition-all duration-100"
           style={{ width: `${progressPercent}%` }}
@@ -453,7 +519,7 @@ export function AudioPlayer() {
             />
           </div>
         </div>
-      </div>
+      </div>)}
     </>
   );
 }

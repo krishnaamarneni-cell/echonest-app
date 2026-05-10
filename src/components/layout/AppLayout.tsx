@@ -3,6 +3,7 @@
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { AudioPlayer } from './AudioPlayer';
+import { InstallPrompt } from './InstallPrompt';
 import { usePlayerStore } from '@/store/player';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +23,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
       <AudioPlayer />
       <BottomNav />
+      <InstallPrompt />
     </div>
   );
 }
