@@ -78,6 +78,7 @@ export function AudioPlayer() {
     setDuration,
     toggleShuffle,
     cycleRepeat,
+    setIsPlaying,
   } = usePlayerStore();
 
   const isYouTube = currentSong?.source === 'youtube_embed';
@@ -135,7 +136,12 @@ export function AudioPlayer() {
           (e.target as { playVideo: () => void }).playVideo();
         },
         onStateChange: (e: { data?: number }) => {
-          if (e.data === window.YT.PlayerState.ENDED) {
+          // Sync YT player state with our store
+          if (e.data === window.YT.PlayerState.PLAYING) {
+            setIsPlaying(true);
+          } else if (e.data === window.YT.PlayerState.PAUSED) {
+            setIsPlaying(false);
+          } else if (e.data === window.YT.PlayerState.ENDED) {
             if (repeat === 'one') {
               ytPlayerRef.current?.seekTo(0, true);
               ytPlayerRef.current?.playVideo();
@@ -185,12 +191,17 @@ export function AudioPlayer() {
     };
   }, [isYouTube, currentSong?.youtube_id, setProgress, setDuration]);
 
-  // YouTube play/pause
+  // YouTube play/pause — only call YT if state actually differs to avoid feedback loops
   useEffect(() => {
     if (!isYouTube || !ytPlayerRef.current) return;
     try {
-      if (isPlaying) ytPlayerRef.current.playVideo();
-      else ytPlayerRef.current.pauseVideo();
+      const ytState = ytPlayerRef.current.getPlayerState();
+      const ytPlaying = ytState === window.YT.PlayerState.PLAYING;
+      if (isPlaying && !ytPlaying) {
+        ytPlayerRef.current.playVideo();
+      } else if (!isPlaying && ytPlaying) {
+        ytPlayerRef.current.pauseVideo();
+      }
     } catch {}
   }, [isPlaying, isYouTube]);
 
