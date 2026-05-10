@@ -96,21 +96,21 @@ export default function LandingPage() {
             </span>
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto mt-6">
-            EchoNest is a shared music library. Drop in a YouTube link or an
-            audio file, and it&apos;s playable for everyone — no account
-            needed, no fuss.
+            A shared music library that opens with one click. Click the button
+            below — you&apos;re instantly inside the library, no email, no
+            password, no signup. Start playing in 3 seconds.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
             <button
               onClick={enterApp}
               disabled={entering || signedIn === null}
-              className="px-8 py-3 bg-accent text-white rounded-full text-sm font-medium hover:bg-accent-hover transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100 inline-flex items-center gap-2"
+              className="px-8 py-3 bg-accent text-white rounded-full text-sm font-semibold hover:bg-accent-hover transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100 inline-flex items-center gap-2 shadow-lg shadow-accent/30"
             >
               {entering ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading…
+                  Opening library…
                 </>
               ) : signedIn ? (
                 <>
@@ -120,7 +120,7 @@ export default function LandingPage() {
               ) : (
                 <>
                   <Headphones className="w-4 h-4" />
-                  Start listening
+                  Start listening — no login
                 </>
               )}
             </button>
@@ -129,13 +129,14 @@ export default function LandingPage() {
                 href="/signup"
                 className="px-8 py-3 border border-border text-foreground rounded-full text-sm font-medium hover:bg-card transition-colors"
               >
-                Make your own
+                Make your own private library
               </Link>
             )}
           </div>
 
           <p className="text-xs text-muted mt-4">
-            No signup needed to start listening.
+            ✨ Click and you&apos;re in. We sign you in to the shared library
+            automatically.
           </p>
         </section>
 
@@ -310,23 +311,23 @@ export default function LandingPage() {
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
             Ready to listen?
           </h2>
-          <p className="text-sm text-muted-foreground mb-8">
-            One click. No signup.
+          <p className="text-sm text-muted-foreground mb-8 max-w-md mx-auto">
+            One click and the shared library opens. No email, no password.
           </p>
           <button
             onClick={enterApp}
             disabled={entering || signedIn === null}
-            className="px-10 py-4 bg-accent text-white rounded-full text-base font-semibold hover:bg-accent-hover transition-all hover:scale-105 active:scale-95 disabled:opacity-60 inline-flex items-center gap-2"
+            className="px-10 py-4 bg-accent text-white rounded-full text-base font-semibold hover:bg-accent-hover transition-all hover:scale-105 active:scale-95 disabled:opacity-60 inline-flex items-center gap-2 shadow-lg shadow-accent/30"
           >
             {entering ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Loading…
+                Opening library…
               </>
             ) : (
               <>
                 <Headphones className="w-5 h-5" />
-                {signedIn ? 'Open library' : 'Start listening'}
+                {signedIn ? 'Open library' : 'Start listening — no login'}
               </>
             )}
           </button>
