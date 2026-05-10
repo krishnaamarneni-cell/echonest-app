@@ -477,7 +477,7 @@ export function AudioPlayer() {
         <button
           onClick={() => setYtView('mini')}
           className="fixed right-3 z-40 w-9 h-9 rounded-full bg-card border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-          style={{ bottom: 'calc(var(--player-height) + 8px)' }}
+          style={{ bottom: 'var(--floating-bottom)' }}
           aria-label="Show video"
         >
           <ChevronUp className="w-4 h-4" />
@@ -488,7 +488,7 @@ export function AudioPlayer() {
       {isYouTube && ytError && (
         <div
           className="fixed right-3 left-3 sm:left-auto sm:right-4 z-50 sm:max-w-[320px] bg-card border border-destructive rounded-xl p-3 shadow-2xl"
-          style={{ bottom: 'calc(var(--player-height) + 8px)' }}
+          style={{ bottom: 'var(--floating-bottom)' }}
         >
           <button
             onClick={() => setYtError(null)}
@@ -526,7 +526,7 @@ export function AudioPlayer() {
         </div>
       )}
 
-      {showPlayer && currentSong && (<div className="fixed bottom-0 lg:bottom-0 left-0 right-0 z-50 h-[var(--player-height)] glass border-t border-border animate-slide-up">
+      {showPlayer && currentSong && (<div className="fixed bottom-[var(--bottom-nav-height)] lg:bottom-0 left-0 right-0 z-50 h-[var(--player-height)] glass border-t border-border animate-slide-up">
         <div
           className="absolute top-0 left-0 h-0.5 bg-accent transition-all duration-100"
           style={{ width: `${progressPercent}%` }}

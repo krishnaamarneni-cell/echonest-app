@@ -16,6 +16,13 @@
   --player-height: 80px;
   --sidebar-width: 280px;
   --bottom-nav-height: 64px;
+  --floating-bottom: calc(var(--player-height) + var(--bottom-nav-height) + 8px);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --floating-bottom: calc(var(--player-height) + 8px);
+  }
 }
 
 @theme inline {

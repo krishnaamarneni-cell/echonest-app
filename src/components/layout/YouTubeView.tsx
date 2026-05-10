@@ -50,7 +50,7 @@ export function YouTubeView({
             : {
                 position: 'fixed',
                 right: '0.75rem',
-                bottom: 'calc(var(--player-height) + 8px)',
+                bottom: 'var(--floating-bottom)',
                 width: isMini ? 320 : 1,
                 height: isMini ? 180 : 1,
                 opacity: isMini ? 1 : 0,
