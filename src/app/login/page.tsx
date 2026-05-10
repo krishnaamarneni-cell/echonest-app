@@ -32,6 +32,12 @@ export default function LoginPage() {
       return;
     }
 
+    // Signing in manually with credentials = you're the owner. Enable owner
+    // mode so delete buttons are visible right away.
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('echonest-owner-mode', '1');
+    }
+
     router.push('/dashboard');
     router.refresh();
   };
