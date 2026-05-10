@@ -16,11 +16,15 @@
   --player-height: 80px;
   --sidebar-width: 280px;
   --bottom-nav-height: 64px;
-  --floating-bottom: calc(var(--player-height) + var(--bottom-nav-height) + 8px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --total-bottom-nav: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  --floating-bottom: calc(var(--player-height) + var(--total-bottom-nav) + 8px);
 }
 
 @media (min-width: 1024px) {
   :root {
+    --total-bottom-nav: 0px;
     --floating-bottom: calc(var(--player-height) + 8px);
   }
 }

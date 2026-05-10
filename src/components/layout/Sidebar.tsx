@@ -90,7 +90,10 @@ export function Sidebar() {
   }, [pathname]);
 
   return (
-    <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-full bg-background border-r border-border">
+    <aside
+      className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-full bg-background border-r border-border"
+      style={{ paddingTop: 'var(--safe-top)' }}
+    >
       <div className="p-6">
         <Logo />
       </div>

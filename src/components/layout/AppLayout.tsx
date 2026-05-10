@@ -15,11 +15,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main
-        className={`flex-1 overflow-y-auto ${
-          isPlayerVisible
-            ? 'pb-[calc(var(--player-height)+var(--bottom-nav-height))] lg:pb-[var(--player-height)]'
-            : 'pb-[var(--bottom-nav-height)] lg:pb-0'
-        }`}
+        className="flex-1 overflow-y-auto"
+        style={{
+          paddingTop: 'var(--safe-top)',
+          paddingBottom: isPlayerVisible
+            ? 'calc(var(--player-height) + var(--total-bottom-nav))'
+            : 'var(--total-bottom-nav)',
+        }}
       >
         {children}
       </main>
