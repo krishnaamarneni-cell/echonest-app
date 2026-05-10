@@ -32,11 +32,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthPage =
-    request.nextUrl.pathname === '/login' ||
-    request.nextUrl.pathname === '/signup';
+  const path = request.nextUrl.pathname;
+  const isAuthPage = path === '/login' || path === '/signup';
+  const isPasswordPage = path === '/forgot-password' || path === '/reset-password';
+  const isPublicPage = path === '/' || isAuthPage || isPasswordPage;
 
-  if (!user && !isAuthPage && request.nextUrl.pathname !== '/') {
+  if (!user && !isPublicPage) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

@@ -110,7 +110,13 @@ export function AudioPlayer() {
 
     setYtError(null);
 
-    ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
+    // Create a YT-owned child element so React doesn't try to manage what YT replaces
+    const wrapper = ytContainerRef.current;
+    wrapper.innerHTML = '';
+    const ytTarget = document.createElement('div');
+    wrapper.appendChild(ytTarget);
+
+    ytPlayerRef.current = new window.YT.Player(ytTarget, {
       height: '180',
       width: '320',
       videoId: isYouTubePlaylist ? undefined : currentSong.youtube_id,
