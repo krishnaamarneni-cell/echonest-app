@@ -537,8 +537,9 @@ export function AudioPlayer() {
         <div className="h-full flex items-center justify-between px-4 lg:px-6 max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-3 flex-1 min-w-0 lg:w-1/4">
             <button
+              type="button"
               onClick={openNowPlaying}
-              className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition-opacity"
+              className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition-opacity cursor-pointer"
               aria-label="Open now playing"
             >
               <div className="w-12 h-12 rounded-lg bg-card overflow-hidden flex-shrink-0 relative">

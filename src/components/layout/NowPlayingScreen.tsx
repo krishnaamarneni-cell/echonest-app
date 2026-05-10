@@ -61,6 +61,11 @@ export function NowPlayingScreen() {
     return () => window.removeEventListener('keydown', handler);
   }, [isNowPlayingOpen, closeNowPlaying]);
 
+  // Touch gestures: declared BEFORE any early return per Rules of Hooks
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [drag, setDrag] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
+
   if (!isNowPlayingOpen || !currentSong) return null;
 
   const isYTPlaylist = currentSong.source === 'youtube_embed' && currentSong.youtube_kind === 'playlist';
@@ -118,11 +123,6 @@ export function NowPlayingScreen() {
 
   const upcoming = queue.slice(queueIndex + 1, queueIndex + 6);
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
-
-  // Touch gestures: swipe down → close, swipe left/right → previous/next
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const [drag, setDrag] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
