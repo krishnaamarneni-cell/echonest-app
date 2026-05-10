@@ -16,12 +16,12 @@ import {
   Music,
   X,
   ChevronUp,
-  ChevronDown,
   Heart,
 } from 'lucide-react';
 import Image from 'next/image';
 import { Song } from '@/types';
 import { useLikesStore } from '@/store/likes';
+import { YouTubeView } from './YouTubeView';
 
 function PlayerLikeButton({ song }: { song: Song }) {
   const { likedIds, ytLikedVideoIds, toggleLike, toggleYouTubeLike, loadLikes } = useLikesStore();
@@ -106,7 +106,7 @@ export function AudioPlayer() {
   const ytIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [ytReady, setYtReady] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
-  const [ytExpanded, setYtExpanded] = useState(false);
+  const [ytView, setYtView] = useState<'hidden' | 'mini' | 'full'>('hidden');
 
   const {
     currentSong,
@@ -129,6 +129,9 @@ export function AudioPlayer() {
     toggleShuffle,
     cycleRepeat,
     setIsPlaying,
+    queue,
+    queueIndex,
+    play,
   } = usePlayerStore();
 
   const isYouTube = currentSong?.source === 'youtube_embed';
@@ -160,7 +163,7 @@ export function AudioPlayer() {
     }
 
     setYtError(null);
-    setYtExpanded(false);
+    setYtView('hidden');
 
     // Create a YT-owned child element so React doesn't try to manage what YT replaces
     const wrapper = ytContainerRef.current;
@@ -403,39 +406,30 @@ export function AudioPlayer() {
         onEnded={handleEnded}
         preload="metadata"
       />
-      {/* YT iframe — always rendered to keep iframe alive, sized small/hidden when not needed */}
-      <div
-        style={{
-          position: 'fixed',
-          right: '0.75rem',
-          bottom: 'calc(var(--player-height) + 8px)',
-          width: isYouTube ? (ytExpanded ? 320 : 1) : 1,
-          height: isYouTube ? (ytExpanded ? 180 : 1) : 1,
-          opacity: isYouTube && ytExpanded ? 1 : 0,
-          pointerEvents: isYouTube && ytExpanded ? 'auto' : 'none',
-          borderRadius: 12,
-          overflow: 'hidden',
-          boxShadow: isYouTube && ytExpanded ? '0 10px 40px rgba(0,0,0,0.5)' : 'none',
-          background: '#000',
-          zIndex: 40,
+      {/* YT iframe — always rendered to keep iframe alive */}
+      <YouTubeView
+        view={isYouTube ? ytView : 'hidden'}
+        containerRef={ytContainerRef}
+        currentSong={currentSong}
+        queue={queue}
+        queueIndex={queueIndex}
+        onClose={() => setYtView('hidden')}
+        onMini={() => setYtView('mini')}
+        onFull={() => setYtView('full')}
+        onPlayQueueItem={(item) => {
+          play(item.song, queue.map((q) => q.song), item.source as 'playlist' | 'album' | 'library');
         }}
-      >
-        <div ref={ytContainerRef} style={{ width: '100%', height: '100%' }} />
-      </div>
+      />
 
-      {/* Show/hide video toggle button — only visible when YT is playing successfully */}
-      {isYouTube && !ytError && (
+      {/* Show/hide video toggle button — only visible when YT is playing successfully and view is hidden */}
+      {isYouTube && !ytError && ytView === 'hidden' && (
         <button
-          onClick={() => setYtExpanded((v) => !v)}
+          onClick={() => setYtView('mini')}
           className="fixed right-3 z-40 w-9 h-9 rounded-full bg-card border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
           style={{ bottom: 'calc(var(--player-height) + 8px)' }}
-          aria-label={ytExpanded ? 'Hide video' : 'Show video'}
+          aria-label="Show video"
         >
-          {ytExpanded ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronUp className="w-4 h-4" />
-          )}
+          <ChevronUp className="w-4 h-4" />
         </button>
       )}
 
