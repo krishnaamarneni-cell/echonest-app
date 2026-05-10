@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
@@ -119,11 +119,58 @@ export function NowPlayingScreen() {
   const upcoming = queue.slice(queueIndex + 1, queueIndex + 6);
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
+  // Touch gestures: swipe down → close, swipe left/right → previous/next
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [drag, setDrag] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    setDragKind('none');
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart.current) return;
+    const dx = e.touches[0].clientX - touchStart.current.x;
+    const dy = e.touches[0].clientY - touchStart.current.y;
+
+    // Decide axis on first significant movement
+    if (dragKind === 'none') {
+      if (Math.abs(dy) > 8 || Math.abs(dx) > 8) {
+        setDragKind(Math.abs(dy) > Math.abs(dx) ? 'vertical' : 'horizontal');
+      }
+    }
+
+    if (dragKind === 'vertical' && dy > 0) {
+      setDrag({ x: 0, y: dy });
+    } else if (dragKind === 'horizontal') {
+      setDrag({ x: dx, y: 0 });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragKind === 'vertical' && drag.y > 100) {
+      closeNowPlaying();
+    } else if (dragKind === 'horizontal') {
+      // Per request: swipe left → previous, swipe right → next
+      if (drag.x < -80) previous();
+      else if (drag.x > 80) next();
+    }
+    setDrag({ x: 0, y: 0 });
+    setDragKind('none');
+    touchStart.current = null;
+  };
+
   return (
     <div
-      className="fixed inset-0 z-[80] bg-background animate-slide-up overflow-y-auto"
+      className="fixed inset-0 z-[80] bg-background overflow-y-auto"
       role="dialog"
       aria-modal="true"
+      style={{
+        transform: `translate(${drag.x}px, ${drag.y}px)`,
+        transition: drag.x === 0 && drag.y === 0 ? 'transform 0.25s ease' : 'none',
+        opacity: drag.y > 0 ? Math.max(0.3, 1 - drag.y / 400) : 1,
+      }}
     >
       {/* Background gradient blur */}
       {currentSong.cover_url && (
@@ -139,15 +186,27 @@ export function NowPlayingScreen() {
       )}
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-background/40 via-background/60 to-background" />
 
-      <div className="relative min-h-full flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 sm:p-6">
+      <div
+        className="relative min-h-full flex flex-col"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        {/* Drag handle — visual hint that screen is draggable */}
+        <div className="flex justify-center pt-2 pb-1">
           <button
             onClick={closeNowPlaying}
-            className="w-10 h-10 rounded-full hover:bg-card-hover flex items-center justify-center text-foreground"
+            className="w-10 h-1.5 rounded-full bg-muted-foreground/40 hover:bg-muted-foreground/60 transition-colors"
+            aria-label="Minimize"
+          />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 sm:px-6 pb-2">
+          <button
+            onClick={closeNowPlaying}
+            className="w-11 h-11 rounded-full bg-card/80 backdrop-blur-md hover:bg-card-hover flex items-center justify-center text-foreground active:scale-95 transition-transform"
             aria-label="Close"
           >
-            <ChevronDown className="w-5 h-5" />
+            <ChevronDown className="w-6 h-6" />
           </button>
           <div className="text-center">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -157,8 +216,8 @@ export function NowPlayingScreen() {
           <Menu
             align="right"
             trigger={
-              <button className="w-10 h-10 rounded-full hover:bg-card-hover flex items-center justify-center text-foreground">
-                <MoreHorizontal className="w-5 h-5" />
+              <button className="w-11 h-11 rounded-full bg-card/80 backdrop-blur-md hover:bg-card-hover flex items-center justify-center text-foreground active:scale-95 transition-transform">
+                <MoreHorizontal className="w-6 h-6" />
               </button>
             }
             items={[
@@ -189,17 +248,24 @@ export function NowPlayingScreen() {
           />
         </div>
 
-        {/* Cover art */}
+        {/* Cover art — swipe-aware */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-8 py-4">
-          <div className="w-full max-w-sm aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl">
+          <div
+            className="w-full max-w-sm aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl select-none"
+            style={{ touchAction: 'pan-y' }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             {currentSong.cover_url ? (
               <Image
                 src={currentSong.cover_url}
                 alt={currentSong.title}
                 width={400}
                 height={400}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover pointer-events-none"
                 priority
+                draggable={false}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
