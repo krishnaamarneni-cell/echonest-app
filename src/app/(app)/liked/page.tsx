@@ -8,40 +8,34 @@ import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
+import { useLikesStore } from '@/store/likes';
 import { Heart, Play, Shuffle } from 'lucide-react';
 
 export default function LikedSongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const play = usePlayerStore((s) => s.play);
+  const likedIds = useLikesStore((s) => s.likedIds);
 
   useEffect(() => {
     const supabase = createClient();
     async function load() {
       const { data } = await supabase
         .from('likes')
-        .select('song_id, song:songs(*)')
+        .select('song:songs(*)')
         .order('created_at', { ascending: false });
 
       if (data) {
         const s = data.map((d: Record<string, unknown>) => d.song as Song).filter(Boolean);
         setSongs(s);
-        setLikedIds(new Set(data.map((d: Record<string, unknown>) => d.song_id as string)));
       }
       setLoading(false);
     }
     load();
   }, []);
 
-  const toggleLike = async (songId: string) => {
-    const supabase = createClient();
-    if (likedIds.has(songId)) {
-      await supabase.from('likes').delete().eq('song_id', songId);
-      setLikedIds((prev) => { const n = new Set(prev); n.delete(songId); return n; });
-      setSongs((prev) => prev.filter((s) => s.id !== songId));
-    }
-  };
+  // Reactively remove songs from the list when they're un-liked elsewhere
+  const visibleSongs = songs.filter((s) => likedIds.has(s.id));
 
   return (
     <div className="animate-fade-in">
@@ -53,17 +47,24 @@ export default function LikedSongsPage() {
           <div className="flex-1 pt-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Playlist</p>
             <h1 className="text-3xl lg:text-5xl font-bold mt-1">Liked Songs</h1>
-            <p className="text-sm text-muted mt-3">{songs.length} songs</p>
+            <p className="text-sm text-muted mt-3">{visibleSongs.length} songs</p>
             <div className="flex items-center gap-3 mt-4">
-              <Button onClick={() => songs.length > 0 && play(songs[0], songs, 'library')} disabled={songs.length === 0}>
+              <Button
+                onClick={() => visibleSongs.length > 0 && play(visibleSongs[0], visibleSongs, 'library')}
+                disabled={visibleSongs.length === 0}
+              >
                 <Play className="w-4 h-4 fill-current" /> Play
               </Button>
-              <Button variant="secondary" onClick={() => {
-                if (songs.length > 0) {
-                  const shuffled = [...songs].sort(() => Math.random() - 0.5);
-                  play(shuffled[0], shuffled, 'library');
-                }
-              }} disabled={songs.length === 0}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (visibleSongs.length > 0) {
+                    const shuffled = [...visibleSongs].sort(() => Math.random() - 0.5);
+                    play(shuffled[0], shuffled, 'library');
+                  }
+                }}
+                disabled={visibleSongs.length === 0}
+              >
                 <Shuffle className="w-4 h-4" /> Shuffle
               </Button>
             </div>
@@ -76,10 +77,17 @@ export default function LikedSongsPage() {
           <div className="space-y-1">
             {Array.from({ length: 8 }).map((_, i) => <SongRowSkeleton key={i} />)}
           </div>
-        ) : songs.length > 0 ? (
+        ) : visibleSongs.length > 0 ? (
           <div className="space-y-0.5">
-            {songs.map((song, i) => (
-              <SongRow key={song.id} song={song} index={i} showIndex songs={songs} isLiked={likedIds.has(song.id)} onLike={toggleLike} />
+            {visibleSongs.map((song, i) => (
+              <SongRow
+                key={song.id}
+                song={song}
+                index={i}
+                showIndex
+                songs={visibleSongs}
+                onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+              />
             ))}
           </div>
         ) : (
