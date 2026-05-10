@@ -311,10 +311,19 @@ export function NowPlayingScreen() {
           <div
             ref={coverWrapperRef}
             className="relative w-full max-w-sm aspect-square select-none"
-            style={{ touchAction: 'pan-y' }}
+            // touch-action: none → my handler owns ALL touches on the cover
+            // so the browser doesn't scroll the page underneath while I'm tracking the gesture
+            style={{ touchAction: 'none' }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onTouchCancel={() => {
+              // Reset everything if the OS interrupts the gesture (notification, system gesture, etc.)
+              setDragX(0);
+              setDragY(0);
+              setDragKind('none');
+              touchStart.current = null;
+            }}
           >
             <div
               className="absolute inset-0"
