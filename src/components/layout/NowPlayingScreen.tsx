@@ -63,8 +63,25 @@ export function NowPlayingScreen() {
 
   // Touch gestures: declared BEFORE any early return per Rules of Hooks
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const [drag, setDrag] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const coverWrapperRef = useRef<HTMLDivElement>(null);
+  const skipTransitionRef = useRef(false);
+  // Vertical drag = whole-screen close gesture; horizontal = cover-only swipe
+  const [dragY, setDragY] = useState(0);
+  const [dragX, setDragX] = useState(0);
+  const [animatingX, setAnimatingX] = useState(false);
   const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
+
+  // Clear the skip-transition flag after the snap render commits
+  useEffect(() => {
+    if (skipTransitionRef.current) {
+      // Two rAFs to ensure we clear AFTER the browser has painted with transition: none
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          skipTransitionRef.current = false;
+        });
+      });
+    }
+  });
 
   if (!isNowPlayingOpen || !currentSong) return null;
 
@@ -125,12 +142,13 @@ export function NowPlayingScreen() {
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (animatingX) return; // ignore during commit animation
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     setDragKind('none');
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStart.current) return;
+    if (!touchStart.current || animatingX) return;
     const dx = e.touches[0].clientX - touchStart.current.x;
     const dy = e.touches[0].clientY - touchStart.current.y;
 
@@ -142,24 +160,51 @@ export function NowPlayingScreen() {
     }
 
     if (dragKind === 'vertical' && dy > 0) {
-      setDrag({ x: 0, y: dy });
+      setDragY(dy);
     } else if (dragKind === 'horizontal') {
-      setDrag({ x: dx, y: 0 });
+      setDragX(dx);
     }
   };
 
   const handleTouchEnd = () => {
-    if (dragKind === 'vertical' && drag.y > 100) {
+    const w = coverWrapperRef.current?.clientWidth || 320;
+    const horizontalThreshold = w * 0.25;
+
+    if (dragKind === 'vertical' && dragY > 100) {
       closeNowPlaying();
-    } else if (dragKind === 'horizontal') {
+      setDragY(0);
+    } else if (dragKind === 'horizontal' && Math.abs(dragX) > horizontalThreshold) {
       // Per request: swipe left → previous, swipe right → next
-      if (drag.x < -80) previous();
-      else if (drag.x > 80) next();
+      // (Layout: prev cover sits to the right of current, next cover to the left)
+      const goingNext = dragX > 0; // swipe right = next song
+      const targetX = goingNext ? -(w + 16) : w + 16; // animate cover off the opposite side
+
+      setAnimatingX(true);
+      setDragX(targetX);
+
+      window.setTimeout(() => {
+        // The animation is now complete. We need to:
+        //   1. Change the song (so the new cover loads at translateX(0))
+        //   2. Reset transform to 0 in the same render
+        //   3. Disable the transition for that render so the user doesn't see a snap-back
+        skipTransitionRef.current = true;
+        setAnimatingX(false);
+        if (goingNext) next();
+        else previous();
+        setDragX(0);
+      }, 280);
+    } else {
+      // Spring back
+      if (dragKind === 'vertical') setDragY(0);
+      else setDragX(0);
     }
-    setDrag({ x: 0, y: 0 });
     setDragKind('none');
     touchStart.current = null;
   };
+
+  // Adjacent songs for the carousel ghosts
+  const prevSongInQueue = queueIndex > 0 ? queue[queueIndex - 1].song : null;
+  const nextSongInQueue = queueIndex < queue.length - 1 ? queue[queueIndex + 1].song : null;
 
   return (
     <div
@@ -167,9 +212,9 @@ export function NowPlayingScreen() {
       role="dialog"
       aria-modal="true"
       style={{
-        transform: `translate(${drag.x}px, ${drag.y}px)`,
-        transition: drag.x === 0 && drag.y === 0 ? 'transform 0.25s ease' : 'none',
-        opacity: drag.y > 0 ? Math.max(0.3, 1 - drag.y / 400) : 1,
+        transform: `translateY(${dragY}px)`,
+        transition: dragY === 0 ? 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+        opacity: dragY > 0 ? Math.max(0.3, 1 - dragY / 400) : 1,
       }}
     >
       {/* Background gradient blur */}
@@ -248,30 +293,94 @@ export function NowPlayingScreen() {
           />
         </div>
 
-        {/* Cover art — swipe-aware */}
+        {/* Cover art — swipe-aware carousel */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-8 py-4">
           <div
-            className="w-full max-w-sm aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl select-none"
+            ref={coverWrapperRef}
+            className="relative w-full max-w-sm aspect-square select-none"
             style={{ touchAction: 'pan-y' }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            {currentSong.cover_url ? (
-              <Image
-                src={currentSong.cover_url}
-                alt={currentSong.title}
-                width={400}
-                height={400}
-                className="w-full h-full object-cover pointer-events-none"
-                priority
-                draggable={false}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
-                <Music className="w-24 h-24 text-muted" />
+            <div
+              className="absolute inset-0"
+              style={{
+                transform: `translateX(${dragX}px)`,
+                transition: skipTransitionRef.current
+                  ? 'none'
+                  : animatingX
+                  ? 'transform 0.28s cubic-bezier(0.4, 0, 0.2, 1)'
+                  : dragX === 0
+                  ? 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
+                  : 'none',
+              }}
+            >
+              {/* Next song (positioned LEFT — swipe right reveals it = goes NEXT) */}
+              {nextSongInQueue && (
+                <div
+                  className="absolute top-0 w-full aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl"
+                  style={{ right: 'calc(100% + 16px)' }}
+                >
+                  {nextSongInQueue.cover_url ? (
+                    <Image
+                      src={nextSongInQueue.cover_url}
+                      alt={nextSongInQueue.title}
+                      width={400}
+                      height={400}
+                      className="w-full h-full object-cover pointer-events-none"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
+                      <Music className="w-24 h-24 text-muted" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Current song */}
+              <div className="w-full aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl">
+                {currentSong.cover_url ? (
+                  <Image
+                    src={currentSong.cover_url}
+                    alt={currentSong.title}
+                    width={400}
+                    height={400}
+                    className="w-full h-full object-cover pointer-events-none"
+                    priority
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
+                    <Music className="w-24 h-24 text-muted" />
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Previous song (positioned RIGHT — swipe left reveals it = goes PREVIOUS) */}
+              {prevSongInQueue && (
+                <div
+                  className="absolute top-0 w-full aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl"
+                  style={{ left: 'calc(100% + 16px)' }}
+                >
+                  {prevSongInQueue.cover_url ? (
+                    <Image
+                      src={prevSongInQueue.cover_url}
+                      alt={prevSongInQueue.title}
+                      width={400}
+                      height={400}
+                      className="w-full h-full object-cover pointer-events-none"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
+                      <Music className="w-24 h-24 text-muted" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Song info */}
