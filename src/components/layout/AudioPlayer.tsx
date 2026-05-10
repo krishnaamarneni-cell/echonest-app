@@ -183,6 +183,7 @@ export function AudioPlayer() {
     queue,
     queueIndex,
     play,
+    openNowPlaying,
   } = usePlayerStore();
 
   const isYouTube = currentSong?.source === 'youtube_embed';
@@ -534,30 +535,36 @@ export function AudioPlayer() {
 
         <div className="h-full flex items-center justify-between px-4 lg:px-6 max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-3 flex-1 min-w-0 lg:w-1/4">
-            <div className="w-12 h-12 rounded-lg bg-card overflow-hidden flex-shrink-0 relative">
-              {currentSong.cover_url ? (
-                <Image
-                  src={currentSong.cover_url}
-                  alt={currentSong.title}
-                  width={48}
-                  height={48}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Music className="w-5 h-5 text-muted" />
-                </div>
-              )}
-              {isYouTube && (
-                <div className="absolute bottom-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-tl">YT</div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{currentSong.title}</p>
-              <p className="text-xs text-muted-foreground truncate">
-                {currentSong.artist_name}
-              </p>
-            </div>
+            <button
+              onClick={openNowPlaying}
+              className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition-opacity"
+              aria-label="Open now playing"
+            >
+              <div className="w-12 h-12 rounded-lg bg-card overflow-hidden flex-shrink-0 relative">
+                {currentSong.cover_url ? (
+                  <Image
+                    src={currentSong.cover_url}
+                    alt={currentSong.title}
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Music className="w-5 h-5 text-muted" />
+                  </div>
+                )}
+                {isYouTube && (
+                  <div className="absolute bottom-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-tl">YT</div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="text-sm font-medium truncate">{currentSong.title}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {currentSong.artist_name}
+                </p>
+              </div>
+            </button>
             <PlayerLikeButton song={currentSong} />
             <PlayerMoreButton song={currentSong} />
           </div>

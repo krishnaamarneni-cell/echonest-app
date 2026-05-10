@@ -29,8 +29,11 @@ interface PlayerState {
   shuffle: boolean;
   repeat: RepeatMode;
   isPlayerVisible: boolean;
+  isNowPlayingOpen: boolean;
 
   play: (song: Song, queue?: Song[], source?: QueueItem['source']) => void;
+  openNowPlaying: () => void;
+  closeNowPlaying: () => void;
   pause: () => void;
   resume: () => void;
   togglePlay: () => void;
@@ -60,6 +63,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   shuffle: false,
   repeat: 'off',
   isPlayerVisible: false,
+  isNowPlayingOpen: false,
+
+  openNowPlaying: () => set({ isNowPlayingOpen: true }),
+  closeNowPlaying: () => set({ isNowPlayingOpen: false }),
 
   play: (song, queueSongs, source = 'library') => {
     const newQueue: QueueItem[] = queueSongs
