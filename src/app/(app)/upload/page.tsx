@@ -64,6 +64,40 @@ export default function UploadPage() {
     return created?.id || null;
   };
 
+  // Find or create artist rows for the given names. Returns name -> id map.
+  const ensureArtists = async (
+    supabase: ReturnType<typeof createClient>,
+    userId: string,
+    names: string[],
+  ): Promise<Map<string, string>> => {
+    const result = new Map<string, string>();
+    const unique = Array.from(
+      new Set(names.map((n) => n?.trim()).filter((n): n is string => !!n && n !== 'Unknown Artist')),
+    );
+    if (unique.length === 0) return result;
+
+    const { data: existing } = await supabase
+      .from('artists')
+      .select('id, name')
+      .eq('user_id', userId)
+      .in('name', unique);
+    for (const a of existing || []) {
+      if (a.name) result.set(a.name as string, a.id as string);
+    }
+
+    const missing = unique.filter((n) => !result.has(n));
+    if (missing.length > 0) {
+      const { data: created } = await supabase
+        .from('artists')
+        .insert(missing.map((name) => ({ name, user_id: userId })))
+        .select('id, name');
+      for (const a of created || []) {
+        if (a.name) result.set(a.name as string, a.id as string);
+      }
+    }
+    return result;
+  };
+
   const linkSongToPlaylist = async (
     supabase: ReturnType<typeof createClient>,
     playlistId: string,
@@ -199,12 +233,21 @@ export default function UploadPage() {
           if (s.youtube_id) existingMap.set(s.youtube_id as string, s.id as string);
         }
 
+        // Pre-create artist rows so songs can be linked by artist_id (needed
+        // for Library → Artists tab).
+        const artistMap = await ensureArtists(
+          supabase,
+          user.id,
+          videos.map((v) => v.author),
+        );
+
         const newSongRows = videos
           .filter((v) => !existingMap.has(v.videoId))
           .map((v) => ({
             user_id: user.id,
             title: v.title,
             artist_name: v.author,
+            artist_id: artistMap.get(v.author?.trim()) || null,
             cover_url: v.thumbnail,
             file_url: '',
             duration: 0,
@@ -240,21 +283,46 @@ export default function UploadPage() {
           setYtStatus(`Saving songs… ${inserted}/${newSongRows.length}`);
         }
 
-        // 4. Create an EchoNest playlist with the same title
+        // 4. Resolve the destination playlist.
+        // - If the user typed a name in "Add to playlist", use that — find
+        //   an existing playlist of theirs with that name, or create one.
+        // - Otherwise create a new playlist using the YouTube playlist title.
         setYtStatus('Creating playlist…');
-        const { data: createdPlaylist, error: playlistError } = await supabase
-          .from('playlists')
-          .insert({
-            user_id: user.id,
-            title: playlistTitle,
-            description: `Imported from YouTube`,
-            cover_url: playlistCover,
-            source_youtube_id: parsed.id,
-            last_synced_at: new Date().toISOString(),
-            content_type: contentType,
-          })
-          .select('id')
-          .single();
+        const customName = targetPlaylistName.trim();
+        const finalPlaylistTitle = customName || playlistTitle;
+
+        let createdPlaylist: { id: string } | null = null;
+        let playlistError: { message: string } | null = null;
+
+        if (customName) {
+          const { data: existingPl } = await supabase
+            .from('playlists')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('title', customName)
+            .maybeSingle();
+          if (existingPl) {
+            createdPlaylist = { id: existingPl.id as string };
+          }
+        }
+
+        if (!createdPlaylist) {
+          const res = await supabase
+            .from('playlists')
+            .insert({
+              user_id: user.id,
+              title: finalPlaylistTitle,
+              description: `Imported from YouTube`,
+              cover_url: playlistCover,
+              source_youtube_id: parsed.id,
+              last_synced_at: new Date().toISOString(),
+              content_type: contentType,
+            })
+            .select('id')
+            .single();
+          createdPlaylist = res.data ? { id: res.data.id as string } : null;
+          playlistError = res.error;
+        }
 
         if (playlistError || !createdPlaylist) {
           // Songs are saved; just couldn't create the playlist
@@ -268,18 +336,31 @@ export default function UploadPage() {
           return;
         }
 
-        // 5. Link every song (existing + newly inserted) to the new playlist in order
+        // 5. Link every song (existing + newly inserted) to the playlist.
+        // If we're appending to an existing playlist, skip songs already in
+        // it and start positions after the current max.
+        const { data: existingLinks } = await supabase
+          .from('playlist_songs')
+          .select('song_id, position')
+          .eq('playlist_id', createdPlaylist.id);
+        const alreadyLinked = new Set<string>(
+          (existingLinks || []).map((r) => r.song_id as string),
+        );
+        const startPos =
+          (existingLinks || []).reduce(
+            (max, r) => Math.max(max, (r.position as number) ?? -1),
+            -1,
+          ) + 1;
+
         const playlistSongRows = videos
-          .map((v, position) => {
+          .map((v) => {
             const songId = existingMap.get(v.videoId) || insertedIds.get(v.videoId);
             if (!songId) return null;
-            return {
-              playlist_id: createdPlaylist.id,
-              song_id: songId,
-              position,
-            };
+            if (alreadyLinked.has(songId)) return null;
+            return { playlist_id: createdPlaylist!.id, song_id: songId };
           })
-          .filter((r): r is NonNullable<typeof r> => r !== null);
+          .filter((r): r is { playlist_id: string; song_id: string } => r !== null)
+          .map((r, i) => ({ ...r, position: startPos + i }));
 
         if (playlistSongRows.length > 0) {
           // Insert playlist_songs in batches too
@@ -303,8 +384,8 @@ export default function UploadPage() {
           type: 'success',
           text:
             skippedCount > 0
-              ? `Added ${newSongRows.length} new songs to "${playlistTitle}" (${skippedCount} were already in your library and added too)`
-              : `Created playlist "${playlistTitle}" with ${videos.length} songs`,
+              ? `Added ${newSongRows.length} new songs to "${finalPlaylistTitle}" (${skippedCount} were already in your library and added too)`
+              : `Created playlist "${finalPlaylistTitle}" with ${videos.length} songs`,
         });
         setYtUrl('');
       } else {
@@ -319,17 +400,29 @@ export default function UploadPage() {
         if (!res.ok) {
           setYtMessage({ type: 'error', text: data.error || 'Failed to add' });
         } else {
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+
+          // Ensure an artist row exists and link the song to it so it shows
+          // up under Library → Artists.
+          if (user && data.song?.id && data.song?.artist_name) {
+            const artistMap = await ensureArtists(supabase, user.id, [data.song.artist_name]);
+            const artistId = artistMap.get(data.song.artist_name.trim());
+            if (artistId) {
+              await supabase
+                .from('songs')
+                .update({ artist_id: artistId })
+                .eq('id', data.song.id);
+            }
+          }
+
           // If user provided a playlist name, find or create it and link the song
           let playlistSuffix = '';
-          if (targetPlaylistName.trim()) {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              const playlistId = await ensureTargetPlaylist(supabase, user.id);
-              if (playlistId && data.song?.id) {
-                await linkSongToPlaylist(supabase, playlistId, data.song.id);
-                playlistSuffix = ` to "${targetPlaylistName.trim()}"`;
-              }
+          if (user && targetPlaylistName.trim()) {
+            const playlistId = await ensureTargetPlaylist(supabase, user.id);
+            if (playlistId && data.song?.id) {
+              await linkSongToPlaylist(supabase, playlistId, data.song.id);
+              playlistSuffix = ` to "${targetPlaylistName.trim()}"`;
             }
           }
           setYtMessage({
