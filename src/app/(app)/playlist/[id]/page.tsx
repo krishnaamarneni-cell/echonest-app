@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Playlist, Song } from '@/types';
@@ -10,11 +10,12 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Menu } from '@/components/ui/Menu';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 import { useOwnerMode } from '@/store/ownerMode';
+import { syncYouTubePlaylist } from '@/lib/syncYouTubePlaylist';
 
 export default function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,41 +24,91 @@ export default function PlaylistDetailPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [crossQueue, setCrossQueue] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const play = usePlayerStore((s) => s.play);
   const isOwner = useOwnerMode((s) => s.isOwner);
 
-  useEffect(() => {
+  const reload = useCallback(async () => {
     if (id === 'new') return;
-
     const supabase = createClient();
-    async function load() {
-      const { data: pl } = await supabase
-        .from('playlists')
-        .select('*')
-        .eq('id', id)
-        .single();
+    const { data: pl } = await supabase
+      .from('playlists')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (pl) setPlaylist(pl);
 
-      if (pl) setPlaylist(pl);
-
-      const { data: ps } = await supabase
-        .from('playlist_songs')
-        .select('*, song:songs(*)')
-        .eq('playlist_id', id)
-        .order('position');
-
-      if (ps) {
-        setSongs(ps.map((p: Record<string, unknown>) => p.song as Song).filter(Boolean));
-      }
-
-      // Build the extended queue: this playlist's songs + all subsequent playlists
-      const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
-      setCrossQueue(buildCrossPlaylistQueue(playlistsWithSongs, id as string));
-
-      setLoading(false);
+    const { data: ps } = await supabase
+      .from('playlist_songs')
+      .select('*, song:songs(*)')
+      .eq('playlist_id', id)
+      .order('position');
+    if (ps) {
+      setSongs(ps.map((p: Record<string, unknown>) => p.song as Song).filter(Boolean));
     }
 
-    load();
+    const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
+    setCrossQueue(buildCrossPlaylistQueue(playlistsWithSongs, id as string));
   }, [id]);
+
+  // Initial load
+  useEffect(() => {
+    if (id === 'new') return;
+    (async () => {
+      await reload();
+      setLoading(false);
+    })();
+  }, [id, reload]);
+
+  // Auto-sync on visit: if this playlist was imported from YouTube AND we
+  // haven't synced in the last 5 minutes, silently fetch new videos
+  useEffect(() => {
+    if (!playlist?.source_youtube_id) return;
+    const recently =
+      playlist.last_synced_at &&
+      Date.now() - new Date(playlist.last_synced_at).getTime() < 5 * 60 * 1000;
+    if (recently) return;
+    if (syncing) return;
+
+    let cancelled = false;
+    (async () => {
+      const result = await syncYouTubePlaylist({
+        playlistDbId: playlist.id,
+        sourceYoutubeId: playlist.source_youtube_id!,
+      });
+      if (cancelled) return;
+      if (result.added > 0) {
+        setSyncMessage(`Added ${result.added} new video${result.added === 1 ? '' : 's'}`);
+        reload();
+        // Auto-clear after 4 seconds
+        setTimeout(() => setSyncMessage(null), 4000);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [playlist?.id, playlist?.source_youtube_id, playlist?.last_synced_at, syncing, reload]);
+
+  const handleManualSync = async () => {
+    if (!playlist?.source_youtube_id || syncing) return;
+    setSyncing(true);
+    setSyncMessage('Checking YouTube…');
+    const result = await syncYouTubePlaylist({
+      playlistDbId: playlist.id,
+      sourceYoutubeId: playlist.source_youtube_id,
+    });
+    if (result.error) {
+      setSyncMessage(`Sync failed: ${result.error}`);
+    } else if (result.added > 0) {
+      setSyncMessage(`Added ${result.added} new video${result.added === 1 ? '' : 's'}`);
+      await reload();
+    } else {
+      setSyncMessage('Already up to date');
+    }
+    setSyncing(false);
+    setTimeout(() => setSyncMessage(null), 4000);
+  };
 
   if (id === 'new') {
     return <NewPlaylistPage />;
@@ -131,6 +182,17 @@ export default function PlaylistDetailPage() {
                 <Shuffle className="w-4 h-4" />
                 Shuffle
               </Button>
+              {playlist?.source_youtube_id && (
+                <Button
+                  variant="secondary"
+                  onClick={handleManualSync}
+                  disabled={syncing}
+                  title="Check YouTube for new videos and add them"
+                >
+                  <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Syncing…' : 'Sync from YouTube'}
+                </Button>
+              )}
               {isOwner && (
                 <Menu
                   trigger={
@@ -162,6 +224,16 @@ export default function PlaylistDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Sync message banner */}
+      {syncMessage && (
+        <div className="px-6 lg:px-8 pt-2">
+          <div className="bg-accent-muted text-accent text-sm px-4 py-2 rounded-lg flex items-center gap-2 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4" />
+            {syncMessage}
+          </div>
+        </div>
+      )}
 
       {/* Songs */}
       <div className="p-6 lg:p-8 pt-4">

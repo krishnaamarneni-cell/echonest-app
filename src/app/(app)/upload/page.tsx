@@ -153,6 +153,8 @@ export default function UploadPage() {
             title: playlistTitle,
             description: `Imported from YouTube`,
             cover_url: playlistCover,
+            source_youtube_id: parsed.id,
+            last_synced_at: new Date().toISOString(),
           })
           .select('id')
           .single();

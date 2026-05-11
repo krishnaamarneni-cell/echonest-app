@@ -93,6 +93,100 @@ async function ensureYouTubeAPI(): Promise<void> {
 }
 
 /**
+ * Lightweight version: load the playlist and return ONLY the video IDs in
+ * order. No oEmbed calls — much faster than extractYouTubePlaylist(), used
+ * by the sync flow to diff against existing songs before fetching metadata.
+ */
+export async function extractYouTubePlaylistIds(
+  playlistId: string,
+): Promise<string[]> {
+  await ensureYouTubeAPI();
+
+  const container = document.createElement('div');
+  container.style.cssText =
+    'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;';
+  document.body.appendChild(container);
+
+  const target = document.createElement('div');
+  container.appendChild(target);
+
+  return new Promise<string[]>((resolve, reject) => {
+    let resolved = false;
+    let player: InstanceType<typeof window.YT.Player> | null = null;
+
+    const cleanup = () => {
+      try { player?.destroy(); } catch {}
+      try { container.remove(); } catch {}
+    };
+
+    const safeResolve = (v: string[]) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(v);
+    };
+
+    const safeReject = (e: Error) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      reject(e);
+    };
+
+    player = new window.YT.Player(target, {
+      height: '0',
+      width: '0',
+      playerVars: { listType: 'playlist', list: playlistId, autoplay: 0 },
+      events: {
+        onReady: () => {
+          try {
+            const ids: string[] =
+              (player as unknown as { getPlaylist: () => string[] })?.getPlaylist() || [];
+            safeResolve(ids);
+          } catch (e) {
+            safeReject(e instanceof Error ? e : new Error(String(e)));
+          }
+        },
+        onError: () => {
+          safeReject(new Error("Couldn't load playlist for sync"));
+        },
+      },
+    });
+
+    setTimeout(() => safeReject(new Error('Timed out loading playlist')), 20000);
+  });
+}
+
+/**
+ * Fetch oEmbed metadata for a single video ID. Used during sync to enrich
+ * only the new videos we discovered.
+ */
+export async function fetchVideoMeta(videoId: string): Promise<YouTubeVideoMeta> {
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+    );
+    if (res.ok) {
+      const meta = await res.json();
+      return {
+        videoId,
+        title: meta.title || `Video ${videoId}`,
+        author: meta.author_name || 'YouTube',
+        thumbnail:
+          meta.thumbnail_url ||
+          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      };
+    }
+  } catch {}
+  return {
+    videoId,
+    title: `Video ${videoId}`,
+    author: 'YouTube',
+    thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+  };
+}
+
+/**
  * Load a YouTube playlist via the IFrame API and extract every video's
  * id + metadata (title, author, thumbnail) using the public oEmbed endpoint.
  *

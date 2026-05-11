@@ -57,6 +57,8 @@ export interface Playlist {
   is_public: boolean;
   created_at: string;
   updated_at: string;
+  source_youtube_id?: string | null;
+  last_synced_at?: string | null;
   song_count?: number;
   songs?: PlaylistSong[];
 }
