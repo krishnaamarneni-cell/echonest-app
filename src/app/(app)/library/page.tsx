@@ -15,7 +15,7 @@ type Tab = 'songs' | 'albums' | 'artists' | 'playlists' | 'podcasts';
 export default function LibraryPage() {
   const [tab, setTab] = useState<Tab>('songs');
   const [songs, setSongs] = useState<Song[]>([]);
-  const [podcasts, setPodcasts] = useState<Song[]>([]);
+  const [podcastPlaylists, setPodcastPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -34,12 +34,14 @@ export default function LibraryPage() {
           .order('created_at', { ascending: false });
         if (data) setSongs(data);
       } else if (tab === 'podcasts') {
+        // Show PODCAST playlists (one entry per imported podcast playlist),
+        // not a flat list of every podcast episode
         const { data } = await supabase
-          .from('songs')
+          .from('playlists')
           .select('*')
           .eq('content_type', 'podcast')
-          .order('created_at', { ascending: false });
-        if (data) setPodcasts(data);
+          .order('updated_at', { ascending: false });
+        if (data) setPodcastPlaylists(data);
       } else if (tab === 'albums') {
         const { data } = await supabase
           .from('albums')
@@ -53,9 +55,12 @@ export default function LibraryPage() {
           .order('name');
         if (data) setArtists(data);
       } else {
+        // 'playlists' tab — show only music playlists (so podcasts stay
+        // separate in their own tab)
         const { data } = await supabase
           .from('playlists')
           .select('*')
+          .eq('content_type', 'music')
           .order('updated_at', { ascending: false });
         if (data) setPlaylists(data);
       }
@@ -131,24 +136,23 @@ export default function LibraryPage() {
           )}
 
           {tab === 'podcasts' && (
-            podcasts.length > 0 ? (
-              <div className="space-y-0.5">
-                {podcasts.map((song, i) => (
-                  <SongRow
-                    key={song.id}
-                    song={song}
-                    index={i}
-                    showIndex
-                    songs={podcasts}
-                    onDeleted={(id) => setPodcasts((prev) => prev.filter((s) => s.id !== id))}
+            podcastPlaylists.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {podcastPlaylists.map((playlist) => (
+                  <MediaCard
+                    key={playlist.id}
+                    title={playlist.title}
+                    subtitle={playlist.description || 'Podcast'}
+                    imageUrl={playlist.cover_url}
+                    href={`/playlist/${playlist.id}`}
                   />
                 ))}
               </div>
             ) : (
               <EmptyState
                 icon={Mic}
-                title="No podcasts yet"
-                description="When you add a YouTube link or upload a file, select Podcast to add it here"
+                title="No podcast playlists yet"
+                description="When you paste a YouTube playlist URL, select Podcast — it'll show up here as a playlist with all episodes inside"
               />
             )
           )}

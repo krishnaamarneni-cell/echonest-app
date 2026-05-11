@@ -39,8 +39,13 @@ function SpeedButton({
       align="right"
       trigger={
         <button
-          className="text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums"
+          className={`px-2 py-1 rounded-md text-xs font-bold tabular-nums transition-colors ${
+            playbackRate !== 1
+              ? 'bg-accent text-white'
+              : 'text-muted-foreground hover:text-foreground border border-border'
+          }`}
           aria-label="Playback speed"
+          title="Playback speed"
         >
           {playbackRate === 1 ? '1×' : `${playbackRate}×`}
         </button>

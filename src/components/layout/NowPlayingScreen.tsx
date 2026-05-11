@@ -506,9 +506,16 @@ export function NowPlayingScreen() {
             <Menu
               align="left"
               trigger={
-                <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm hover:bg-card-hover transition-colors">
+                <button
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                    playbackRate !== 1
+                      ? 'bg-accent text-white border-accent'
+                      : 'bg-card border-border hover:bg-card-hover'
+                  }`}
+                  aria-label="Playback speed"
+                >
                   <Gauge className="w-4 h-4" />
-                  {playbackRate === 1 ? '1×' : `${playbackRate}×`}
+                  Speed: {playbackRate === 1 ? '1×' : `${playbackRate}×`}
                 </button>
               }
               items={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => ({

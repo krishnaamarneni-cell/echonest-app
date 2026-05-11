@@ -59,6 +59,7 @@ export interface Playlist {
   updated_at: string;
   source_youtube_id?: string | null;
   last_synced_at?: string | null;
+  content_type?: 'music' | 'podcast' | 'artist' | 'album';
   song_count?: number;
   songs?: PlaylistSong[];
 }

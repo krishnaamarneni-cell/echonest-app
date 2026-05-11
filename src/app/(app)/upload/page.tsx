@@ -199,6 +199,7 @@ export default function UploadPage() {
             cover_url: playlistCover,
             source_youtube_id: parsed.id,
             last_synced_at: new Date().toISOString(),
+            content_type: contentType,
           })
           .select('id')
           .single();
