@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [ownerPassword, setOwnerPassword] = useState('');
   const [ownerError, setOwnerError] = useState('');
   const [ownerLoading, setOwnerLoading] = useState(false);
+  const [showOwnerForm, setShowOwnerForm] = useState(false);
 
   useEffect(() => {
     hydrate();
@@ -69,6 +70,19 @@ export default function SettingsPage() {
     router.refresh();
   };
 
+  // Sign out the auto-signed-in public account first, then hard-redirect
+  // to /login or /signup. Without this, the public-account session causes
+  // middleware to bounce auth pages back to /dashboard.
+  const handleGoToAuth = async (path: '/login' | '/signup') => {
+    const supabase = createClient();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore — we navigate either way
+    }
+    window.location.href = path;
+  };
+
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ownerPassword) return;
@@ -105,52 +119,66 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="relative flex flex-wrap items-center gap-2">
-            <Link
-              href="/signup"
+            <button
+              type="button"
+              onClick={() => handleGoToAuth('/signup')}
               className="px-5 py-2.5 bg-accent text-white text-sm font-medium rounded-full hover:bg-accent-hover transition-colors shadow-lg shadow-accent/20"
             >
               <span className="inline-flex items-center gap-2">
                 <UserPlus className="w-4 h-4" />
                 Sign up — free
               </span>
-            </Link>
-            <Link
-              href="/login"
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGoToAuth('/login')}
               className="px-5 py-2.5 bg-card border border-border text-sm font-medium rounded-full hover:bg-card-hover transition-colors"
             >
               I already have an account
-            </Link>
+            </button>
           </div>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold flex items-center gap-2 text-muted-foreground">
-            <Lock className="w-4 h-4" />
-            Owner of this library?
-          </h2>
-          <form onSubmit={handleUnlock} className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Enter the owner password to unlock delete + edit controls across
-              the app.
-            </p>
-            <Input
-              type="password"
-              placeholder="Owner password"
-              value={ownerPassword}
-              onChange={(e) => setOwnerPassword(e.target.value)}
-            />
-            {ownerError && (
-              <p className="text-sm text-destructive">{ownerError}</p>
-            )}
-            <Button type="submit" disabled={ownerLoading || !ownerPassword} variant="secondary">
-              <Unlock className="w-4 h-4" />
-              {ownerLoading ? 'Checking…' : 'Unlock'}
-            </Button>
-          </form>
         </section>
 
         <section className="space-y-3 pt-2">
           <h2 className="text-base font-semibold text-muted-foreground">About</h2>
+          {/* Discreet owner-unlock — hidden until tapped, so public visitors
+              don't see a password prompt. Owner knows to click it. */}
+          {!showOwnerForm ? (
+            <button
+              type="button"
+              onClick={() => setShowOwnerForm(true)}
+              className="text-[10px] text-muted hover:text-muted-foreground transition-colors"
+            >
+              ·
+            </button>
+          ) : (
+            <form onSubmit={handleUnlock} className="space-y-2 bg-card border border-border rounded-xl p-3">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Lock className="w-3 h-3" /> Owner unlock
+              </p>
+              <Input
+                type="password"
+                placeholder="Owner password"
+                value={ownerPassword}
+                onChange={(e) => setOwnerPassword(e.target.value)}
+                autoFocus
+              />
+              {ownerError && <p className="text-xs text-destructive">{ownerError}</p>}
+              <div className="flex items-center gap-2">
+                <Button type="submit" disabled={ownerLoading || !ownerPassword} variant="secondary">
+                  <Unlock className="w-4 h-4" />
+                  {ownerLoading ? 'Checking…' : 'Unlock'}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => { setShowOwnerForm(false); setOwnerError(''); setOwnerPassword(''); }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
           <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
             <Logo size="sm" />
             <div>
