@@ -96,11 +96,23 @@ export default function LibraryPage() {
           .order('title');
         if (data) setAlbums(data);
       } else if (tab === 'artists') {
-        const { data } = await supabase
-          .from('artists')
-          .select('*')
-          .order('name');
-        if (data) setArtists(data);
+        // Only show artists that actually have at least one song. Count
+        // songs per artist_id and filter the artist list accordingly.
+        const [{ data: artistRows }, { data: songRows }] = await Promise.all([
+          supabase.from('artists').select('*').order('name'),
+          supabase.from('songs').select('artist_id').not('artist_id', 'is', null),
+        ]);
+
+        const counts = new Map<string, number>();
+        for (const s of songRows || []) {
+          const id = (s as { artist_id: string | null }).artist_id;
+          if (id) counts.set(id, (counts.get(id) || 0) + 1);
+        }
+
+        const withSongs = (artistRows || [])
+          .filter((a) => counts.has(a.id as string))
+          .map((a) => ({ ...a, song_count: counts.get(a.id as string) || 0 }));
+        setArtists(withSongs as Artist[]);
       } else {
         // 'playlists' tab — show every playlist except podcasts (which have
         // their own tab). Includes music, album, artist, and untagged.
