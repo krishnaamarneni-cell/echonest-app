@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Song, Playlist, Album } from '@/types';
+import { Song, Playlist, Album, Artist } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2 } from 'lucide-react';
 import Link from 'next/link';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 
-type HomeTab = 'all' | 'songs' | 'podcasts' | 'playlists' | 'albums';
+type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<HomeTab>('all');
@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [ytTracks, setYtTracks] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
   const [allPlaylistSongs, setAllPlaylistSongs] = useState<Song[]>([]);
   const [podcasts, setPodcasts] = useState<Song[]>([]);
   const [podcastPlaylists, setPodcastPlaylists] = useState<Playlist[]>([]);
@@ -71,7 +72,7 @@ export default function DashboardPage() {
         supabase
           .from('playlists')
           .select('*')
-          .eq('content_type', 'music')
+          .or('content_type.eq.music,content_type.is.null')
           .order('updated_at', { ascending: false })
           .limit(100),
         supabase
@@ -110,6 +111,21 @@ export default function DashboardPage() {
       if (podcastPlaylistsRes.data) setPodcastPlaylists(podcastPlaylistsRes.data);
       if (podcastSongsRes.data) setPodcasts(podcastSongsRes.data);
 
+      // Artists with at least one linked song (same filter as Library)
+      const [{ data: artistRows }, { data: songArtistRows }] = await Promise.all([
+        supabase.from('artists').select('*').order('name'),
+        supabase.from('songs').select('artist_id').not('artist_id', 'is', null),
+      ]);
+      const counts = new Map<string, number>();
+      for (const s of songArtistRows || []) {
+        const id = (s as { artist_id: string | null }).artist_id;
+        if (id) counts.set(id, (counts.get(id) || 0) + 1);
+      }
+      const artistsWithSongs = (artistRows || [])
+        .filter((a) => counts.has(a.id as string))
+        .map((a) => ({ ...a, song_count: counts.get(a.id as string) || 0 }));
+      setArtists(artistsWithSongs as Artist[]);
+
       // Songs across ALL playlists, in playlist + position order
       const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
       setAllPlaylistSongs(buildCrossPlaylistQueue(playlistsWithSongs));
@@ -144,12 +160,14 @@ export default function DashboardPage() {
     (s, i, arr) => arr.findIndex((x) => x.id === s.id) === i,
   );
 
+  // Tab order mirrors Library, with 'All' prepended
   const homeTabs: { id: HomeTab; label: string; icon: React.ElementType }[] = [
     { id: 'all', label: 'All', icon: TrendingUp },
     { id: 'songs', label: 'Songs', icon: Music },
     { id: 'podcasts', label: 'Podcasts', icon: Mic },
-    { id: 'playlists', label: 'Playlists', icon: ListMusic },
     { id: 'albums', label: 'Albums', icon: Disc },
+    { id: 'artists', label: 'Artists', icon: Mic2 },
+    { id: 'playlists', label: 'Playlists', icon: ListMusic },
   ];
 
   return (
@@ -323,6 +341,21 @@ export default function DashboardPage() {
               ))}
             </Section>
           )}
+
+          {artists.length > 0 && (
+            <Section title="Artists" icon={Mic2} seeAllHref="/library">
+              {artists.slice(0, 10).map((artist) => (
+                <MediaCard
+                  key={artist.id}
+                  title={artist.name}
+                  subtitle={`${artist.song_count || 0} songs`}
+                  imageUrl={artist.image_url}
+                  href={`/artist/${artist.id}`}
+                  rounded
+                />
+              ))}
+            </Section>
+          )}
         </>
       )}
 
@@ -414,6 +447,26 @@ export default function DashboardPage() {
           </Section>
         ) : (
           <p className="text-center text-muted-foreground py-12">No albums yet.</p>
+        )
+      )}
+
+      {/* === ARTISTS tab: every artist with at least one song === */}
+      {tab === 'artists' && (
+        artists.length > 0 ? (
+          <Section title={`Artists (${artists.length})`} icon={Mic2} seeAllHref="/library">
+            {artists.map((artist) => (
+              <MediaCard
+                key={artist.id}
+                title={artist.name}
+                subtitle={`${artist.song_count || 0} songs`}
+                imageUrl={artist.image_url}
+                href={`/artist/${artist.id}`}
+                rounded
+              />
+            ))}
+          </Section>
+        ) : (
+          <p className="text-center text-muted-foreground py-12">No artists yet.</p>
         )
       )}
     </div>
