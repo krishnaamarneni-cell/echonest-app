@@ -228,15 +228,22 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
-  // Whenever background mode is on AND a YouTube track is playing, keep the
-  // mini-player visible so the user can reach native iOS controls / PiP.
-  // The player-init effect short-circuits on subsequent songs, so this is
-  // the only thing that surfaces the mini view past the first track.
+  // Surface the mini-player ONCE per new YouTube track when background mode
+  // is on — so the user can reach native iOS controls. Tracked by a ref of
+  // the last-seen video id so the user closing the mini doesn't auto-reopen
+  // it on the same track.
+  const lastBgVideoIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (bgMode && isYouTube && currentSong?.youtube_id && ytView === 'hidden') {
+    if (!bgMode || !isYouTube) {
+      lastBgVideoIdRef.current = null;
+      return;
+    }
+    const vid = currentSong?.youtube_id || null;
+    if (vid && vid !== lastBgVideoIdRef.current) {
+      lastBgVideoIdRef.current = vid;
       setYtView('mini');
     }
-  }, [bgMode, isYouTube, currentSong?.youtube_id, ytView]);
+  }, [bgMode, isYouTube, currentSong?.youtube_id]);
 
   // Load YouTube IFrame API
   useEffect(() => {

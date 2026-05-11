@@ -1,8 +1,10 @@
 'use client';
 
-import type { RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Song, QueueItem } from '@/types';
-import { ChevronDown, Maximize2, Minimize2, Music } from 'lucide-react';
+import { ChevronDown, Maximize2, Minimize2, Music, GripVertical } from 'lucide-react';
+
+const POS_KEY = 'echonest-yt-mini-pos';
 
 export function YouTubeView({
   view,
@@ -29,6 +31,90 @@ export function YouTubeView({
   const isMini = view === 'mini';
   const upcoming = queue.slice(queueIndex + 1);
 
+  // Drag state for mini-player (YouTube-style floating window)
+  const dragRef = useRef<{
+    dragging: boolean;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Restore saved position
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(POS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') {
+          setPos(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const handleDragStart = (clientX: number, clientY: number) => {
+    if (typeof window === 'undefined') return;
+    const current = pos ?? {
+      x: window.innerWidth - 320 - 12,
+      y: window.innerHeight - 180 - 100,
+    };
+    dragRef.current = {
+      dragging: true,
+      startX: clientX,
+      startY: clientY,
+      origX: current.x,
+      origY: current.y,
+    };
+    setPos(current);
+  };
+
+  const handleDragMove = (clientX: number, clientY: number) => {
+    const d = dragRef.current;
+    if (!d?.dragging) return;
+    const newX = d.origX + (clientX - d.startX);
+    const newY = d.origY + (clientY - d.startY);
+    const maxX = window.innerWidth - 320;
+    const maxY = window.innerHeight - 180;
+    setPos({
+      x: Math.max(0, Math.min(maxX, newX)),
+      y: Math.max(0, Math.min(maxY, newY)),
+    });
+  };
+
+  const handleDragEnd = () => {
+    if (!dragRef.current?.dragging) return;
+    dragRef.current.dragging = false;
+    if (pos && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(POS_KEY, JSON.stringify(pos));
+      } catch {}
+    }
+  };
+
+  // Bind global mouse/touch listeners only while dragging
+  useEffect(() => {
+    if (!isMini) return;
+    const onMouseMove = (e: MouseEvent) => handleDragMove(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches[0]) handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onUp = () => handleDragEnd();
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMini, pos]);
+
   return (
     <>
       {isFull && (
@@ -49,8 +135,14 @@ export function YouTubeView({
             ? undefined
             : {
                 position: 'fixed',
-                right: '0.75rem',
-                bottom: 'var(--floating-bottom)',
+                // Use saved drag position if user moved the window;
+                // otherwise default to bottom-right.
+                ...(pos
+                  ? { left: pos.x, top: pos.y }
+                  : {
+                      right: '0.75rem',
+                      bottom: 'var(--floating-bottom)',
+                    }),
                 width: isMini ? 320 : 1,
                 height: isMini ? 180 : 1,
                 opacity: isMini ? 1 : 0,
@@ -60,6 +152,7 @@ export function YouTubeView({
                 boxShadow: isMini ? '0 10px 40px rgba(0,0,0,0.5)' : 'none',
                 background: '#000',
                 zIndex: 40,
+                touchAction: 'none',
               }
         }
       >
@@ -77,28 +170,48 @@ export function YouTubeView({
           />
 
           {isMini && (
-            <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFull();
+            <>
+              {/* Drag handle on the top-left — separate from controls so
+                  taps on expand/close don't start a drag. */}
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleDragStart(e.clientX, e.clientY);
                 }}
-                className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md hover:bg-black/80 flex items-center justify-center text-white"
-                aria-label="Expand video"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
+                onTouchStart={(e) => {
+                  const t = e.touches[0];
+                  if (t) handleDragStart(t.clientX, t.clientY);
                 }}
-                className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md hover:bg-black/80 flex items-center justify-center text-white"
-                aria-label="Hide video"
+                className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white cursor-grab active:cursor-grabbing select-none"
+                aria-label="Drag video"
+                title="Drag to move"
               >
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                <GripVertical className="w-3.5 h-3.5" />
+              </div>
+
+              <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFull();
+                  }}
+                  className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md hover:bg-black/80 flex items-center justify-center text-white"
+                  aria-label="Expand video"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-md hover:bg-black/80 flex items-center justify-center text-white"
+                  aria-label="Hide video"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </>
           )}
         </div>
 
