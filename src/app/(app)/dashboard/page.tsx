@@ -8,7 +8,7 @@ import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2 } from 'lucide-react';
 import Link from 'next/link';
-import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
+import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
 
@@ -106,9 +106,15 @@ export default function DashboardPage() {
       }
       if (recentAddedRes.data) setRecentlyAdded(recentAddedRes.data);
       if (ytRes.data) setYtTracks(ytRes.data);
-      if (playlistsRes.data) setPlaylists(playlistsRes.data);
+      if (playlistsRes.data) {
+        const filled = await fillPlaylistCovers(playlistsRes.data);
+        setPlaylists(filled);
+      }
       if (albumsRes.data) setAlbums(albumsRes.data);
-      if (podcastPlaylistsRes.data) setPodcastPlaylists(podcastPlaylistsRes.data);
+      if (podcastPlaylistsRes.data) {
+        const filled = await fillPlaylistCovers(podcastPlaylistsRes.data);
+        setPodcastPlaylists(filled);
+      }
       if (podcastSongsRes.data) setPodcasts(podcastSongsRes.data);
 
       // Artists with 2+ linked songs, sorted by song count, with fallback

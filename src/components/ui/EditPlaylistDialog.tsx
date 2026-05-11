@@ -23,6 +23,7 @@ export function EditPlaylistDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,6 +32,11 @@ export function EditPlaylistDialog({
       setTitle(playlist.title || '');
       setDescription(playlist.description || '');
       setCoverUrl(playlist.cover_url || '');
+      setYoutubeUrl(
+        playlist.source_youtube_id
+          ? `https://www.youtube.com/playlist?list=${playlist.source_youtube_id}`
+          : '',
+      );
       setError('');
     }
   }, [open, playlist]);
@@ -76,6 +82,24 @@ export function EditPlaylistDialog({
     setError('');
     setSaving(true);
 
+    // Extract the playlist ID from a YouTube URL if provided. Accept full
+    // URL or a bare playlist id (UU/PL/RD...).
+    let sourceYoutubeId: string | null = null;
+    const ytTrimmed = youtubeUrl.trim();
+    if (ytTrimmed) {
+      const match = ytTrimmed.match(/[?&]list=([^&]+)/);
+      if (match) {
+        sourceYoutubeId = match[1];
+      } else if (/^[A-Za-z0-9_-]{10,}$/.test(ytTrimmed)) {
+        sourceYoutubeId = ytTrimmed;
+      } else {
+        setError(
+          'YouTube source must be a playlist URL (with ?list=...) or a bare playlist ID',
+        );
+        return;
+      }
+    }
+
     const supabase = createClient();
     const { data, error: updateError } = await supabase
       .from('playlists')
@@ -83,6 +107,7 @@ export function EditPlaylistDialog({
         title: trimmedTitle,
         description: description.trim() || null,
         cover_url: coverUrl.trim() || null,
+        source_youtube_id: sourceYoutubeId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', playlist.id)
@@ -171,6 +196,19 @@ export function EditPlaylistDialog({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+
+          <div className="space-y-1">
+            <Input
+              label="YouTube playlist URL (for sync)"
+              placeholder="https://www.youtube.com/playlist?list=..."
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Linking a YouTube playlist enables the &quot;Sync from YouTube&quot;
+              button. Leave blank to remove the link.
+            </p>
+          </div>
 
           {error && (
             <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">

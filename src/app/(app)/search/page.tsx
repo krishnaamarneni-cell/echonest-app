@@ -8,7 +8,7 @@ import { MediaCard } from '@/components/ui/MediaCard';
 import { BrowseTile, pickGradient } from '@/components/ui/BrowseTile';
 import { usePlayerStore } from '@/store/player';
 import { Search as SearchIcon, X, Music, Play } from 'lucide-react';
-import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
+import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import Image from 'next/image';
 
 interface BrowseItem {
@@ -45,8 +45,8 @@ export default function SearchPage() {
       .select('*')
       .order('updated_at', { ascending: false })
       .limit(12)
-      .then(({ data }) => {
-        if (data) setBrowsePlaylists(data);
+      .then(async ({ data }) => {
+        if (data) setBrowsePlaylists(await fillPlaylistCovers(data));
       });
   }, []);
 

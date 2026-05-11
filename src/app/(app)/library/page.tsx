@@ -10,6 +10,7 @@ import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fillPlaylistCovers } from '@/lib/playlistQueue';
 
 const SONGS_PER_PAGE = 8;
 
@@ -88,7 +89,7 @@ export default function LibraryPage() {
           (a, b) =>
             new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
         );
-        setPodcastPlaylists(merged);
+        setPodcastPlaylists(await fillPlaylistCovers(merged));
       } else if (tab === 'albums') {
         const { data } = await supabase
           .from('albums')
@@ -137,7 +138,7 @@ export default function LibraryPage() {
           .select('*')
           .or('content_type.eq.music,content_type.is.null')
           .order('updated_at', { ascending: false });
-        if (data) setPlaylists(data);
+        if (data) setPlaylists(await fillPlaylistCovers(data));
       }
       setLoading(false);
     }
