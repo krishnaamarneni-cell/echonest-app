@@ -26,6 +26,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [entering, setEntering] = useState(false);
+  const [enterError, setEnterError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -37,6 +38,7 @@ export default function LandingPage() {
   const enterApp = async () => {
     if (entering) return;
     setEntering(true);
+    setEnterError(null);
     if (signedIn) {
       router.push('/dashboard');
       return;
@@ -47,8 +49,16 @@ export default function LandingPage() {
         window.location.href = '/dashboard';
         return;
       }
-    } catch {}
-    router.push('/signup');
+      // Surface the real reason rather than silently dumping users on /signup.
+      const data = await res.json().catch(() => null);
+      setEnterError(
+        data?.error ||
+          `Couldn't open the shared library (${res.status}). Try Sign up to make your own.`,
+      );
+    } catch {
+      setEnterError('Network error. Please try again.');
+    }
+    setEntering(false);
   };
 
   return (
@@ -153,6 +163,12 @@ export default function LandingPage() {
           <p className="text-xs text-muted">
             ✨ Click and you&apos;re in. Instant access to the shared library.
           </p>
+
+          {enterError && (
+            <div className="mt-4 mx-auto max-w-md bg-destructive/10 border border-destructive/30 text-destructive text-sm rounded-xl px-4 py-3 animate-fade-in">
+              {enterError}
+            </div>
+          )}
 
           {/* Mock player visualization */}
           <div className="mt-16 sm:mt-24 max-w-4xl mx-auto animate-fade-in">

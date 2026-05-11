@@ -39,7 +39,9 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm space-y-8 animate-fade-in">
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <Logo size="lg" />
+            <Link href="/" className="hover:opacity-80 transition-opacity">
+              <Logo size="lg" />
+            </Link>
           </div>
           <h1 className="text-2xl font-bold">
             {sent ? 'Check your email' : 'Reset your password'}
