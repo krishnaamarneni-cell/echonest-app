@@ -167,7 +167,7 @@ export default function PlaylistDetailPage() {
             )}
             <p className="text-sm text-muted mt-3">{songs.length} songs</p>
 
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
               <Button
                 onClick={() => {
                   if (songs.length === 0) return;
