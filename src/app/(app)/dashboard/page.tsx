@@ -10,7 +10,10 @@ import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mi
 import Link from 'next/link';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 
+type HomeTab = 'all' | 'songs' | 'podcasts' | 'playlists' | 'albums';
+
 export default function DashboardPage() {
+  const [tab, setTab] = useState<HomeTab>('all');
   const [recentSongs, setRecentSongs] = useState<Song[]>([]);
   const [recentlyAdded, setRecentlyAdded] = useState<Song[]>([]);
   const [ytTracks, setYtTracks] = useState<Song[]>([]);
@@ -18,6 +21,7 @@ export default function DashboardPage() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [allPlaylistSongs, setAllPlaylistSongs] = useState<Song[]>([]);
   const [podcasts, setPodcasts] = useState<Song[]>([]);
+  const [podcastPlaylists, setPodcastPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInstallHint, setShowInstallHint] = useState(false);
 
@@ -36,44 +40,58 @@ export default function DashboardPage() {
     const supabase = createClient();
 
     async function loadData() {
-      const [recentPlayedRes, recentAddedRes, ytRes, playlistsRes, albumsRes, podcastsRes] =
-        await Promise.all([
-          supabase
-            .from('recently_played')
-            .select('played_at, song:songs(*)')
-            .order('played_at', { ascending: false })
-            .limit(20),
-          supabase
-            .from('songs')
-            .select('*')
-            .eq('source', 'upload')
-            .eq('content_type', 'music')
-            .order('created_at', { ascending: false })
-            .limit(12),
-          supabase
-            .from('songs')
-            .select('*')
-            .eq('source', 'youtube_embed')
-            .eq('content_type', 'music')
-            .order('created_at', { ascending: false })
-            .limit(12),
-          supabase
-            .from('playlists')
-            .select('*')
-            .order('updated_at', { ascending: false })
-            .limit(8),
-          supabase
-            .from('albums')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(8),
-          supabase
-            .from('songs')
-            .select('*')
-            .eq('content_type', 'podcast')
-            .order('created_at', { ascending: false })
-            .limit(12),
-        ]);
+      const [
+        recentPlayedRes,
+        recentAddedRes,
+        ytRes,
+        playlistsRes,
+        albumsRes,
+        podcastPlaylistsRes,
+        podcastSongsRes,
+      ] = await Promise.all([
+        supabase
+          .from('recently_played')
+          .select('played_at, song:songs(*)')
+          .order('played_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('songs')
+          .select('*')
+          .eq('source', 'upload')
+          .eq('content_type', 'music')
+          .order('created_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('songs')
+          .select('*')
+          .eq('source', 'youtube_embed')
+          .eq('content_type', 'music')
+          .order('created_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('playlists')
+          .select('*')
+          .eq('content_type', 'music')
+          .order('updated_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('albums')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('playlists')
+          .select('*')
+          .eq('content_type', 'podcast')
+          .order('updated_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('songs')
+          .select('*')
+          .eq('content_type', 'podcast')
+          .order('created_at', { ascending: false })
+          .limit(100),
+      ]);
 
       if (recentPlayedRes.data) {
         const songs = recentPlayedRes.data
@@ -89,7 +107,8 @@ export default function DashboardPage() {
       if (ytRes.data) setYtTracks(ytRes.data);
       if (playlistsRes.data) setPlaylists(playlistsRes.data);
       if (albumsRes.data) setAlbums(albumsRes.data);
-      if (podcastsRes.data) setPodcasts(podcastsRes.data);
+      if (podcastPlaylistsRes.data) setPodcastPlaylists(podcastPlaylistsRes.data);
+      if (podcastSongsRes.data) setPodcasts(podcastSongsRes.data);
 
       // Songs across ALL playlists, in playlist + position order
       const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
@@ -120,13 +139,44 @@ export default function DashboardPage() {
     playlists.length > 0 ||
     albums.length > 0;
 
+  // Combined music songs (uploaded + YouTube embed) for the Songs tab
+  const allMusicSongs = [...recentlyAdded, ...ytTracks].filter(
+    (s, i, arr) => arr.findIndex((x) => x.id === s.id) === i,
+  );
+
+  const homeTabs: { id: HomeTab; label: string; icon: React.ElementType }[] = [
+    { id: 'all', label: 'All', icon: TrendingUp },
+    { id: 'songs', label: 'Songs', icon: Music },
+    { id: 'podcasts', label: 'Podcasts', icon: Mic },
+    { id: 'playlists', label: 'Playlists', icon: ListMusic },
+    { id: 'albums', label: 'Albums', icon: Disc },
+  ];
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-10 animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-fade-in">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold">{greeting()}</h1>
         <p className="text-muted-foreground mt-1 text-sm sm:text-base">
           Here&apos;s what&apos;s playing in your world
         </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+        {homeTabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              tab === t.id
+                ? 'bg-accent text-white'
+                : 'bg-card text-muted-foreground hover:text-foreground hover:bg-card-hover'
+            }`}
+          >
+            <t.icon className="w-4 h-4" />
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* PWA install hint for background play */}
@@ -170,106 +220,201 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* All songs from your playlists — clicking any plays through ALL playlists */}
-      {allPlaylistSongs.length > 0 && (
-        <Section title={`All Songs in Your Playlists (${allPlaylistSongs.length})`} icon={Disc} seeAllHref="/library">
-          {allPlaylistSongs.map((song) => (
-            <SongCard key={song.id} song={song} songs={allPlaylistSongs} />
-          ))}
-        </Section>
+      {/* === ALL tab: previews of everything (5-10 per type) === */}
+      {tab === 'all' && (
+        <>
+          {/* All songs from your playlists — preview only */}
+          {allPlaylistSongs.length > 0 && (
+            <Section
+              title={`All Songs in Your Playlists (${allPlaylistSongs.length})`}
+              icon={Disc}
+              seeAllHref="/library"
+            >
+              {allPlaylistSongs.slice(0, 10).map((song) => (
+                <SongCard key={song.id} song={song} songs={allPlaylistSongs} />
+              ))}
+            </Section>
+          )}
+
+          {(loading || recentSongs.length > 0) && (
+            <Section
+              title="Recently Played"
+              icon={Clock}
+              seeAllHref="/recent"
+              loading={loading}
+              empty={recentSongs.length === 0}
+            >
+              {recentSongs.slice(0, 8).map((song) => (
+                <SongCard key={song.id} song={song} songs={recentSongs} />
+              ))}
+            </Section>
+          )}
+
+          {(loading || recentlyAdded.length > 0) && (
+            <Section
+              title="Recently Added"
+              icon={Music}
+              seeAllHref="/library"
+              loading={loading}
+              empty={recentlyAdded.length === 0}
+            >
+              {recentlyAdded.slice(0, 10).map((song) => (
+                <SongCard
+                  key={song.id}
+                  song={song}
+                  songs={recentlyAdded}
+                  onDeleted={(id) => setRecentlyAdded((prev) => prev.filter((s) => s.id !== id))}
+                />
+              ))}
+            </Section>
+          )}
+
+          {ytTracks.length > 0 && (
+            <Section title="From YouTube" icon={ExternalLink} seeAllHref="/import">
+              {ytTracks.slice(0, 10).map((song) => (
+                <SongCard
+                  key={song.id}
+                  song={song}
+                  songs={ytTracks.filter((s) => s.youtube_kind !== 'playlist')}
+                  onDeleted={(id) => setYtTracks((prev) => prev.filter((s) => s.id !== id))}
+                />
+              ))}
+            </Section>
+          )}
+
+          {podcastPlaylists.length > 0 && (
+            <Section title="Podcast Playlists" icon={Mic} seeAllHref="/library">
+              {podcastPlaylists.slice(0, 10).map((playlist) => (
+                <MediaCard
+                  key={playlist.id}
+                  title={playlist.title}
+                  subtitle="Podcast"
+                  imageUrl={playlist.cover_url}
+                  href={`/playlist/${playlist.id}`}
+                />
+              ))}
+            </Section>
+          )}
+
+          {playlists.length > 0 && (
+            <Section title="Your Playlists" icon={ListMusic} seeAllHref="/library">
+              {playlists.slice(0, 10).map((playlist) => (
+                <MediaCard
+                  key={playlist.id}
+                  title={playlist.title}
+                  subtitle={playlist.description || 'Playlist'}
+                  imageUrl={playlist.cover_url}
+                  href={`/playlist/${playlist.id}`}
+                />
+              ))}
+            </Section>
+          )}
+
+          {albums.length > 0 && (
+            <Section title="Your Albums" icon={TrendingUp} seeAllHref="/library">
+              {albums.slice(0, 10).map((album) => (
+                <MediaCard
+                  key={album.id}
+                  title={album.title}
+                  subtitle={album.artist_name}
+                  imageUrl={album.cover_url}
+                  href={`/album/${album.id}`}
+                />
+              ))}
+            </Section>
+          )}
+        </>
       )}
 
-      {/* Recently Played */}
-      {(loading || recentSongs.length > 0) && (
-        <Section
-          title="Recently Played"
-          icon={Clock}
-          seeAllHref="/recent"
-          loading={loading}
-          empty={recentSongs.length === 0}
-        >
-          {recentSongs.map((song) => (
-            <SongCard key={song.id} song={song} songs={recentSongs} />
-          ))}
-        </Section>
+      {/* === SONGS tab: every music song === */}
+      {tab === 'songs' && (
+        allMusicSongs.length > 0 ? (
+          <Section title={`All Songs (${allMusicSongs.length})`} icon={Music} seeAllHref="/library">
+            {allMusicSongs.map((song) => (
+              <SongCard key={song.id} song={song} songs={allMusicSongs} />
+            ))}
+          </Section>
+        ) : (
+          <p className="text-center text-muted-foreground py-12">
+            No songs yet. Add some on the Upload page.
+          </p>
+        )
       )}
 
-      {/* Recently Added */}
-      {(loading || recentlyAdded.length > 0) && (
-        <Section
-          title="Recently Added"
-          icon={Music}
-          seeAllHref="/library"
-          loading={loading}
-          empty={recentlyAdded.length === 0}
-        >
-          {recentlyAdded.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              songs={recentlyAdded}
-              onDeleted={(id) => setRecentlyAdded((prev) => prev.filter((s) => s.id !== id))}
-            />
-          ))}
-        </Section>
+      {/* === PODCASTS tab: podcast playlists + standalone episodes === */}
+      {tab === 'podcasts' && (
+        <>
+          {podcastPlaylists.length > 0 && (
+            <Section title="Podcast Playlists" icon={Mic} seeAllHref="/library">
+              {podcastPlaylists.map((playlist) => (
+                <MediaCard
+                  key={playlist.id}
+                  title={playlist.title}
+                  subtitle="Podcast"
+                  imageUrl={playlist.cover_url}
+                  href={`/playlist/${playlist.id}`}
+                />
+              ))}
+            </Section>
+          )}
+          {podcasts.length > 0 && (
+            <Section title="Podcast Episodes" icon={Mic} seeAllHref="/library">
+              {podcasts.map((song) => (
+                <SongCard
+                  key={song.id}
+                  song={song}
+                  songs={podcasts}
+                  onDeleted={(id) => setPodcasts((prev) => prev.filter((s) => s.id !== id))}
+                />
+              ))}
+            </Section>
+          )}
+          {podcastPlaylists.length === 0 && podcasts.length === 0 && (
+            <p className="text-center text-muted-foreground py-12">
+              No podcasts yet. Add a podcast playlist URL from the Upload page (pick 🎙️ Podcast).
+            </p>
+          )}
+        </>
       )}
 
-      {/* YouTube */}
-      {ytTracks.length > 0 && (
-        <Section title="From YouTube" icon={ExternalLink} seeAllHref="/import">
-          {ytTracks.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              songs={ytTracks.filter((s) => s.youtube_kind !== 'playlist')}
-              onDeleted={(id) => setYtTracks((prev) => prev.filter((s) => s.id !== id))}
-            />
-          ))}
-        </Section>
+      {/* === PLAYLISTS tab: every music playlist === */}
+      {tab === 'playlists' && (
+        playlists.length > 0 ? (
+          <Section title={`Your Playlists (${playlists.length})`} icon={ListMusic} seeAllHref="/library">
+            {playlists.map((playlist) => (
+              <MediaCard
+                key={playlist.id}
+                title={playlist.title}
+                subtitle={playlist.description || 'Playlist'}
+                imageUrl={playlist.cover_url}
+                href={`/playlist/${playlist.id}`}
+              />
+            ))}
+          </Section>
+        ) : (
+          <p className="text-center text-muted-foreground py-12">
+            No playlists yet. Create one or import a YouTube playlist.
+          </p>
+        )
       )}
 
-      {/* Podcasts */}
-      {podcasts.length > 0 && (
-        <Section title="Podcasts" icon={Mic} seeAllHref="/library">
-          {podcasts.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              songs={podcasts}
-              onDeleted={(id) => setPodcasts((prev) => prev.filter((s) => s.id !== id))}
-            />
-          ))}
-        </Section>
-      )}
-
-      {/* Playlists */}
-      {playlists.length > 0 && (
-        <Section title="Your Playlists" icon={ListMusic} seeAllHref="/library">
-          {playlists.map((playlist) => (
-            <MediaCard
-              key={playlist.id}
-              title={playlist.title}
-              subtitle={playlist.description || 'Playlist'}
-              imageUrl={playlist.cover_url}
-              href={`/playlist/${playlist.id}`}
-            />
-          ))}
-        </Section>
-      )}
-
-      {/* Albums */}
-      {albums.length > 0 && (
-        <Section title="Your Albums" icon={TrendingUp} seeAllHref="/library">
-          {albums.map((album) => (
-            <MediaCard
-              key={album.id}
-              title={album.title}
-              subtitle={album.artist_name}
-              imageUrl={album.cover_url}
-              href={`/album/${album.id}`}
-            />
-          ))}
-        </Section>
+      {/* === ALBUMS tab: every album === */}
+      {tab === 'albums' && (
+        albums.length > 0 ? (
+          <Section title={`Your Albums (${albums.length})`} icon={Disc} seeAllHref="/library">
+            {albums.map((album) => (
+              <MediaCard
+                key={album.id}
+                title={album.title}
+                subtitle={album.artist_name}
+                imageUrl={album.cover_url}
+                href={`/album/${album.id}`}
+              />
+            ))}
+          </Section>
+        ) : (
+          <p className="text-center text-muted-foreground py-12">No albums yet.</p>
+        )
       )}
     </div>
   );
