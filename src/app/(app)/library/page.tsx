@@ -114,12 +114,12 @@ export default function LibraryPage() {
           .map((a) => ({ ...a, song_count: counts.get(a.id as string) || 0 }));
         setArtists(withSongs as Artist[]);
       } else {
-        // 'playlists' tab — show every playlist except podcasts (which have
-        // their own tab). Includes music, album, artist, and untagged.
+        // 'playlists' tab — show music + untagged playlists only.
+        // Artist/album/podcast playlists belong in their dedicated tabs.
         const { data } = await supabase
           .from('playlists')
           .select('*')
-          .or('content_type.neq.podcast,content_type.is.null')
+          .or('content_type.eq.music,content_type.is.null')
           .order('updated_at', { ascending: false });
         if (data) setPlaylists(data);
       }
