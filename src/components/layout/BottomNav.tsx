@@ -13,6 +13,7 @@ import {
   Link2,
   Settings,
   X,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -114,6 +115,12 @@ export function BottomNav() {
                 title="Add from YouTube"
                 subtitle="Paste a video or playlist URL"
                 onClick={() => go('/upload#youtube')}
+              />
+              <SheetItem
+                icon={Download}
+                title="Downloads"
+                subtitle="Uploaded audio — plays in background on iPhone"
+                onClick={() => go('/downloads')}
               />
               <SheetItem
                 icon={Settings}
