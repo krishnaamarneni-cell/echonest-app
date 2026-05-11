@@ -111,19 +111,34 @@ export default function DashboardPage() {
       if (podcastPlaylistsRes.data) setPodcastPlaylists(podcastPlaylistsRes.data);
       if (podcastSongsRes.data) setPodcasts(podcastSongsRes.data);
 
-      // Artists with at least one linked song (same filter as Library)
+      // Artists with 2+ linked songs, sorted by song count, with fallback
+      // cover image pulled from one of the artist's songs.
       const [{ data: artistRows }, { data: songArtistRows }] = await Promise.all([
-        supabase.from('artists').select('*').order('name'),
-        supabase.from('songs').select('artist_id').not('artist_id', 'is', null),
+        supabase.from('artists').select('*'),
+        supabase
+          .from('songs')
+          .select('artist_id, cover_url')
+          .not('artist_id', 'is', null)
+          .not('cover_url', 'is', null),
       ]);
       const counts = new Map<string, number>();
+      const covers = new Map<string, string>();
       for (const s of songArtistRows || []) {
-        const id = (s as { artist_id: string | null }).artist_id;
-        if (id) counts.set(id, (counts.get(id) || 0) + 1);
+        const row = s as { artist_id: string | null; cover_url: string | null };
+        if (!row.artist_id) continue;
+        counts.set(row.artist_id, (counts.get(row.artist_id) || 0) + 1);
+        if (row.cover_url && !covers.has(row.artist_id)) {
+          covers.set(row.artist_id, row.cover_url);
+        }
       }
       const artistsWithSongs = (artistRows || [])
-        .filter((a) => counts.has(a.id as string))
-        .map((a) => ({ ...a, song_count: counts.get(a.id as string) || 0 }));
+        .map((a) => ({
+          ...a,
+          song_count: counts.get(a.id as string) || 0,
+          image_url: (a.image_url as string | null) || covers.get(a.id as string) || null,
+        }))
+        .filter((a) => a.song_count >= 2)
+        .sort((a, b) => b.song_count - a.song_count);
       setArtists(artistsWithSongs as Artist[]);
 
       // Songs across ALL playlists, in playlist + position order

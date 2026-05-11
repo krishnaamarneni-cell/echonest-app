@@ -20,11 +20,17 @@ export function BrowseTile({ title, href, imageUrl, gradient }: BrowseTileProps)
       href={href}
       className={`group relative aspect-[7/4] sm:aspect-square overflow-hidden rounded-xl ${gradient} hover:scale-[1.02] active:scale-[0.99] transition-transform`}
     >
-      <h3 className="absolute top-3 left-3 right-12 text-base sm:text-lg font-bold text-white drop-shadow-lg z-10 line-clamp-2 leading-tight">
+      {/* Title — reserve right space for thumbnail when present so they
+          never overlap on narrow screens. */}
+      <h3
+        className={`absolute top-3 left-3 text-base sm:text-lg font-bold text-white drop-shadow-lg z-10 line-clamp-2 leading-tight ${
+          imageUrl ? 'right-[44%] sm:right-12' : 'right-3'
+        }`}
+      >
         {title}
       </h3>
       {imageUrl && (
-        <div className="absolute -bottom-2 -right-3 w-20 h-20 sm:w-24 sm:h-24 rounded-md overflow-hidden shadow-2xl rotate-[20deg] origin-center group-hover:rotate-[15deg] transition-transform">
+        <div className="absolute bottom-2 right-2 sm:-bottom-2 sm:-right-3 w-16 h-16 sm:w-24 sm:h-24 rounded-md overflow-hidden shadow-2xl sm:rotate-[20deg] sm:origin-center sm:group-hover:rotate-[15deg] transition-transform">
           <Image
             src={imageUrl}
             alt=""
