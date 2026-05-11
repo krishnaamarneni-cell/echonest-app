@@ -83,6 +83,88 @@ export default function SettingsPage() {
     }
   };
 
+  // Public visitors (not unlocked into owner mode) see a different view —
+  // sign-up/sign-in CTAs first, then the owner-mode unlock form, no profile
+  // editing for someone else's account.
+  if (!isOwner) {
+    return (
+      <div className="p-6 lg:p-8 max-w-lg mx-auto space-y-8 animate-fade-in">
+        <h1 className="text-3xl font-bold">Make it yours</h1>
+
+        <section className="relative overflow-hidden bg-gradient-to-br from-accent/20 via-purple-500/10 to-pink-500/10 border border-accent/30 rounded-2xl p-6 space-y-4">
+          <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
+          <div className="relative space-y-2">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-accent" />
+              Create your own EchoNest
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              You&apos;re using the shared public library right now. Sign up for a
+              free account and you get your own playlists, your own uploads,
+              your own YouTube imports — none of it mixes with anyone else&apos;s.
+            </p>
+          </div>
+          <div className="relative flex flex-wrap items-center gap-2">
+            <Link
+              href="/signup"
+              className="px-5 py-2.5 bg-accent text-white text-sm font-medium rounded-full hover:bg-accent-hover transition-colors shadow-lg shadow-accent/20"
+            >
+              <span className="inline-flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Sign up — free
+              </span>
+            </Link>
+            <Link
+              href="/login"
+              className="px-5 py-2.5 bg-card border border-border text-sm font-medium rounded-full hover:bg-card-hover transition-colors"
+            >
+              I already have an account
+            </Link>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold flex items-center gap-2 text-muted-foreground">
+            <Lock className="w-4 h-4" />
+            Owner of this library?
+          </h2>
+          <form onSubmit={handleUnlock} className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Enter the owner password to unlock delete + edit controls across
+              the app.
+            </p>
+            <Input
+              type="password"
+              placeholder="Owner password"
+              value={ownerPassword}
+              onChange={(e) => setOwnerPassword(e.target.value)}
+            />
+            {ownerError && (
+              <p className="text-sm text-destructive">{ownerError}</p>
+            )}
+            <Button type="submit" disabled={ownerLoading || !ownerPassword} variant="secondary">
+              <Unlock className="w-4 h-4" />
+              {ownerLoading ? 'Checking…' : 'Unlock'}
+            </Button>
+          </form>
+        </section>
+
+        <section className="space-y-3 pt-2">
+          <h2 className="text-base font-semibold text-muted-foreground">About</h2>
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+            <Logo size="sm" />
+            <div>
+              <p className="text-sm font-medium">EchoNest v1.0</p>
+              <p className="text-xs text-muted-foreground">
+                Your personal music streaming app
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-lg mx-auto space-y-8 animate-fade-in">
       <h1 className="text-3xl font-bold">Settings</h1>

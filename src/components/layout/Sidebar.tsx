@@ -180,22 +180,20 @@ export function Sidebar() {
         </div>
       </div>
 
-      {isOwner && (
-        <div className="p-3 border-t border-border">
-          <Link
-            href="/settings"
-            className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
-              pathname === '/settings'
-                ? 'bg-accent-muted text-accent'
-                : 'text-muted-foreground hover:text-foreground hover:bg-card'
-            )}
-          >
-            <Settings className="w-5 h-5" />
-            Settings
-          </Link>
-        </div>
-      )}
+      <div className="p-3 border-t border-border">
+        <Link
+          href="/settings"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
+            pathname === '/settings'
+              ? 'bg-accent-muted text-accent'
+              : 'text-muted-foreground hover:text-foreground hover:bg-card'
+          )}
+        >
+          <Settings className="w-5 h-5" />
+          {isOwner ? 'Settings' : 'Make it yours'}
+        </Link>
+      </div>
     </aside>
   );
 }
