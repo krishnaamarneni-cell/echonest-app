@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Song, Album, Artist, Playlist } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
+import { SongCard } from '@/components/ui/SongCard';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Music, Disc3, Mic2, ListMusic, Mic } from 'lucide-react';
+import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const SONGS_PER_PAGE = 8;
 
 type Tab = 'songs' | 'albums' | 'artists' | 'playlists' | 'podcasts';
 
@@ -20,6 +23,19 @@ export default function LibraryPage() {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [songsPage, setSongsPage] = useState(0);
+  const [songsView, setSongsView] = useState<'grid' | 'list'>('grid');
+
+  // Reset to page 1 when tab changes
+  useEffect(() => {
+    setSongsPage(0);
+  }, [tab]);
+
+  const songsTotalPages = Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE));
+  const pagedSongs = useMemo(
+    () => songs.slice(songsPage * SONGS_PER_PAGE, (songsPage + 1) * SONGS_PER_PAGE),
+    [songs, songsPage],
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -118,17 +134,101 @@ export default function LibraryPage() {
         <>
           {tab === 'songs' && (
             songs.length > 0 ? (
-              <div className="space-y-0.5">
-                {songs.map((song, i) => (
-                  <SongRow
-                    key={song.id}
-                    song={song}
-                    index={i}
-                    showIndex
-                    songs={songs}
-                    onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
-                  />
-                ))}
+              <div className="space-y-4">
+                {/* Header: total + view toggle */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    Showing{' '}
+                    <span className="text-foreground font-medium">
+                      {songsPage * SONGS_PER_PAGE + 1}–
+                      {Math.min((songsPage + 1) * SONGS_PER_PAGE, songs.length)}
+                    </span>{' '}
+                    of <span className="text-foreground font-medium">{songs.length}</span> songs
+                  </p>
+                  <div className="flex gap-1 bg-card border border-border rounded-full p-1">
+                    <button
+                      onClick={() => setSongsView('grid')}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                        songsView === 'grid'
+                          ? 'bg-accent text-white'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <LayoutGrid className="w-3 h-3" />
+                      Grid
+                    </button>
+                    <button
+                      onClick={() => setSongsView('list')}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                        songsView === 'list'
+                          ? 'bg-accent text-white'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <List className="w-3 h-3" />
+                      List
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid view — big covers, 8 per page */}
+                {songsView === 'grid' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                    {pagedSongs.map((song) => (
+                      <SongCard
+                        key={song.id}
+                        song={song}
+                        songs={songs}
+                        onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* List view — compact rows (older behavior) */}
+                {songsView === 'list' && (
+                  <div className="space-y-0.5">
+                    {pagedSongs.map((song, i) => (
+                      <SongRow
+                        key={song.id}
+                        song={song}
+                        index={songsPage * SONGS_PER_PAGE + i}
+                        showIndex
+                        songs={songs}
+                        onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {songsTotalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 pt-4">
+                    <button
+                      onClick={() => setSongsPage((p) => Math.max(0, p - 1))}
+                      disabled={songsPage === 0}
+                      className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-card-hover transition-colors"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm text-muted-foreground tabular-nums px-2">
+                      Page {songsPage + 1} of {songsTotalPages}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setSongsPage((p) => Math.min(songsTotalPages - 1, p + 1))
+                      }
+                      disabled={songsPage >= songsTotalPages - 1}
+                      className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-card-hover transition-colors"
+                      aria-label="Next page"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <EmptyState icon={Music} title="No songs yet" description="Upload your music to get started" />
