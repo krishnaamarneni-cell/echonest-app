@@ -64,6 +64,38 @@ export default function UploadPage() {
     return created?.id || null;
   };
 
+  // Find or create an album row. Returns its id (or null on failure).
+  const ensureAlbum = async (
+    supabase: ReturnType<typeof createClient>,
+    userId: string,
+    title: string,
+    artistName: string | null,
+    artistId: string | null,
+    coverUrl: string | null,
+  ): Promise<string | null> => {
+    const trimmed = title.trim();
+    if (!trimmed) return null;
+    const { data: existing } = await supabase
+      .from('albums')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('title', trimmed)
+      .maybeSingle();
+    if (existing) return existing.id as string;
+    const { data: created } = await supabase
+      .from('albums')
+      .insert({
+        user_id: userId,
+        title: trimmed,
+        artist_name: artistName || 'Various Artists',
+        artist_id: artistId,
+        cover_url: coverUrl,
+      })
+      .select('id')
+      .single();
+    return created?.id || null;
+  };
+
   // Find or create artist rows for the given names. Returns name -> id map.
   const ensureArtists = async (
     supabase: ReturnType<typeof createClient>,
@@ -241,6 +273,29 @@ export default function UploadPage() {
           videos.map((v) => v.author),
         );
 
+        // If user picked Album, ensure an album row exists so songs show
+        // under Library → Albums. Use the user-typed playlist name when
+        // present, else the YouTube playlist title.
+        let albumId: string | null = null;
+        if (contentType === 'album') {
+          const customName = targetPlaylistName.trim();
+          // playlistTitle/playlistCover get final values lower down; use the
+          // server values fetched above (or fall back to first video).
+          const albumTitle = customName || playlistTitle || 'Imported album';
+          const primaryArtist = videos[0]?.author || null;
+          const primaryArtistId = primaryArtist
+            ? artistMap.get(primaryArtist.trim()) || null
+            : null;
+          albumId = await ensureAlbum(
+            supabase,
+            user.id,
+            albumTitle,
+            primaryArtist,
+            primaryArtistId,
+            playlistCover || videos[0]?.thumbnail || null,
+          );
+        }
+
         const newSongRows = videos
           .filter((v) => !existingMap.has(v.videoId))
           .map((v) => ({
@@ -248,6 +303,7 @@ export default function UploadPage() {
             title: v.title,
             artist_name: v.author,
             artist_id: artistMap.get(v.author?.trim()) || null,
+            album_id: albumId,
             cover_url: v.thumbnail,
             file_url: '',
             duration: 0,
@@ -256,6 +312,16 @@ export default function UploadPage() {
             youtube_kind: 'video',
             content_type: contentType,
           }));
+
+        // For album imports, also backfill album_id on any pre-existing
+        // songs from this playlist that didn't have an album yet.
+        if (albumId && existingMap.size > 0) {
+          await supabase
+            .from('songs')
+            .update({ album_id: albumId })
+            .in('id', Array.from(existingMap.values()))
+            .is('album_id', null);
+        }
 
         // Insert new songs in batches and collect their ids
         const insertedIds = new Map<string, string>(); // videoId -> songId
@@ -404,15 +470,27 @@ export default function UploadPage() {
           const { data: { user } } = await supabase.auth.getUser();
 
           // Ensure an artist row exists and link the song to it so it shows
-          // up under Library → Artists.
+          // up under Library → Artists. For Album imports, also create an
+          // album row (named after the playlist field or song title).
           if (user && data.song?.id && data.song?.artist_name) {
             const artistMap = await ensureArtists(supabase, user.id, [data.song.artist_name]);
-            const artistId = artistMap.get(data.song.artist_name.trim());
-            if (artistId) {
-              await supabase
-                .from('songs')
-                .update({ artist_id: artistId })
-                .eq('id', data.song.id);
+            const artistId = artistMap.get(data.song.artist_name.trim()) || null;
+            const updates: { artist_id?: string; album_id?: string } = {};
+            if (artistId) updates.artist_id = artistId;
+            if (contentType === 'album') {
+              const albumTitle = targetPlaylistName.trim() || data.song.title || 'Imported album';
+              const albumId = await ensureAlbum(
+                supabase,
+                user.id,
+                albumTitle,
+                data.song.artist_name,
+                artistId,
+                data.song.cover_url || null,
+              );
+              if (albumId) updates.album_id = albumId;
+            }
+            if (Object.keys(updates).length > 0) {
+              await supabase.from('songs').update(updates).eq('id', data.song.id);
             }
           }
 
