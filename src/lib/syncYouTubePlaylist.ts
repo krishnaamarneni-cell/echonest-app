@@ -6,6 +6,7 @@ import {
 
 export interface SyncResult {
   added: number;
+  removed: number;
   skipped: number;
   total: number;
   error?: string;
@@ -24,7 +25,7 @@ export async function syncYouTubePlaylist(opts: {
   const { playlistDbId, sourceYoutubeId, contentType = 'music' } = opts;
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { added: 0, skipped: 0, total: 0, error: 'Not signed in' };
+  if (!user) return { added: 0, removed: 0, skipped: 0, total: 0, error: 'Not signed in' };
 
   // 1. Fetch current video IDs from the YouTube playlist.
   // Try the server endpoint first (unlimited size). Fall back to client-side
@@ -51,6 +52,7 @@ export async function syncYouTubePlaylist(opts: {
     } catch (inner) {
       return {
         added: 0,
+        removed: 0,
         skipped: 0,
         total: 0,
         error:
@@ -62,30 +64,57 @@ export async function syncYouTubePlaylist(opts: {
       };
     }
   }
-  if (!ytIds.length) return { added: 0, skipped: 0, total: 0 };
+  if (!ytIds.length) return { added: 0, removed: 0, skipped: 0, total: 0 };
 
-  // 2. Find which video IDs are NOT already in this playlist
+  // 2. Find existing playlist_songs and compute the diff in both directions:
+  //    - new YT ids → add
+  //    - links whose video is no longer in YT → remove
   const { data: playlistSongs } = await supabase
     .from('playlist_songs')
-    .select('song_id, song:songs(youtube_id)')
+    .select('id, song_id, song:songs(youtube_id)')
     .eq('playlist_id', playlistDbId);
 
   const existingVideoIds = new Set<string>();
+  const linkIdsToDelete: string[] = [];
+  const ytIdSet = new Set(ytIds);
   for (const row of playlistSongs || []) {
-    const r = row as unknown as { song: { youtube_id?: string } | { youtube_id?: string }[] | null };
+    const r = row as unknown as {
+      id: string;
+      song: { youtube_id?: string } | { youtube_id?: string }[] | null;
+    };
     const song = Array.isArray(r.song) ? r.song[0] : r.song;
-    if (song?.youtube_id) existingVideoIds.add(song.youtube_id);
+    const vid = song?.youtube_id;
+    if (vid) {
+      existingVideoIds.add(vid);
+      if (!ytIdSet.has(vid)) linkIdsToDelete.push(r.id);
+    }
+  }
+
+  // Remove links for videos that disappeared from YouTube. We unlink rather
+  // than delete the song record itself — the user may want it elsewhere.
+  let removedCount = 0;
+  if (linkIdsToDelete.length > 0) {
+    const { error: delErr } = await supabase
+      .from('playlist_songs')
+      .delete()
+      .in('id', linkIdsToDelete);
+    if (!delErr) removedCount = linkIdsToDelete.length;
   }
 
   const newVideoIds = ytIds.filter((id) => !existingVideoIds.has(id));
 
   if (newVideoIds.length === 0) {
-    // Nothing new — still bump last_synced_at
+    // Nothing new to add — bump last_synced_at and return removal count
     await supabase
       .from('playlists')
       .update({ last_synced_at: new Date().toISOString() })
       .eq('id', playlistDbId);
-    return { added: 0, skipped: ytIds.length, total: ytIds.length };
+    return {
+      added: 0,
+      removed: removedCount,
+      skipped: ytIds.length,
+      total: ytIds.length,
+    };
   }
 
   // 3. Check if any new IDs already exist as songs in the user's library
@@ -145,6 +174,7 @@ export async function syncYouTubePlaylist(opts: {
       if (error) {
         return {
           added: 0,
+          removed: removedCount,
           skipped: 0,
           total: ytIds.length,
           error: error.message,
@@ -187,6 +217,7 @@ export async function syncYouTubePlaylist(opts: {
       if (error) {
         return {
           added: 0,
+          removed: removedCount,
           skipped: 0,
           total: ytIds.length,
           error: error.message,
@@ -206,6 +237,7 @@ export async function syncYouTubePlaylist(opts: {
 
   return {
     added: linkRows.length,
+    removed: removedCount,
     skipped: ytIds.length - linkRows.length,
     total: ytIds.length,
   };

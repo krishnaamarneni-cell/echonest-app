@@ -92,8 +92,11 @@ export default function PlaylistDetailPage() {
         sourceYoutubeId: playlist.source_youtube_id!,
       });
       if (cancelled) return;
-      if (result.added > 0) {
-        setSyncMessage(`Added ${result.added} new video${result.added === 1 ? '' : 's'}`);
+      if (result.added > 0 || result.removed > 0) {
+        const parts: string[] = [];
+        if (result.added > 0) parts.push(`+${result.added}`);
+        if (result.removed > 0) parts.push(`-${result.removed}`);
+        setSyncMessage(`Synced: ${parts.join(' / ')}`);
         reload();
         // Auto-clear after 4 seconds
         setTimeout(() => setSyncMessage(null), 4000);
@@ -114,8 +117,11 @@ export default function PlaylistDetailPage() {
     });
     if (result.error) {
       setSyncMessage(`Sync failed: ${result.error}`);
-    } else if (result.added > 0) {
-      setSyncMessage(`Added ${result.added} new video${result.added === 1 ? '' : 's'}`);
+    } else if (result.added > 0 || result.removed > 0) {
+      const parts: string[] = [];
+      if (result.added > 0) parts.push(`Added ${result.added}`);
+      if (result.removed > 0) parts.push(`Removed ${result.removed}`);
+      setSyncMessage(parts.join(' • '));
       await reload();
     } else {
       setSyncMessage('Already up to date');
