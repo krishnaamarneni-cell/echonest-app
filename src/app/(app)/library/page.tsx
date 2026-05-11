@@ -50,14 +50,45 @@ export default function LibraryPage() {
           .order('created_at', { ascending: false });
         if (data) setSongs(data);
       } else if (tab === 'podcasts') {
-        // Show PODCAST playlists (one entry per imported podcast playlist),
-        // not a flat list of every podcast episode
-        const { data } = await supabase
-          .from('playlists')
-          .select('*')
-          .eq('content_type', 'podcast')
-          .order('updated_at', { ascending: false });
-        if (data) setPodcastPlaylists(data);
+        // Show PODCAST playlists — both content_type='podcast' AND any
+        // playlist that contains podcast songs (handles legacy data added
+        // before content_type was set during import).
+        const [tagged, withPodcastSongs] = await Promise.all([
+          supabase
+            .from('playlists')
+            .select('*')
+            .eq('content_type', 'podcast'),
+          supabase
+            .from('playlist_songs')
+            .select('playlist_id, song:songs!inner(content_type)')
+            .eq('song.content_type', 'podcast'),
+        ]);
+
+        const taggedIds = new Set<string>(
+          (tagged.data || []).map((p) => p.id as string),
+        );
+        const songPlaylistIds = new Set<string>(
+          (withPodcastSongs.data || []).map(
+            (r: { playlist_id: string }) => r.playlist_id,
+          ),
+        );
+
+        // Fetch any additional playlists referenced by songs but not yet tagged
+        const extraIds = [...songPlaylistIds].filter((id) => !taggedIds.has(id));
+        let extras: Playlist[] = [];
+        if (extraIds.length > 0) {
+          const { data: extraData } = await supabase
+            .from('playlists')
+            .select('*')
+            .in('id', extraIds);
+          if (extraData) extras = extraData as Playlist[];
+        }
+
+        const merged = [...(tagged.data || []), ...extras].sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
+        setPodcastPlaylists(merged);
       } else if (tab === 'albums') {
         const { data } = await supabase
           .from('albums')
