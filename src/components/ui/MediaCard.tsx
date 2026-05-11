@@ -43,7 +43,11 @@ export function MediaCard({ title, subtitle, imageUrl, href, onPlay, rounded }: 
         )}
       </div>
       <div className="px-1">
-        <p className="font-medium text-sm truncate">{title}</p>
+        <p className="font-medium text-sm truncate">
+          {title?.trim() || (
+            <span className="italic text-muted-foreground">Untitled</span>
+          )}
+        </p>
         <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>
       </div>
     </Link>

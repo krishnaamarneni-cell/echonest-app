@@ -272,22 +272,45 @@ function NewPlaylistPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
   const router = useRouter();
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) return;
+    setError('');
     setCreating(true);
 
     const supabase = createClient();
-    const { data, error } = await supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setError('You must be signed in');
+      setCreating(false);
+      return;
+    }
+
+    const { data, error: insertError } = await supabase
       .from('playlists')
-      .insert({ title, description: description || null })
+      .insert({
+        user_id: user.id,
+        title: trimmedTitle,
+        description: description.trim() || null,
+      })
       .select('id')
       .single();
 
-    if (data && !error) {
+    if (insertError) {
+      setError(insertError.message);
+      setCreating(false);
+      return;
+    }
+
+    if (data) {
       router.push(`/playlist/${data.id}`);
+      router.refresh();
     }
     setCreating(false);
   };
@@ -317,6 +340,11 @@ function NewPlaylistPage() {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+        {error && (
+          <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+            {error}
+          </p>
+        )}
         <Button type="submit" disabled={creating || !title.trim()}>
           {creating ? 'Creating...' : 'Create playlist'}
         </Button>
