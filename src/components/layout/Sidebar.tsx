@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useOwnerMode } from '@/store/ownerMode';
 
 const mainNav = [
   { label: 'Home', href: '/dashboard', icon: Home },
@@ -42,6 +43,7 @@ type SidebarPlaylist = {
 export function Sidebar() {
   const pathname = usePathname();
   const [playlists, setPlaylists] = useState<SidebarPlaylist[]>([]);
+  const isOwner = useOwnerMode((s) => s.isOwner);
 
   useEffect(() => {
     const supabase = createClient();
@@ -178,20 +180,22 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="p-3 border-t border-border">
-        <Link
-          href="/settings"
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
-            pathname === '/settings'
-              ? 'bg-accent-muted text-accent'
-              : 'text-muted-foreground hover:text-foreground hover:bg-card'
-          )}
-        >
-          <Settings className="w-5 h-5" />
-          Settings
-        </Link>
-      </div>
+      {isOwner && (
+        <div className="p-3 border-t border-border">
+          <Link
+            href="/settings"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
+              pathname === '/settings'
+                ? 'bg-accent-muted text-accent'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card'
+            )}
+          >
+            <Settings className="w-5 h-5" />
+            Settings
+          </Link>
+        </div>
+      )}
     </aside>
   );
 }
