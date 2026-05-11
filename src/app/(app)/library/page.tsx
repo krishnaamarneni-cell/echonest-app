@@ -102,12 +102,12 @@ export default function LibraryPage() {
           .order('name');
         if (data) setArtists(data);
       } else {
-        // 'playlists' tab — show only music playlists (so podcasts stay
-        // separate in their own tab)
+        // 'playlists' tab — show every playlist except podcasts (which have
+        // their own tab). Includes music, album, artist, and untagged.
         const { data } = await supabase
           .from('playlists')
           .select('*')
-          .eq('content_type', 'music')
+          .or('content_type.neq.podcast,content_type.is.null')
           .order('updated_at', { ascending: false });
         if (data) setPlaylists(data);
       }
