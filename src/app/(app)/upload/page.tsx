@@ -35,6 +35,58 @@ export default function UploadPage() {
     text: string;
   } | null>(null);
   const [contentType, setContentType] = useState<'music' | 'podcast' | 'artist' | 'album'>('music');
+  const [targetPlaylistName, setTargetPlaylistName] = useState('');
+
+  // Helper: find or create a playlist matching the given name + content type,
+  // then return its id. Used by both YT-video and file-upload flows.
+  const ensureTargetPlaylist = async (
+    supabase: ReturnType<typeof createClient>,
+    userId: string,
+  ): Promise<string | null> => {
+    const name = targetPlaylistName.trim();
+    if (!name) return null;
+    const { data: existing } = await supabase
+      .from('playlists')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('title', name)
+      .maybeSingle();
+    if (existing) return existing.id;
+    const { data: created } = await supabase
+      .from('playlists')
+      .insert({
+        user_id: userId,
+        title: name,
+        content_type: contentType,
+      })
+      .select('id')
+      .single();
+    return created?.id || null;
+  };
+
+  const linkSongToPlaylist = async (
+    supabase: ReturnType<typeof createClient>,
+    playlistId: string,
+    songId: string,
+  ) => {
+    const { data: maxRow } = await supabase
+      .from('playlist_songs')
+      .select('position')
+      .eq('playlist_id', playlistId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextPos = (maxRow?.position ?? -1) + 1;
+    await supabase.from('playlist_songs').insert({
+      playlist_id: playlistId,
+      song_id: songId,
+      position: nextPos,
+    });
+    await supabase
+      .from('playlists')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', playlistId);
+  };
 
   const handleYouTubeAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,7 +319,23 @@ export default function UploadPage() {
         if (!res.ok) {
           setYtMessage({ type: 'error', text: data.error || 'Failed to add' });
         } else {
-          setYtMessage({ type: 'success', text: `Added "${data.song.title}"` });
+          // If user provided a playlist name, find or create it and link the song
+          let playlistSuffix = '';
+          if (targetPlaylistName.trim()) {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const playlistId = await ensureTargetPlaylist(supabase, user.id);
+              if (playlistId && data.song?.id) {
+                await linkSongToPlaylist(supabase, playlistId, data.song.id);
+                playlistSuffix = ` to "${targetPlaylistName.trim()}"`;
+              }
+            }
+          }
+          setYtMessage({
+            type: 'success',
+            text: `Added "${data.song.title}"${playlistSuffix}`,
+          });
           setYtUrl('');
         }
       }
@@ -392,21 +460,32 @@ export default function UploadPage() {
 
       const duration = await getAudioDuration(f.file);
 
-      const { error: insertError } = await supabase.from('songs').insert({
-        title: f.title,
-        artist_name: f.artistName,
-        album_name: f.albumName || null,
-        album_id: albumId,
-        artist_id: artistId,
-        file_url: publicUrl,
-        duration,
-        user_id: user.id,
-        content_type: contentType,
-      });
+      const { data: insertedSong, error: insertError } = await supabase
+        .from('songs')
+        .insert({
+          title: f.title,
+          artist_name: f.artistName,
+          album_name: f.albumName || null,
+          album_id: albumId,
+          artist_id: artistId,
+          file_url: publicUrl,
+          duration,
+          user_id: user.id,
+          content_type: contentType,
+        })
+        .select('id')
+        .single();
 
       if (insertError) {
         updateFile(i, { status: 'error', error: insertError.message });
       } else {
+        // Link to target playlist if user named one
+        if (insertedSong?.id && targetPlaylistName.trim()) {
+          const playlistId = await ensureTargetPlaylist(supabase, user.id);
+          if (playlistId) {
+            await linkSongToPlaylist(supabase, playlistId, insertedSong.id);
+          }
+        }
         updateFile(i, { status: 'done', progress: 100 });
       }
     }
@@ -466,6 +545,26 @@ export default function UploadPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Optional playlist target */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Add to playlist (optional)
+          </label>
+          <Input
+            placeholder={
+              contentType === 'podcast'
+                ? 'e.g. JRE, The Daily, Lex Fridman…'
+                : 'Playlist name — creates one if it doesn\'t exist'
+            }
+            value={targetPlaylistName}
+            onChange={(e) => setTargetPlaylistName(e.target.value)}
+          />
+          <p className="text-[10px] text-muted">
+            Single video or pasted playlist URL? If you put a name here, every track you add
+            below also lands in that playlist (created automatically if new).
+          </p>
         </div>
 
         <form onSubmit={handleYouTubeAdd} className="flex flex-col sm:flex-row gap-2">
