@@ -35,7 +35,8 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPage = path === '/login' || path === '/signup';
   const isPasswordPage = path === '/forgot-password' || path === '/reset-password';
-  const isPublicPage = path === '/' || isAuthPage || isPasswordPage;
+  const isApiRoute = path.startsWith('/api/');
+  const isPublicPage = path === '/' || isAuthPage || isPasswordPage || isApiRoute;
 
   // If the deployment has a public account configured, treat the whole site
   // as accessible without auth — the client will auto-sign-in as the public
