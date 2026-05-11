@@ -55,19 +55,56 @@ export default function UploadPage() {
       }
 
       if (parsed.kind === 'playlist') {
-        // 1. Extract every video in the playlist
+        // 1. Extract every video in the playlist.
+        // First try the server endpoint (uses YT Data API, unlimited size).
+        // Fall back to client-side IFrame extractor (capped at 200 videos)
+        // if YOUTUBE_API_KEY isn't configured on the server.
         setYtStatus('Loading playlist…');
-        let videos;
+        let videos: { videoId: string; title: string; author: string; thumbnail: string }[];
+        let serverPlaylistTitle: string | null = null;
+        let serverPlaylistThumb: string | null = null;
         try {
-          videos = await extractYouTubePlaylist(parsed.id);
-        } catch (err) {
-          setYtMessage({
-            type: 'error',
-            text: err instanceof Error ? err.message : 'Could not load playlist',
+          const serverRes = await fetch('/api/youtube-playlist-extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playlistId: parsed.id }),
           });
-          setYtLoading(false);
-          setYtStatus('');
-          return;
+          if (serverRes.ok) {
+            const data = await serverRes.json();
+            videos = data.videos;
+            serverPlaylistTitle = data.playlistTitle || null;
+            serverPlaylistThumb = data.playlistThumb || null;
+          } else if (serverRes.status === 503) {
+            // No API key configured — fall back to client-side
+            videos = await extractYouTubePlaylist(parsed.id);
+          } else {
+            const errData = await serverRes.json().catch(() => ({}));
+            setYtMessage({
+              type: 'error',
+              text: errData.error || 'Could not load playlist',
+            });
+            setYtLoading(false);
+            setYtStatus('');
+            return;
+          }
+        } catch (err) {
+          // Network or extraction failure — fall back to client method
+          try {
+            videos = await extractYouTubePlaylist(parsed.id);
+          } catch (innerErr) {
+            setYtMessage({
+              type: 'error',
+              text:
+                innerErr instanceof Error
+                  ? innerErr.message
+                  : err instanceof Error
+                  ? err.message
+                  : 'Could not load playlist',
+            });
+            setYtLoading(false);
+            setYtStatus('');
+            return;
+          }
         }
 
         setYtStatus(`Found ${videos.length} videos. Saving…`);
@@ -83,10 +120,17 @@ export default function UploadPage() {
           return;
         }
 
-        // 2. Get the playlist's title + thumbnail (for the auto-created EchoNest playlist)
-        const playlistMeta = await fetchPlaylistMeta(parsed.id);
-        const playlistTitle = playlistMeta?.title || 'Imported playlist';
-        const playlistCover = playlistMeta?.thumbnail || videos[0]?.thumbnail || null;
+        // 2. Get the playlist's title + thumbnail (for the auto-created EchoNest playlist).
+        // Use server-provided values if available, else fall back to oEmbed.
+        let playlistTitle = serverPlaylistTitle;
+        let playlistCover = serverPlaylistThumb;
+        if (!playlistTitle) {
+          const playlistMeta = await fetchPlaylistMeta(parsed.id);
+          playlistTitle = playlistMeta?.title || null;
+          playlistCover = playlistCover || playlistMeta?.thumbnail || null;
+        }
+        playlistTitle = playlistTitle || 'Imported playlist';
+        playlistCover = playlistCover || videos[0]?.thumbnail || null;
 
         // 3. Save songs (skipping ones already in the user's library)
         const videoIds = videos.map((v) => v.videoId);

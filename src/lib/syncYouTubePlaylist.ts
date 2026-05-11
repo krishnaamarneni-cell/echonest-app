@@ -26,17 +26,40 @@ export async function syncYouTubePlaylist(opts: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { added: 0, skipped: 0, total: 0, error: 'Not signed in' };
 
-  // 1. Fetch current video IDs from the YouTube playlist (no metadata yet)
+  // 1. Fetch current video IDs from the YouTube playlist.
+  // Try the server endpoint first (unlimited size). Fall back to client-side
+  // (capped at 200) if no API key configured.
   let ytIds: string[];
+  let serverMeta: { videoId: string; title: string; author: string; thumbnail: string }[] | null = null;
   try {
-    ytIds = await extractYouTubePlaylistIds(sourceYoutubeId);
+    const serverRes = await fetch('/api/youtube-playlist-extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playlistId: sourceYoutubeId }),
+    });
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      serverMeta = data.videos as typeof serverMeta;
+      ytIds = (serverMeta || []).map((v) => v.videoId);
+    } else {
+      ytIds = await extractYouTubePlaylistIds(sourceYoutubeId);
+    }
   } catch (e) {
-    return {
-      added: 0,
-      skipped: 0,
-      total: 0,
-      error: e instanceof Error ? e.message : 'Failed to load playlist',
-    };
+    try {
+      ytIds = await extractYouTubePlaylistIds(sourceYoutubeId);
+    } catch (inner) {
+      return {
+        added: 0,
+        skipped: 0,
+        total: 0,
+        error:
+          inner instanceof Error
+            ? inner.message
+            : e instanceof Error
+            ? e.message
+            : 'Failed to load playlist',
+      };
+    }
   }
   if (!ytIds.length) return { added: 0, skipped: 0, total: 0 };
 
@@ -81,11 +104,20 @@ export async function syncYouTubePlaylist(opts: {
 
   const idsToFetch = newVideoIds.filter((id) => !existingSongMap.has(id));
 
-  // 4. Fetch oEmbed metadata for the ones we need to create
-  const metas =
-    idsToFetch.length > 0
-      ? await Promise.all(idsToFetch.map((id) => fetchVideoMeta(id)))
-      : [];
+  // 4. Get metadata for the new videos. Prefer the server-provided metadata
+  // (already fetched in one paginated API call); only fall back to per-video
+  // oEmbed if the server wasn't used.
+  let metas;
+  if (serverMeta) {
+    const byId = new Map(serverMeta.map((v) => [v.videoId, v]));
+    metas = idsToFetch
+      .map((id) => byId.get(id))
+      .filter((v): v is NonNullable<typeof v> => v !== undefined);
+  } else if (idsToFetch.length > 0) {
+    metas = await Promise.all(idsToFetch.map((id) => fetchVideoMeta(id)));
+  } else {
+    metas = [];
+  }
 
   // 5. Insert new songs
   const insertedMap = new Map<string, string>();
