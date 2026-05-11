@@ -5,11 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Artist, Song, Album } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
+import { SongCard } from '@/components/ui/SongCard';
 import { MediaCard } from '@/components/ui/MediaCard';
-import { SongRowSkeleton } from '@/components/ui/Skeleton';
+import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, Mic2, ArrowLeft } from 'lucide-react';
+import { Play, Shuffle, Mic2, ArrowLeft, List, LayoutGrid } from 'lucide-react';
 import Image from 'next/image';
 
 export default function ArtistDetailPage() {
@@ -19,7 +20,18 @@ export default function ArtistDetailPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'grid'>('list');
   const play = usePlayerStore((s) => s.play);
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-artist-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-artist-view', v);
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -89,10 +101,52 @@ export default function ArtistDetailPage() {
         )}
 
         <section>
-          <h2 className="text-xl font-semibold mb-4">Songs</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Songs</h2>
+            {!loading && songs.length > 0 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                  title="List view"
+                  className={`p-2 rounded-lg transition-colors ${
+                    view === 'list'
+                      ? 'bg-card text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-card'
+                  }`}
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  className={`p-2 rounded-lg transition-colors ${
+                    view === 'grid'
+                      ? 'bg-card text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-card'
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
           {loading ? (
-            <div className="space-y-1">
-              {Array.from({ length: 6 }).map((_, i) => <SongRowSkeleton key={i} />)}
+            view === 'grid' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+                {Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {Array.from({ length: 6 }).map((_, i) => <SongRowSkeleton key={i} />)}
+              </div>
+            )
+          ) : view === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {songs.map((song) => (
+                <SongCard key={song.id} song={song} songs={songs} />
+              ))}
             </div>
           ) : (
             <div className="space-y-0.5">
