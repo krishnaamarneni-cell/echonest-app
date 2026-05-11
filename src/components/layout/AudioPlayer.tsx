@@ -27,6 +27,32 @@ import { usePlaylistDialog } from '@/store/playlistDialog';
 import { Menu } from '@/components/ui/Menu';
 import { YouTubeView } from './YouTubeView';
 
+function SpeedButton({
+  playbackRate,
+  setPlaybackRate,
+}: {
+  playbackRate: number;
+  setPlaybackRate: (r: number) => void;
+}) {
+  return (
+    <Menu
+      align="right"
+      trigger={
+        <button
+          className="text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums"
+          aria-label="Playback speed"
+        >
+          {playbackRate === 1 ? '1×' : `${playbackRate}×`}
+        </button>
+      }
+      items={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => ({
+        label: `${rate}× ${rate === playbackRate ? '✓' : ''}`,
+        onClick: () => setPlaybackRate(rate),
+      }))}
+    />
+  );
+}
+
 function PlayerMoreButton({ song }: { song: Song }) {
   const openPlaylistDialog = usePlaylistDialog((s) => s.open);
 
@@ -143,6 +169,7 @@ declare global {
         nextVideo: () => void;
         previousVideo: () => void;
         setSize: (w: number, h: number) => void;
+        setPlaybackRate: (rate: number) => void;
         destroy: () => void;
       };
       PlayerState: { PLAYING: number; ENDED: number; PAUSED: number };
@@ -185,6 +212,8 @@ export function AudioPlayer() {
     queueIndex,
     play,
     openNowPlaying,
+    playbackRate,
+    setPlaybackRate,
   } = usePlayerStore();
 
   const isYouTube = currentSong?.source === 'youtube_embed';
@@ -409,6 +438,19 @@ export function AudioPlayer() {
     if (!audio || isYouTube) return;
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted, isYouTube]);
+
+  // Playback rate — apply to either native audio or the YouTube player
+  useEffect(() => {
+    if (isYouTube && ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.setPlaybackRate(playbackRate);
+      } catch {}
+    } else if (audioRef.current) {
+      try {
+        audioRef.current.playbackRate = playbackRate;
+      } catch {}
+    }
+  }, [playbackRate, isYouTube, currentSong?.id]);
 
   const handleTimeUpdate = useCallback(() => {
     const audio = audioRef.current;
@@ -647,6 +689,7 @@ export function AudioPlayer() {
           </div>
 
           <div className="hidden lg:flex items-center gap-2 justify-end w-1/4">
+            <SpeedButton playbackRate={playbackRate} setPlaybackRate={setPlaybackRate} />
             <button onClick={toggleMute} className="text-muted-foreground hover:text-foreground transition-colors">
               {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>

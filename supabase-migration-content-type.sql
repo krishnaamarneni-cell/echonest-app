@@ -9,7 +9,7 @@ alter table public.songs
 
 alter table public.songs
   add constraint songs_content_type_check
-    check (content_type in ('music', 'podcast'));
+    check (content_type in ('music', 'podcast', 'artist', 'album'));
 
 -- Index for faster filtering when the library tabs filter by content_type
 create index if not exists idx_songs_content_type

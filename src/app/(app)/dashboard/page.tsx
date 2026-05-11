@@ -6,7 +6,7 @@ import { Song, Playlist, Album } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic } from 'lucide-react';
 import Link from 'next/link';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [allPlaylistSongs, setAllPlaylistSongs] = useState<Song[]>([]);
+  const [podcasts, setPodcasts] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInstallHint, setShowInstallHint] = useState(false);
 
@@ -35,7 +36,7 @@ export default function DashboardPage() {
     const supabase = createClient();
 
     async function loadData() {
-      const [recentPlayedRes, recentAddedRes, ytRes, playlistsRes, albumsRes] =
+      const [recentPlayedRes, recentAddedRes, ytRes, playlistsRes, albumsRes, podcastsRes] =
         await Promise.all([
           supabase
             .from('recently_played')
@@ -46,12 +47,14 @@ export default function DashboardPage() {
             .from('songs')
             .select('*')
             .eq('source', 'upload')
+            .eq('content_type', 'music')
             .order('created_at', { ascending: false })
             .limit(12),
           supabase
             .from('songs')
             .select('*')
             .eq('source', 'youtube_embed')
+            .eq('content_type', 'music')
             .order('created_at', { ascending: false })
             .limit(12),
           supabase
@@ -64,6 +67,12 @@ export default function DashboardPage() {
             .select('*')
             .order('created_at', { ascending: false })
             .limit(8),
+          supabase
+            .from('songs')
+            .select('*')
+            .eq('content_type', 'podcast')
+            .order('created_at', { ascending: false })
+            .limit(12),
         ]);
 
       if (recentPlayedRes.data) {
@@ -80,6 +89,7 @@ export default function DashboardPage() {
       if (ytRes.data) setYtTracks(ytRes.data);
       if (playlistsRes.data) setPlaylists(playlistsRes.data);
       if (albumsRes.data) setAlbums(albumsRes.data);
+      if (podcastsRes.data) setPodcasts(podcastsRes.data);
 
       // Songs across ALL playlists, in playlist + position order
       const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
@@ -213,6 +223,20 @@ export default function DashboardPage() {
               song={song}
               songs={ytTracks.filter((s) => s.youtube_kind !== 'playlist')}
               onDeleted={(id) => setYtTracks((prev) => prev.filter((s) => s.id !== id))}
+            />
+          ))}
+        </Section>
+      )}
+
+      {/* Podcasts */}
+      {podcasts.length > 0 && (
+        <Section title="Podcasts" icon={Mic} seeAllHref="/library">
+          {podcasts.map((song) => (
+            <SongCard
+              key={song.id}
+              song={song}
+              songs={podcasts}
+              onDeleted={(id) => setPodcasts((prev) => prev.filter((s) => s.id !== id))}
             />
           ))}
         </Section>

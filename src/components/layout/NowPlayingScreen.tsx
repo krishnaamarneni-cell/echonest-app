@@ -24,6 +24,7 @@ import {
 import Image from 'next/image';
 import { Menu } from '@/components/ui/Menu';
 import { QueueSheet } from './QueueSheet';
+import { Gauge } from 'lucide-react';
 
 export function NowPlayingScreen() {
   const {
@@ -45,6 +46,8 @@ export function NowPlayingScreen() {
     queue,
     queueIndex,
     play,
+    playbackRate,
+    setPlaybackRate,
   } = usePlayerStore();
 
   const { likedIds, ytLikedVideoIds, toggleLike, toggleYouTubeLike, loadLikes } = useLikesStore();
@@ -500,6 +503,19 @@ export function NowPlayingScreen() {
 
           {/* Quick actions */}
           <div className="w-full max-w-sm mt-6 flex items-center justify-center gap-2 flex-wrap">
+            <Menu
+              align="left"
+              trigger={
+                <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm hover:bg-card-hover transition-colors">
+                  <Gauge className="w-4 h-4" />
+                  {playbackRate === 1 ? '1×' : `${playbackRate}×`}
+                </button>
+              }
+              items={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => ({
+                label: `${rate}× ${rate === playbackRate ? '✓' : ''}`,
+                onClick: () => setPlaybackRate(rate),
+              }))}
+            />
             {!isYTPlaylist && (
               <button
                 onClick={onAddToPlaylist}

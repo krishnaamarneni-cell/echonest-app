@@ -51,8 +51,11 @@ export async function POST(request: NextRequest) {
   if (!url || typeof url !== 'string') {
     return NextResponse.json({ error: 'URL required' }, { status: 400 });
   }
-  const safeContentType: 'music' | 'podcast' =
-    contentType === 'podcast' ? 'podcast' : 'music';
+  const allowedTypes = ['music', 'podcast', 'artist', 'album'] as const;
+  type ContentType = (typeof allowedTypes)[number];
+  const safeContentType: ContentType = allowedTypes.includes(contentType)
+    ? (contentType as ContentType)
+    : 'music';
 
   const parsed = parseYouTubeUrl(url);
   if (!parsed) {

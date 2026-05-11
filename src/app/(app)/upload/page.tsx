@@ -34,7 +34,7 @@ export default function UploadPage() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  const [contentType, setContentType] = useState<'music' | 'podcast'>('music');
+  const [contentType, setContentType] = useState<'music' | 'podcast' | 'artist' | 'album'>('music');
 
   const handleYouTubeAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -392,33 +392,32 @@ export default function UploadPage() {
         </div>
 
         {/* Type selector */}
-        <div className="flex items-center gap-2">
+        <div className="space-y-2">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Adding as
           </span>
-          <div className="flex gap-1 bg-background rounded-full p-1 border border-border">
-            <button
-              type="button"
-              onClick={() => setContentType('music')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                contentType === 'music'
-                  ? 'bg-accent text-white'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              🎵 Music
-            </button>
-            <button
-              type="button"
-              onClick={() => setContentType('podcast')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                contentType === 'podcast'
-                  ? 'bg-accent text-white'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              🎙️ Podcast
-            </button>
+          <div className="flex gap-1 bg-background rounded-full p-1 border border-border flex-wrap">
+            {(
+              [
+                { value: 'music', label: '🎵 Music' },
+                { value: 'podcast', label: '🎙️ Podcast' },
+                { value: 'artist', label: '🎤 Artist' },
+                { value: 'album', label: '💿 Album' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setContentType(opt.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  contentType === opt.value
+                    ? 'bg-accent text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
 
