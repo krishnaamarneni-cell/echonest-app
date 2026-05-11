@@ -503,47 +503,83 @@ export default function UploadPage() {
       </div>
 
       {/* YouTube link section */}
-      <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-600/15 flex items-center justify-center flex-shrink-0">
-            <Link2 className="w-5 h-5 text-red-500" />
+      <div className="relative bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 sm:p-6 space-y-5 overflow-hidden">
+        {/* Decorative gradient blob */}
+        <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
+
+        {/* Header */}
+        <div className="relative flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-red-500/20">
+            <Link2 className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-semibold">Add from YouTube</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Paste a video or playlist URL — streams via the official embed,
-              no download.
+            <h2 className="text-lg sm:text-xl font-bold">Add from YouTube</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Video or playlist URL → streams via the official embed, no download.
             </p>
           </div>
         </div>
 
-        {/* Type selector */}
-        <div className="space-y-2">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Adding as
-          </span>
-          <div className="flex gap-1 bg-background rounded-full p-1 border border-border flex-wrap">
+        {/* Type selector — card grid */}
+        <div className="relative space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              What are you adding?
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {(
               [
-                { value: 'music', label: '🎵 Music' },
-                { value: 'podcast', label: '🎙️ Podcast' },
-                { value: 'artist', label: '🎤 Artist' },
-                { value: 'album', label: '💿 Album' },
+                {
+                  value: 'music',
+                  label: 'Music',
+                  emoji: '🎵',
+                  gradient: 'from-purple-500/20 to-pink-500/20',
+                  ring: 'ring-purple-500',
+                },
+                {
+                  value: 'podcast',
+                  label: 'Podcast',
+                  emoji: '🎙️',
+                  gradient: 'from-amber-500/20 to-orange-500/20',
+                  ring: 'ring-amber-500',
+                },
+                {
+                  value: 'artist',
+                  label: 'Artist',
+                  emoji: '🎤',
+                  gradient: 'from-cyan-500/20 to-blue-500/20',
+                  ring: 'ring-cyan-500',
+                },
+                {
+                  value: 'album',
+                  label: 'Album',
+                  emoji: '💿',
+                  gradient: 'from-emerald-500/20 to-teal-500/20',
+                  ring: 'ring-emerald-500',
+                },
               ] as const
-            ).map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setContentType(opt.value)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  contentType === opt.value
-                    ? 'bg-accent text-white'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+            ).map((opt) => {
+              const isActive = contentType === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setContentType(opt.value)}
+                  className={`relative bg-gradient-to-br ${opt.gradient} border rounded-xl p-3 text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                    isActive
+                      ? `border-transparent ring-2 ${opt.ring} shadow-lg`
+                      : 'border-border hover:border-foreground/20'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">{opt.emoji}</div>
+                  <div className="text-sm font-semibold">{opt.label}</div>
+                  {isActive && (
+                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-accent shadow-lg shadow-accent/50" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
