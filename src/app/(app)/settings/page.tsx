@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, LogOut, Save, Lock, Unlock, UserPlus } from 'lucide-react';
+import { User, LogOut, Save, Lock, Unlock, UserPlus, Smartphone } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useOwnerMode } from '@/store/ownerMode';
+import { useBackgroundMode } from '@/store/backgroundMode';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
@@ -22,6 +23,8 @@ export default function SettingsPage() {
   const [ownerError, setOwnerError] = useState('');
   const [ownerLoading, setOwnerLoading] = useState(false);
   const [showOwnerForm, setShowOwnerForm] = useState(false);
+  const { enabled: bgEnabled, hydrate: hydrateBg, toggle: toggleBg } = useBackgroundMode();
+  useEffect(() => { hydrateBg(); }, [hydrateBg]);
 
   useEffect(() => {
     hydrate();
@@ -139,6 +142,8 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
+
         <section className="space-y-3 pt-2">
           <h2 className="text-base font-semibold text-muted-foreground">About</h2>
           {/* Discreet owner-unlock — hidden until tapped, so public visitors
@@ -196,6 +201,9 @@ export default function SettingsPage() {
   return (
     <div className="p-6 lg:p-8 max-w-lg mx-auto space-y-8 animate-fade-in">
       <h1 className="text-3xl font-bold">Settings</h1>
+
+      {/* Background mode toggle — controls YouTube player so iOS PiP works */}
+      <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -306,5 +314,49 @@ export default function SettingsPage() {
         </Button>
       </section>
     </div>
+  );
+}
+
+function BackgroundModeToggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-accent/20">
+          <Smartphone className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold">iPhone background play</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            For YouTube tracks on iPhone: turns on Picture-in-Picture so audio
+            keeps playing when the screen locks or you switch apps. Tap the PiP
+            icon on the video after pressing Play.
+          </p>
+        </div>
+        <button
+          onClick={onToggle}
+          role="switch"
+          aria-checked={enabled}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+            enabled ? 'bg-accent' : 'bg-card-hover'
+          }`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+              enabled ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+      <p className="text-[10px] text-muted">
+        On other devices this just shows YouTube&apos;s native player controls in
+        the mini-player.
+      </p>
+    </section>
   );
 }

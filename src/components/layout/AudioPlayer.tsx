@@ -24,6 +24,7 @@ import Image from 'next/image';
 import { Song } from '@/types';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
+import { useBackgroundMode } from '@/store/backgroundMode';
 import { Menu } from '@/components/ui/Menu';
 import { YouTubeView } from './YouTubeView';
 
@@ -191,6 +192,9 @@ export function AudioPlayer() {
   const [ytReady, setYtReady] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytView, setYtView] = useState<'hidden' | 'mini' | 'full'>('hidden');
+  const bgMode = useBackgroundMode((s) => s.enabled);
+  const hydrateBg = useBackgroundMode((s) => s.hydrate);
+  useEffect(() => { hydrateBg(); }, [hydrateBg]);
 
   const {
     currentSong,
@@ -250,7 +254,9 @@ export function AudioPlayer() {
     }
 
     setYtError(null);
-    setYtView('hidden');
+    // In background mode, surface the mini-player so the user can reach
+    // the native iOS PiP button on the video itself.
+    setYtView(bgMode ? 'mini' : 'hidden');
 
     // Create a YT-owned child element so React doesn't try to manage what YT replaces
     const wrapper = ytContainerRef.current;
@@ -264,7 +270,10 @@ export function AudioPlayer() {
       videoId: isYouTubePlaylist ? undefined : currentSong.youtube_id,
       playerVars: {
         autoplay: 1,
-        controls: 0,
+        // Background mode: show native YT controls so iOS Safari exposes
+        // the Picture-in-Picture button on the video (only way to keep
+        // YouTube audio playing when the screen is locked on iPhone).
+        controls: bgMode ? 1 : 0,
         playsinline: 1,
         origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         ...(isYouTubePlaylist
