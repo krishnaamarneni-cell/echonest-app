@@ -48,7 +48,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  // Don't bounce the public account away from /login or /signup — visitors
+  // on the shared account need to be able to reach those pages to make
+  // their own account.
+  const publicEmail = process.env.PUBLIC_USER_EMAIL;
+  const isPublicAccount = !!user && !!publicEmail && user.email === publicEmail;
+
+  if (user && isAuthPage && !isPublicAccount) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
