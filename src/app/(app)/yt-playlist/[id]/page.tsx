@@ -164,6 +164,7 @@ export default function YouTubePlaylistDetailPage() {
       source: 'youtube_embed',
       youtube_id: video.videoId,
       youtube_kind: 'video',
+      content_type: 'music',
       created_at: new Date().toISOString(),
     };
 
@@ -183,6 +184,7 @@ export default function YouTubePlaylistDetailPage() {
       source: 'youtube_embed',
       youtube_id: v.videoId,
       youtube_kind: 'video',
+      content_type: 'music',
       created_at: new Date().toISOString(),
     }));
 

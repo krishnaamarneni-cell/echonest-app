@@ -29,8 +29,9 @@ export async function syncYouTubePlaylist(opts: {
   // 1. Fetch current video IDs from the YouTube playlist.
   // Try the server endpoint first (unlimited size). Fall back to client-side
   // (capped at 200) if no API key configured.
+  type VideoMeta = { videoId: string; title: string; author: string; thumbnail: string };
   let ytIds: string[];
-  let serverMeta: { videoId: string; title: string; author: string; thumbnail: string }[] | null = null;
+  let serverMeta: VideoMeta[] | null = null;
   try {
     const serverRes = await fetch('/api/youtube-playlist-extract', {
       method: 'POST',
@@ -39,8 +40,8 @@ export async function syncYouTubePlaylist(opts: {
     });
     if (serverRes.ok) {
       const data = await serverRes.json();
-      serverMeta = data.videos as typeof serverMeta;
-      ytIds = (serverMeta || []).map((v) => v.videoId);
+      serverMeta = data.videos as VideoMeta[];
+      ytIds = serverMeta.map((v) => v.videoId);
     } else {
       ytIds = await extractYouTubePlaylistIds(sourceYoutubeId);
     }
@@ -107,12 +108,12 @@ export async function syncYouTubePlaylist(opts: {
   // 4. Get metadata for the new videos. Prefer the server-provided metadata
   // (already fetched in one paginated API call); only fall back to per-video
   // oEmbed if the server wasn't used.
-  let metas;
+  let metas: VideoMeta[];
   if (serverMeta) {
     const byId = new Map(serverMeta.map((v) => [v.videoId, v]));
     metas = idsToFetch
       .map((id) => byId.get(id))
-      .filter((v): v is NonNullable<typeof v> => v !== undefined);
+      .filter((v): v is VideoMeta => v !== undefined);
   } else if (idsToFetch.length > 0) {
     metas = await Promise.all(idsToFetch.map((id) => fetchVideoMeta(id)));
   } else {
