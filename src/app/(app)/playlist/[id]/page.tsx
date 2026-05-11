@@ -5,12 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Playlist, Song } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
-import { SongRowSkeleton } from '@/components/ui/Skeleton';
+import { SongCard } from '@/components/ui/SongCard';
+import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2, Pencil } from 'lucide-react';
+import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2, Pencil, LayoutGrid, List } from 'lucide-react';
 import { Menu } from '@/components/ui/Menu';
 import { EditPlaylistDialog } from '@/components/ui/EditPlaylistDialog';
 import Image from 'next/image';
@@ -28,8 +29,19 @@ export default function PlaylistDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [view, setView] = useState<'list' | 'grid'>('list');
   const play = usePlayerStore((s) => s.play);
   const isOwner = useOwnerMode((s) => s.isOwner);
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-playlist-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-playlist-view', v);
+  };
 
   const reload = useCallback(async () => {
     if (id === 'new') return;
@@ -243,26 +255,76 @@ export default function PlaylistDetailPage() {
       )}
 
       {/* Songs */}
-      <div className="p-6 lg:p-8 pt-4">
+      <div className="p-6 lg:p-8 pt-4 space-y-4">
+        {/* View toggle */}
+        {!loading && songs.length > 0 && (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => setViewMode('list')}
+              aria-label="List view"
+              title="List view"
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'list'
+                  ? 'bg-card text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              aria-label="Grid view"
+              title="Grid view"
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'grid'
+                  ? 'bg-card text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {loading ? (
-          <div className="space-y-1">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SongRowSkeleton key={i} />
-            ))}
-          </div>
+          view === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SongRowSkeleton key={i} />
+              ))}
+            </div>
+          )
         ) : songs.length > 0 ? (
-          <div className="space-y-0.5">
-            {songs.map((song, i) => (
-              <SongRow
-                key={song.id}
-                song={song}
-                index={i}
-                showIndex
-                songs={crossQueue.length > 0 ? crossQueue : songs}
-                source="playlist"
-              />
-            ))}
-          </div>
+          view === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {songs.map((song) => (
+                <SongCard
+                  key={song.id}
+                  song={song}
+                  songs={crossQueue.length > 0 ? crossQueue : songs}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {songs.map((song, i) => (
+                <SongRow
+                  key={song.id}
+                  song={song}
+                  index={i}
+                  showIndex
+                  songs={crossQueue.length > 0 ? crossQueue : songs}
+                  source="playlist"
+                />
+              ))}
+            </div>
+          )
         ) : (
           <EmptyState
             icon={Music}
