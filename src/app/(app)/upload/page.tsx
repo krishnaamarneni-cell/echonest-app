@@ -34,6 +34,7 @@ export default function UploadPage() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [contentType, setContentType] = useState<'music' | 'podcast'>('music');
 
   const handleYouTubeAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +115,7 @@ export default function UploadPage() {
             source: 'youtube_embed',
             youtube_id: v.videoId,
             youtube_kind: 'video',
+            content_type: contentType,
           }));
 
         // Insert new songs in batches and collect their ids
@@ -211,7 +213,7 @@ export default function UploadPage() {
         const res = await fetch('/api/youtube-add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: ytUrl }),
+          body: JSON.stringify({ url: ytUrl, contentType }),
         });
         const data = await res.json();
 
@@ -352,6 +354,7 @@ export default function UploadPage() {
         file_url: publicUrl,
         duration,
         user_id: user.id,
+        content_type: contentType,
       });
 
       if (insertError) {
@@ -385,6 +388,37 @@ export default function UploadPage() {
               Paste a video or playlist URL — streams via the official embed,
               no download.
             </p>
+          </div>
+        </div>
+
+        {/* Type selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Adding as
+          </span>
+          <div className="flex gap-1 bg-background rounded-full p-1 border border-border">
+            <button
+              type="button"
+              onClick={() => setContentType('music')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                contentType === 'music'
+                  ? 'bg-accent text-white'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🎵 Music
+            </button>
+            <button
+              type="button"
+              onClick={() => setContentType('podcast')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                contentType === 'podcast'
+                  ? 'bg-accent text-white'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              🎙️ Podcast
+            </button>
           </div>
         </div>
 

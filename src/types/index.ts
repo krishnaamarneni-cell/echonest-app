@@ -22,6 +22,7 @@ export interface Song {
   source: 'upload' | 'youtube_embed';
   youtube_id: string | null;
   youtube_kind: 'video' | 'playlist';
+  content_type: 'music' | 'podcast';
   created_at: string;
 }
 

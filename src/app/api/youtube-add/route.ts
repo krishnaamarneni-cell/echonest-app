@@ -47,10 +47,12 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { url } = await request.json();
+  const { url, contentType } = await request.json();
   if (!url || typeof url !== 'string') {
     return NextResponse.json({ error: 'URL required' }, { status: 400 });
   }
+  const safeContentType: 'music' | 'podcast' =
+    contentType === 'podcast' ? 'podcast' : 'music';
 
   const parsed = parseYouTubeUrl(url);
   if (!parsed) {
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
       source: 'youtube_embed',
       youtube_id: parsed.id,
       youtube_kind: parsed.kind,
+      content_type: safeContentType,
     })
     .select()
     .single();

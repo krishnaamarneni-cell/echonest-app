@@ -7,14 +7,15 @@ import { SongRow } from '@/components/ui/SongRow';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Music, Disc3, Mic2, ListMusic } from 'lucide-react';
+import { Music, Disc3, Mic2, ListMusic, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type Tab = 'songs' | 'albums' | 'artists' | 'playlists';
+type Tab = 'songs' | 'albums' | 'artists' | 'playlists' | 'podcasts';
 
 export default function LibraryPage() {
   const [tab, setTab] = useState<Tab>('songs');
   const [songs, setSongs] = useState<Song[]>([]);
+  const [podcasts, setPodcasts] = useState<Song[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -29,8 +30,16 @@ export default function LibraryPage() {
         const { data } = await supabase
           .from('songs')
           .select('*')
+          .eq('content_type', 'music')
           .order('created_at', { ascending: false });
         if (data) setSongs(data);
+      } else if (tab === 'podcasts') {
+        const { data } = await supabase
+          .from('songs')
+          .select('*')
+          .eq('content_type', 'podcast')
+          .order('created_at', { ascending: false });
+        if (data) setPodcasts(data);
       } else if (tab === 'albums') {
         const { data } = await supabase
           .from('albums')
@@ -58,6 +67,7 @@ export default function LibraryPage() {
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'songs', label: 'Songs', icon: Music },
+    { id: 'podcasts', label: 'Podcasts', icon: Mic },
     { id: 'albums', label: 'Albums', icon: Disc3 },
     { id: 'artists', label: 'Artists', icon: Mic2 },
     { id: 'playlists', label: 'Playlists', icon: ListMusic },
@@ -117,6 +127,29 @@ export default function LibraryPage() {
               </div>
             ) : (
               <EmptyState icon={Music} title="No songs yet" description="Upload your music to get started" />
+            )
+          )}
+
+          {tab === 'podcasts' && (
+            podcasts.length > 0 ? (
+              <div className="space-y-0.5">
+                {podcasts.map((song, i) => (
+                  <SongRow
+                    key={song.id}
+                    song={song}
+                    index={i}
+                    showIndex
+                    songs={podcasts}
+                    onDeleted={(id) => setPodcasts((prev) => prev.filter((s) => s.id !== id))}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={Mic}
+                title="No podcasts yet"
+                description="When you add a YouTube link or upload a file, select Podcast to add it here"
+              />
             )
           )}
 
