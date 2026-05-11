@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Search, Library, Upload } from 'lucide-react';
+import { Home, Search, Library, Heart, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { label: 'Home', href: '/dashboard', icon: Home },
   { label: 'Search', href: '/search', icon: Search },
+  { label: 'Liked', href: '/liked', icon: Heart },
   { label: 'Library', href: '/library', icon: Library },
-  { label: 'Upload', href: '/upload', icon: Upload },
+  { label: 'Add', href: '/upload', icon: Plus },
 ];
 
 export function BottomNav() {
