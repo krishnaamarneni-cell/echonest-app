@@ -10,8 +10,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2, Pencil } from 'lucide-react';
 import { Menu } from '@/components/ui/Menu';
+import { EditPlaylistDialog } from '@/components/ui/EditPlaylistDialog';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 import { useOwnerMode } from '@/store/ownerMode';
@@ -26,6 +27,7 @@ export default function PlaylistDetailPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const play = usePlayerStore((s) => s.play);
   const isOwner = useOwnerMode((s) => s.isOwner);
 
@@ -202,6 +204,11 @@ export default function PlaylistDetailPage() {
                   }
                   items={[
                     {
+                      label: 'Edit playlist',
+                      icon: Pencil,
+                      onClick: () => setEditOpen(true),
+                    },
+                    {
                       label: 'Delete playlist',
                       icon: Trash2,
                       variant: 'danger',
@@ -264,6 +271,15 @@ export default function PlaylistDetailPage() {
           />
         )}
       </div>
+
+      <EditPlaylistDialog
+        playlist={playlist}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => {
+          setPlaylist(updated);
+        }}
+      />
     </div>
   );
 }
