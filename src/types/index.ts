@@ -23,6 +23,8 @@ export interface Song {
   youtube_id: string | null;
   youtube_kind: 'video' | 'playlist';
   content_type: 'music' | 'podcast' | 'artist' | 'album';
+  download_status?: 'queued' | 'downloading' | 'done' | 'error' | null;
+  download_error?: string | null;
   created_at: string;
 }
 

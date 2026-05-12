@@ -4,7 +4,7 @@ import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music, Trash2, ListPlus } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, Trash2, ListPlus, Download, Check, Loader2, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
@@ -36,6 +36,30 @@ export function SongRow({
   const isOwner = useOwnerMode((s) => s.isOwner);
   const [isHovered, setIsHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloadState, setDownloadState] = useState<Song['download_status']>(
+    song.download_status ?? null,
+  );
+
+  // Songs eligible for the download workflow: must come from YouTube, must
+  // not be a podcast (podcasts stream), must not already be a Supabase audio
+  // file. Already-uploaded songs (source='upload') don't need downloading.
+  const isDownloadEligible =
+    !!song.youtube_id &&
+    song.content_type !== 'podcast' &&
+    song.source === 'youtube_embed';
+
+  const requestDownload = async () => {
+    setDownloadState('queued');
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('songs')
+      .update({ download_status: 'queued', download_error: null })
+      .eq('id', song.id);
+    if (error) {
+      setDownloadState('error');
+      alert(`Couldn't queue download: ${error.message}`);
+    }
+  };
   const isCurrentSong = currentSong?.id === song.id;
   const isLiked = likedIds.has(song.id);
 
@@ -176,6 +200,42 @@ export function SongRow({
                       }),
                   },
                 ]),
+            ...(isDownloadEligible
+              ? [
+                  downloadState === 'done'
+                    ? {
+                        label: 'Downloaded',
+                        icon: Check,
+                        onClick: () => {},
+                        disabled: true,
+                      }
+                    : downloadState === 'queued'
+                    ? {
+                        label: 'Download queued',
+                        icon: Loader2,
+                        onClick: () => {},
+                        disabled: true,
+                      }
+                    : downloadState === 'downloading'
+                    ? {
+                        label: 'Downloading…',
+                        icon: Loader2,
+                        onClick: () => {},
+                        disabled: true,
+                      }
+                    : downloadState === 'error'
+                    ? {
+                        label: 'Retry download',
+                        icon: RotateCcw,
+                        onClick: requestDownload,
+                      }
+                    : {
+                        label: 'Download for background play',
+                        icon: Download,
+                        onClick: requestDownload,
+                      },
+                ]
+              : []),
             ...(isOwner
               ? [
                   {

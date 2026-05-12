@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "yt": "node --env-file=.env.local scripts/yt-to-echonest.mjs"
+    "yt": "node --env-file=.env.local scripts/yt-to-echonest.mjs",
+    "download-queue": "node --env-file=.env.local scripts/download-queue.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

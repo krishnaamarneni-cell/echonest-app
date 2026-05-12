@@ -8,6 +8,7 @@ export interface MenuItem {
   icon?: LucideIcon;
   onClick: () => void;
   variant?: 'default' | 'danger';
+  disabled?: boolean;
 }
 
 interface MenuProps {
@@ -85,19 +86,31 @@ export function Menu({
           {items.map((item, i) => (
             <button
               key={i}
+              disabled={item.disabled}
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                if (item.disabled) return;
                 setOpen(false);
                 item.onClick();
               }}
               className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors ${
-                item.variant === 'danger'
+                item.disabled
+                  ? 'text-muted-foreground cursor-not-allowed opacity-60'
+                  : item.variant === 'danger'
                   ? 'text-destructive hover:bg-destructive/10'
                   : 'text-foreground hover:bg-card-hover'
               }`}
             >
-              {item.icon && <item.icon className="w-4 h-4" />}
+              {item.icon && (
+                <item.icon
+                  className={`w-4 h-4 ${
+                    item.disabled && item.label.toLowerCase().includes('download')
+                      ? 'animate-spin'
+                      : ''
+                  }`}
+                />
+              )}
               {item.label}
             </button>
           ))}
