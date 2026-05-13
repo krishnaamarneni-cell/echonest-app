@@ -228,25 +228,28 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
-  // Proxy-mode: when bgMode is on AND we have a personal yt-proxy deployed,
-  // play YouTube songs as native HTML5 audio through the proxy. Safari then
-  // backgrounds them like any uploaded MP3 — locked screen + AirPods + app
-  // switching all work. Falls back to IFrame Player when proxy isn't set up.
+  // Hybrid mode: when bgMode is ON AND we have a personal yt-proxy deployed,
+  // we run BOTH the YT IFrame (for video while the app is foreground) AND a
+  // muted <audio> element backed by the proxy. On `visibilitychange` to
+  // hidden we unmute the audio so playback continues seamlessly when the
+  // user locks the phone or switches apps. When visibility returns, we
+  // mute the audio and let the IFrame take back over.
   const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
   const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
   const proxyConfigured = !!(proxyUrl && proxySecret);
-  const useProxy =
+  const useHybrid =
     proxyConfigured &&
     bgMode &&
     isYouTube &&
     !isYouTubePlaylist &&
     !!currentSong?.youtube_id;
-  const proxyAudioUrl = useProxy
+  const proxyAudioUrl = useHybrid
     ? `${proxyUrl}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
-  // Use the IFrame Player only when playing YouTube without the proxy.
-  // With the proxy, audio comes through a same-origin <audio> element instead.
-  const useIframePlayer = isYouTube && !useProxy;
+  // IFrame mounts for every YouTube song (we want video in foreground).
+  // The hybrid audio handoff runs in parallel; see the visibilitychange
+  // effect further down.
+  const useIframePlayer = isYouTube;
 
   // Surface the mini-player ONCE per new YouTube track when background mode
   // is on — so the user can reach native iOS controls. Tracked by a ref of
@@ -488,45 +491,100 @@ export function AudioPlayer() {
     } catch {}
   }, [progress, duration]);
 
-  // Native audio src change — picks proxy URL for YT-via-proxy mode,
-  // otherwise the song's file_url for uploads. Skipped when the IFrame
-  // Player is handling playback.
+  // Audio element src: for uploads, song.file_url. For hybrid mode, the
+  // proxy URL (silent until backgrounded). Cleared when neither applies.
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !currentSong || useIframePlayer) return;
-    const src = useProxy && proxyAudioUrl ? proxyAudioUrl : currentSong.file_url;
-    if (!src) return;
-    audio.src = src;
-    if (isPlaying) audio.play().catch(() => {});
-  }, [currentSong, useIframePlayer, useProxy, proxyAudioUrl]);
+    if (!audio || !currentSong) return;
+    const isUpload = !isYouTube;
+    if (isUpload) {
+      audio.src = currentSong.file_url || '';
+      audio.muted = false;
+      audio.volume = isMuted ? 0 : volume;
+      if (isPlaying) audio.play().catch(() => {});
+    } else if (useHybrid && proxyAudioUrl) {
+      audio.src = proxyAudioUrl;
+      // Start playing immediately, muted — so we have a warm audio session
+      // ready to seamlessly take over the moment the user backgrounds.
+      audio.muted = true;
+      audio.volume = 0;
+      if (isPlaying) audio.play().catch(() => {});
+    } else {
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong?.id, isYouTube, useHybrid, proxyAudioUrl]);
 
-  // Native audio play/pause
+  // Audio element play/pause — keep it in lockstep with isPlaying for both
+  // upload mode (audible) and hybrid mode (silent companion).
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || useIframePlayer) return;
+    if (!audio) return;
+    const isUpload = !isYouTube;
+    if (!isUpload && !useHybrid) return; // pure IFrame mode — audio idle
     if (isPlaying) audio.play().catch(() => {});
     else audio.pause();
-  }, [isPlaying, useIframePlayer]);
+  }, [isPlaying, isYouTube, useHybrid]);
 
-  // Native audio volume
+  // Audio element volume (only matters for uploads; hybrid mode controls
+  // volume via the mute toggle in the visibilitychange handler).
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || useIframePlayer) return;
+    if (!audio || isYouTube) return;
     audio.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted, useIframePlayer]);
+  }, [volume, isMuted, isYouTube]);
 
-  // Playback rate — apply to either native audio or the YouTube player
+  // Playback rate — apply to whichever player is currently audible.
   useEffect(() => {
     if (useIframePlayer && ytPlayerRef.current) {
-      try {
-        ytPlayerRef.current.setPlaybackRate(playbackRate);
-      } catch {}
-    } else if (audioRef.current) {
-      try {
-        audioRef.current.playbackRate = playbackRate;
-      } catch {}
+      try { ytPlayerRef.current.setPlaybackRate(playbackRate); } catch {}
+    }
+    if (audioRef.current) {
+      try { audioRef.current.playbackRate = playbackRate; } catch {}
     }
   }, [playbackRate, useIframePlayer, currentSong?.id]);
+
+  // ===== Hybrid audio handoff =====
+  // When the page hides (user locks phone / switches apps), unmute the
+  // proxy audio element and seek it to the iframe's current position so
+  // playback continues without a gap. When the page returns, mute the
+  // audio and resume the iframe at the audio's position.
+  useEffect(() => {
+    if (!useHybrid) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        // Going to background → audio takes over
+        try {
+          const ytTime = ytPlayerRef.current?.getCurrentTime?.();
+          if (typeof ytTime === 'number' && Math.abs(audio.currentTime - ytTime) > 0.5) {
+            audio.currentTime = ytTime;
+          }
+        } catch {}
+        audio.muted = false;
+        audio.volume = isMuted ? 0 : volume;
+        audio.play().catch(() => {});
+      } else {
+        // Returning to foreground → iframe takes back over
+        try {
+          const audioTime = audio.currentTime;
+          if (ytPlayerRef.current?.seekTo) {
+            ytPlayerRef.current.seekTo(audioTime, true);
+          }
+          if (isPlaying) ytPlayerRef.current?.playVideo?.();
+        } catch {}
+        audio.muted = true;
+        audio.volume = 0;
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useHybrid, currentSong?.id, isPlaying, volume, isMuted]);
 
   const handleTimeUpdate = useCallback(() => {
     const audio = audioRef.current;
