@@ -22,8 +22,10 @@ import {
   ExternalLink,
   Video,
   Image as ImageIcon,
+  Users,
 } from 'lucide-react';
 import { useBackgroundMode } from '@/store/backgroundMode';
+import { useListenAlong } from '@/store/listenAlong';
 import Image from 'next/image';
 import { Menu } from '@/components/ui/Menu';
 import { QueueSheet } from './QueueSheet';
@@ -86,6 +88,46 @@ export function NowPlayingScreen() {
   // iframe steals the audio session and background play breaks.
   const bgMode = useBackgroundMode((s) => s.enabled);
   const [showInlineVideo, setShowInlineVideo] = useState(false);
+  const joinRoom = useListenAlong((s) => s.joinRoom);
+
+  // Create a new listen-along room with the current song and copy the link
+  const startListenAlong = async () => {
+    if (!currentSong) return;
+    try {
+      const res = await fetch('/api/rooms/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          song: currentSong,
+          isPlaying,
+          position: progress,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.code) {
+        alert(data?.error || 'Could not create room');
+        return;
+      }
+      joinRoom(data.code);
+      const link = `${window.location.origin}/listen/${data.code}`;
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: 'Listen with me on EchoNest',
+            text: `Tap to listen along: ${link}`,
+            url: link,
+          });
+        } else if (navigator.clipboard) {
+          await navigator.clipboard.writeText(link);
+          alert(`Room link copied:\n${link}`);
+        } else {
+          prompt('Share this room link:', link);
+        }
+      } catch {}
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not start room');
+    }
+  };
 
   // Reset video mode whenever we close the screen or change song
   useEffect(() => { setShowInlineVideo(false); }, [currentSong?.id, isNowPlayingOpen]);
@@ -313,6 +355,11 @@ export function NowPlayingScreen() {
               </button>
             }
             items={[
+              {
+                label: 'Start listen-along',
+                icon: Users,
+                onClick: startListenAlong,
+              },
               ...(isYTPlaylist
                 ? []
                 : [

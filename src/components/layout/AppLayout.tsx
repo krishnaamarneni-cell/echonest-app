@@ -6,6 +6,7 @@ import { BottomNav } from './BottomNav';
 import { AudioPlayer } from './AudioPlayer';
 import { InstallPrompt } from './InstallPrompt';
 import { NowPlayingScreen } from './NowPlayingScreen';
+import { ListenAlongSync } from './ListenAlongSync';
 import { AddToPlaylistDialog } from '@/components/ui/AddToPlaylistDialog';
 import { usePlayerStore } from '@/store/player';
 import { useOwnerMode } from '@/store/ownerMode';
@@ -70,6 +71,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <InstallPrompt />
       <AddToPlaylistDialog />
       <NowPlayingScreen />
+      <ListenAlongSync />
     </div>
   );
 }
