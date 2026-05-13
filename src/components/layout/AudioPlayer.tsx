@@ -248,10 +248,13 @@ export function AudioPlayer() {
   const proxyAudioUrl = useHybrid
     ? `${proxyUrl}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
-  // IFrame mounts for every YouTube song (we want video in foreground).
-  // The hybrid audio handoff runs in parallel; see the visibilitychange
-  // effect further down.
-  const useIframePlayer = isYouTube;
+  // When proxy/hybrid mode is on, the iframe is NOT mounted at all.
+  // Reason: iOS allows only one active audio session per origin. If the
+  // iframe is loaded (even muted), iOS treats *it* as the audio session
+  // owner and suspends our <audio> element when the app backgrounds.
+  // By not mounting the iframe, the <audio> element is the only player
+  // → iOS keeps its session alive → real background play works.
+  const useIframePlayer = isYouTube && !useHybrid;
 
   // Surface the mini-player ONCE per new YouTube track when background mode
   // is on — so the user can reach native iOS controls. Tracked by a ref of
@@ -326,13 +329,9 @@ export function AudioPlayer() {
         onReady: (e: { target?: unknown }) => {
           const player = e.target as {
             setVolume: (v: number) => void;
-            mute: () => void;
             playVideo: () => void;
           };
-          // In hybrid mode the iframe is video-only; mute it so we don't
-          // get double audio with the proxy <audio> element.
-          if (useHybrid) player.mute();
-          else player.setVolume((isMuted ? 0 : volume) * 100);
+          player.setVolume((isMuted ? 0 : volume) * 100);
           player.playVideo();
           // Grant Picture-in-Picture permission to the embed so iOS Safari
           // can auto-PiP when the user swipes the app away. The YT IFrame
@@ -427,17 +426,12 @@ export function AudioPlayer() {
   }, [isPlaying, isYouTube]);
 
   // YouTube volume — only relevant when iframe is the audio source.
-  // In hybrid mode the iframe is force-muted (audio comes from <audio>).
   useEffect(() => {
-    if (!isYouTube || !ytPlayerRef.current) return;
+    if (!useIframePlayer || !ytPlayerRef.current) return;
     try {
-      if (useHybrid) {
-        ytPlayerRef.current.mute();
-      } else {
-        ytPlayerRef.current.setVolume((isMuted ? 0 : volume) * 100);
-      }
+      ytPlayerRef.current.setVolume((isMuted ? 0 : volume) * 100);
     } catch {}
-  }, [volume, isMuted, isYouTube, useHybrid]);
+  }, [volume, isMuted, useIframePlayer]);
 
   // Media Session API — lock screen / notification controls
   useEffect(() => {
@@ -551,13 +545,6 @@ export function AudioPlayer() {
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted, isYouTube, useHybrid]);
 
-  // In hybrid mode, mute the IFrame Player so we don't get double audio
-  // from the iframe + the proxy audio element. The iframe stays as
-  // silent video.
-  useEffect(() => {
-    if (!useHybrid || !ytPlayerRef.current) return;
-    try { ytPlayerRef.current.mute(); } catch {}
-  }, [useHybrid, currentSong?.id]);
 
   // Playback rate — apply to whichever player is currently audible.
   useEffect(() => {
@@ -569,33 +556,6 @@ export function AudioPlayer() {
     }
   }, [playbackRate, useIframePlayer, currentSong?.id]);
 
-  // ===== Hybrid mode: keep video in sync when returning to foreground =====
-  // Audio element is the audio source (always audible). The iframe shows
-  // muted video for visual. When user backgrounds the app the iframe
-  // pauses itself; coming back we resume + seek it so the video matches
-  // where the audio actually is.
-  useEffect(() => {
-    if (!useHybrid) return;
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onVisibility = () => {
-      if (!document.hidden) {
-        try {
-          const audioTime = audio.currentTime;
-          if (ytPlayerRef.current?.seekTo) {
-            ytPlayerRef.current.seekTo(audioTime, true);
-          }
-          if (isPlaying) ytPlayerRef.current?.playVideo?.();
-          ytPlayerRef.current?.mute?.();
-        } catch {}
-      }
-    };
-
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useHybrid, currentSong?.id, isPlaying]);
 
   const handleTimeUpdate = useCallback(() => {
     const audio = audioRef.current;

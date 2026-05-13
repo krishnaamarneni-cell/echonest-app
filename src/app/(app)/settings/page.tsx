@@ -335,9 +335,10 @@ function BackgroundModeToggle({
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold">Background play</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Watch the video normally — audio seamlessly hands off through
-            the extractor when you lock the phone or switch apps so the
-            song keeps playing. Re-opening the app brings the video back.
+            YouTube tracks play as audio-only through the extractor so they
+            keep playing on a locked iPhone, on AirPods, and when you switch
+            apps. Trade-off: the video doesn&apos;t show — you see the cover
+            art instead.
           </p>
         </div>
         <button
