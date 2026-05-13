@@ -33,9 +33,12 @@ app.get('/health', (_req, res) => {
 app.get('/audio/:videoId', (req, res) => {
   const { videoId } = req.params;
 
-  // Auth — shared secret in Authorization header
+  // Auth — Bearer header OR ?s=SECRET query param. The query form is needed
+  // because HTML5 <audio> elements can't set custom Authorization headers.
   const auth = req.headers.authorization || '';
-  if (auth !== `Bearer ${SHARED_SECRET}`) {
+  const secret = req.query.s || '';
+  const ok = auth === `Bearer ${SHARED_SECRET}` || secret === SHARED_SECRET;
+  if (!ok) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

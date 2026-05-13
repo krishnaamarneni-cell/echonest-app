@@ -228,13 +228,33 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
+  // Proxy-mode: when bgMode is on AND we have a personal yt-proxy deployed,
+  // play YouTube songs as native HTML5 audio through the proxy. Safari then
+  // backgrounds them like any uploaded MP3 — locked screen + AirPods + app
+  // switching all work. Falls back to IFrame Player when proxy isn't set up.
+  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
+  const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
+  const proxyConfigured = !!(proxyUrl && proxySecret);
+  const useProxy =
+    proxyConfigured &&
+    bgMode &&
+    isYouTube &&
+    !isYouTubePlaylist &&
+    !!currentSong?.youtube_id;
+  const proxyAudioUrl = useProxy
+    ? `${proxyUrl}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
+    : null;
+  // Use the IFrame Player only when playing YouTube without the proxy.
+  // With the proxy, audio comes through a same-origin <audio> element instead.
+  const useIframePlayer = isYouTube && !useProxy;
+
   // Surface the mini-player ONCE per new YouTube track when background mode
   // is on — so the user can reach native iOS controls. Tracked by a ref of
   // the last-seen video id so the user closing the mini doesn't auto-reopen
   // it on the same track.
   const lastBgVideoIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!bgMode || !isYouTube) {
+    if (!bgMode || !useIframePlayer) {
       lastBgVideoIdRef.current = null;
       return;
     }
@@ -243,7 +263,7 @@ export function AudioPlayer() {
       lastBgVideoIdRef.current = vid;
       setYtView('mini');
     }
-  }, [bgMode, isYouTube, currentSong?.youtube_id]);
+  }, [bgMode, useIframePlayer, currentSong?.youtube_id]);
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -259,7 +279,7 @@ export function AudioPlayer() {
 
   // Manage YouTube player
   useEffect(() => {
-    if (!ytReady || !isYouTube || !currentSong?.youtube_id || !ytContainerRef.current) return;
+    if (!ytReady || !useIframePlayer || !currentSong?.youtube_id || !ytContainerRef.current) return;
 
     if (ytPlayerRef.current) {
       if (isYouTubePlaylist) {
@@ -468,32 +488,36 @@ export function AudioPlayer() {
     } catch {}
   }, [progress, duration]);
 
-  // Native audio src change
+  // Native audio src change — picks proxy URL for YT-via-proxy mode,
+  // otherwise the song's file_url for uploads. Skipped when the IFrame
+  // Player is handling playback.
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !currentSong || isYouTube) return;
-    audio.src = currentSong.file_url;
+    if (!audio || !currentSong || useIframePlayer) return;
+    const src = useProxy && proxyAudioUrl ? proxyAudioUrl : currentSong.file_url;
+    if (!src) return;
+    audio.src = src;
     if (isPlaying) audio.play().catch(() => {});
-  }, [currentSong, isYouTube]);
+  }, [currentSong, useIframePlayer, useProxy, proxyAudioUrl]);
 
   // Native audio play/pause
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || isYouTube) return;
+    if (!audio || useIframePlayer) return;
     if (isPlaying) audio.play().catch(() => {});
     else audio.pause();
-  }, [isPlaying, isYouTube]);
+  }, [isPlaying, useIframePlayer]);
 
   // Native audio volume
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || isYouTube) return;
+    if (!audio || useIframePlayer) return;
     audio.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted, isYouTube]);
+  }, [volume, isMuted, useIframePlayer]);
 
   // Playback rate — apply to either native audio or the YouTube player
   useEffect(() => {
-    if (isYouTube && ytPlayerRef.current) {
+    if (useIframePlayer && ytPlayerRef.current) {
       try {
         ytPlayerRef.current.setPlaybackRate(playbackRate);
       } catch {}
@@ -502,7 +526,7 @@ export function AudioPlayer() {
         audioRef.current.playbackRate = playbackRate;
       } catch {}
     }
-  }, [playbackRate, isYouTube, currentSong?.id]);
+  }, [playbackRate, useIframePlayer, currentSong?.id]);
 
   const handleTimeUpdate = useCallback(() => {
     const audio = audioRef.current;
@@ -555,7 +579,7 @@ export function AudioPlayer() {
       />
       {/* YT iframe — always rendered to keep iframe alive */}
       <YouTubeView
-        view={isYouTube ? ytView : 'hidden'}
+        view={useIframePlayer ? ytView : 'hidden'}
         containerRef={ytContainerRef}
         currentSong={currentSong}
         queue={queue}
@@ -569,7 +593,7 @@ export function AudioPlayer() {
       />
 
       {/* Show/hide video toggle button — only visible when YT is playing successfully and view is hidden */}
-      {isYouTube && !ytError && ytView === 'hidden' && (
+      {useIframePlayer && !ytError && ytView === 'hidden' && (
         <button
           onClick={() => setYtView('mini')}
           className="fixed right-3 z-40 w-9 h-9 rounded-full bg-card border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"

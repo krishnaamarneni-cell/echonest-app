@@ -331,11 +331,11 @@ function BackgroundModeToggle({
           <Smartphone className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold">iPhone background play</h2>
+          <h2 className="text-base font-semibold">Background play</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            For YouTube tracks on iPhone: turns on Picture-in-Picture so audio
-            keeps playing when the screen locks or you switch apps. Tap the PiP
-            icon on the video after pressing Play.
+            Route YouTube tracks through the audio extractor so they play as
+            native audio — works on a locked iPhone, on AirPods, when you
+            switch apps. The video doesn&apos;t show; you get audio only.
           </p>
         </div>
         <button
