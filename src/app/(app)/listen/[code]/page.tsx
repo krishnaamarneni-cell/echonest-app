@@ -63,15 +63,28 @@ export default function ListenAlongPage() {
   const acceptAndJoin = () => {
     if (!code) return;
     const upper = code.toUpperCase();
+    const player = usePlayerStore.getState();
+    const la = useListenAlong.getState();
+
+    // Seed initial playback. We pre-set suppressBroadcast so the listener
+    // lock doesn't reject this initial play() — only user-initiated taps
+    // are meant to be locked, not the room's own seed.
     if (roomSong) {
-      play(roomSong, [roomSong], 'library');
-      // After play starts loading, seek to where the host currently is.
-      // The audio element needs a moment to mount the new src.
+      la.setSuppressBroadcast(true);
+      try {
+        player.play(roomSong, [roomSong], 'library');
+      } finally {
+        setTimeout(() => la.setSuppressBroadcast(false), 100);
+      }
+      // Seek once audio is ready (handleLoadedMetadata also reapplies)
+      const targetPos = hostPosition;
       setTimeout(() => {
-        if (hostPosition > 0.5) seekTo(hostPosition);
-        // If host had paused before we joined, we still played — pause too
-        if (!hostIsPlaying) {
-          usePlayerStore.getState().pause();
+        la.setSuppressBroadcast(true);
+        try {
+          if (targetPos > 0.5) player.seekTo(targetPos);
+          if (!hostIsPlaying) player.pause();
+        } finally {
+          setTimeout(() => la.setSuppressBroadcast(false), 100);
         }
       }, 400);
     }

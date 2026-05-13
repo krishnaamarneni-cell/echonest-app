@@ -51,24 +51,33 @@ export function ListenAlongSync() {
       userIdRef.current = data.user?.id || null;
     })();
 
-    // Listeners apply incoming state from the host
+    // Listeners apply incoming state from the host. Crucial: we compensate
+    // for the time between when the host sent the broadcast and now, so we
+    // don't perpetually trail by network latency + audio seek time.
     channel = channel.on('broadcast', { event: 'state' }, ({ payload }) => {
       if (isHost) return; // host ignores any echoes
       const p = payload as Partial<RoomState>;
       if (!p) return;
       const player = usePlayerStore.getState();
+
+      // Where is the host RIGHT NOW (not at broadcast time)?
+      let effectivePos = typeof p.position === 'number' ? p.position : null;
+      if (effectivePos != null && p.isPlaying && typeof p.at === 'number') {
+        const elapsedSec = Math.max(0, (Date.now() - p.at) / 1000);
+        effectivePos = effectivePos + elapsedSec;
+      }
+
       setSuppressBroadcast(true);
       try {
         if (p.song && p.song.id !== player.currentSong?.id) {
           player.play(p.song, [p.song], 'library');
-          // After the new song mounts, jump to the host's position
-          if (typeof p.position === 'number') {
-            setTimeout(() => player.seekTo(p.position!), 400);
+          if (effectivePos != null) {
+            // Audio needs a moment to mount the new src — seek then.
+            setTimeout(() => player.seekTo(effectivePos!), 400);
           }
-        } else if (typeof p.position === 'number') {
-          // Tight drift correction: 0.4s threshold (was 0.8s)
-          const drift = Math.abs(player.progress - p.position);
-          if (drift > 0.4) player.seekTo(p.position);
+        } else if (effectivePos != null) {
+          const drift = Math.abs(player.progress - effectivePos);
+          if (drift > 0.3) player.seekTo(effectivePos);
         }
         if (typeof p.isPlaying === 'boolean' && p.isPlaying !== player.isPlaying) {
           if (p.isPlaying) player.resume();
@@ -136,11 +145,13 @@ export function ListenAlongSync() {
     if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
     sendTimerRef.current = setTimeout(broadcastNow, 100);
 
-    // While playing, also re-sync position every 750ms so listeners
-    // don't drift. Pause clears this.
+    // While playing, re-sync position every 500ms so listeners stay
+    // tight. The listener compensates for elapsed network/processing
+    // time using the `at` timestamp, so effective drift should be
+    // imperceptible.
     let interval: NodeJS.Timeout | null = null;
     if (isPlaying) {
-      interval = setInterval(broadcastNow, 750);
+      interval = setInterval(broadcastNow, 500);
     }
 
     return () => {
