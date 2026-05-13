@@ -20,7 +20,10 @@ import {
   ListMusic,
   Music,
   ExternalLink,
+  Video,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { useBackgroundMode } from '@/store/backgroundMode';
 import Image from 'next/image';
 import { Menu } from '@/components/ui/Menu';
 import { QueueSheet } from './QueueSheet';
@@ -75,6 +78,34 @@ export function NowPlayingScreen() {
   const [animatingX, setAnimatingX] = useState(false);
   const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
   const [queueOpen, setQueueOpen] = useState(false);
+
+  // Video-in-cover overlay. When the user taps "Watch video" we mount a
+  // muted YT iframe in the cover slot for visuals while audio continues
+  // from the proxy <audio> element in AudioPlayer.tsx. We MUST unmount
+  // it before iOS suspends the page (visibility hidden), otherwise the
+  // iframe steals the audio session and background play breaks.
+  const bgMode = useBackgroundMode((s) => s.enabled);
+  const [showInlineVideo, setShowInlineVideo] = useState(false);
+
+  // Reset video mode whenever we close the screen or change song
+  useEffect(() => { setShowInlineVideo(false); }, [currentSong?.id, isNowPlayingOpen]);
+
+  // Force video off before iOS backgrounds the page — keeps audio session
+  // with the <audio> element so background play survives.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onVis = () => { if (document.hidden) setShowInlineVideo(false); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  const isYouTubeSong =
+    currentSong?.source === 'youtube_embed' &&
+    currentSong?.youtube_kind !== 'playlist' &&
+    !!currentSong?.youtube_id;
+  // Only offer the video toggle when bg-mode/proxy is the audio source —
+  // otherwise the regular iframe is already showing video normally.
+  const offerVideoToggle = bgMode && isYouTubeSong;
 
   // Clear the skip-transition flag after the snap render commits
   useEffect(() => {
@@ -364,9 +395,17 @@ export function NowPlayingScreen() {
                 </div>
               )}
 
-              {/* Current song */}
-              <div className="w-full aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl">
-                {currentSong.cover_url ? (
+              {/* Current song — cover art, OR inline YouTube video when toggled */}
+              <div className="relative w-full aspect-square rounded-2xl bg-black overflow-hidden shadow-2xl">
+                {showInlineVideo && currentSong.youtube_id ? (
+                  <iframe
+                    key={currentSong.youtube_id}
+                    src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1`}
+                    title={currentSong.title}
+                    className="w-full h-full"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                  />
+                ) : currentSong.cover_url ? (
                   <Image
                     src={currentSong.cover_url}
                     alt={currentSong.title}
@@ -380,6 +419,30 @@ export function NowPlayingScreen() {
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
                     <Music className="w-24 h-24 text-muted" />
                   </div>
+                )}
+
+                {offerVideoToggle && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowInlineVideo((v) => !v);
+                    }}
+                    className="absolute bottom-2 right-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-medium inline-flex items-center gap-1.5 hover:bg-black/80 transition-colors"
+                    aria-label={showInlineVideo ? 'Hide video' : 'Watch video'}
+                  >
+                    {showInlineVideo ? (
+                      <>
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        Cover
+                      </>
+                    ) : (
+                      <>
+                        <Video className="w-3.5 h-3.5" />
+                        Watch video
+                      </>
+                    )}
+                  </button>
                 )}
               </div>
 
