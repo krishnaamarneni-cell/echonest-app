@@ -16,16 +16,20 @@ interface MediaCardProps {
 export function MediaCard({ title, subtitle, imageUrl, href, onPlay, rounded }: MediaCardProps) {
   return (
     <Link href={href} className="group block space-y-3">
-      <div className="relative aspect-square overflow-hidden rounded-xl bg-card">
+      <div
+        className={`relative aspect-square overflow-hidden bg-card ${
+          rounded ? 'rounded-full' : 'rounded-xl'
+        }`}
+      >
         {imageUrl ? (
           <Image
             src={imageUrl}
             alt={title}
             fill
-            className={`object-cover transition-transform duration-300 group-hover:scale-105 ${rounded ? 'rounded-full' : ''}`}
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover ${rounded ? 'rounded-full' : ''}`}>
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
             <Music className="w-12 h-12 text-muted" />
           </div>
         )}
