@@ -65,11 +65,12 @@ export function ListenAlongSync() {
           if (p.isPlaying) player.resume();
           else player.pause();
         }
-        // Snap to position if drift > 0.8s
+        // Snap to position if drift > 0.8s. Use seekTo so the audio
+        // element / iframe actually jumps, not just the visual.
         if (typeof p.position === 'number') {
           const drift = Math.abs(player.progress - p.position);
           if (drift > 0.8) {
-            player.setProgress(p.position);
+            player.seekTo(p.position);
           }
         }
       } finally {
@@ -113,6 +114,19 @@ export function ListenAlongSync() {
         by: userIdRef.current || 'unknown',
       };
       channel.send({ type: 'broadcast', event: 'state', payload }).catch(() => {});
+      // Also persist to DB so late joiners can compute the effective
+      // current position from `position_seconds + (now - last_action_at)`.
+      supabase
+        .from('listening_rooms')
+        .update({
+          current_song: currentSong,
+          position_seconds: progress,
+          is_playing: isPlaying,
+          last_action_by: userIdRef.current,
+          last_action_at: new Date().toISOString(),
+        })
+        .eq('code', roomCode)
+        .then(() => {}, () => {});
     }, 250);
 
     return () => {

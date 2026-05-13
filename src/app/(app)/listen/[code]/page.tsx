@@ -17,6 +17,9 @@ export default function ListenAlongPage() {
   const peerCount = useListenAlong((s) => s.peerCount);
   const inRoomCode = useListenAlong((s) => s.roomCode);
   const play = usePlayerStore((s) => s.play);
+  const seekTo = usePlayerStore((s) => s.seekTo);
+  const [hostPosition, setHostPosition] = useState<number>(0);
+  const [hostIsPlaying, setHostIsPlaying] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roomSong, setRoomSong] = useState<Song | null>(null);
@@ -43,6 +46,13 @@ export default function ListenAlongPage() {
       }
       const song = data.current_song as Song | null;
       if (song) setRoomSong(song);
+      // Compute the effective current position from when the host last
+      // reported. If they're playing, advance by elapsed time.
+      const lastAtMs = new Date(data.last_action_at).getTime();
+      const elapsedSec = Math.max(0, (Date.now() - lastAtMs) / 1000);
+      const stored = Number(data.position_seconds) || 0;
+      setHostPosition(data.is_playing ? stored + elapsedSec : stored);
+      setHostIsPlaying(!!data.is_playing);
       setLoading(false);
     })();
     return () => {
@@ -53,7 +63,18 @@ export default function ListenAlongPage() {
   const acceptAndJoin = () => {
     if (!code) return;
     const upper = code.toUpperCase();
-    if (roomSong) play(roomSong, [roomSong], 'library');
+    if (roomSong) {
+      play(roomSong, [roomSong], 'library');
+      // After play starts loading, seek to where the host currently is.
+      // The audio element needs a moment to mount the new src.
+      setTimeout(() => {
+        if (hostPosition > 0.5) seekTo(hostPosition);
+        // If host had paused before we joined, we still played — pause too
+        if (!hostIsPlaying) {
+          usePlayerStore.getState().pause();
+        }
+      }, 400);
+    }
     joinRoom(upper);
     setHasJoined(true);
   };

@@ -225,7 +225,23 @@ export function AudioPlayer() {
     openNowPlaying,
     playbackRate,
     setPlaybackRate,
+    pendingSeek,
+    clearPendingSeek,
   } = usePlayerStore();
+
+  // External seek (e.g. listen-along sync) — apply to the audio element
+  // and to the YT player if active, then clear so it doesn't re-fire.
+  useEffect(() => {
+    if (pendingSeek == null) return;
+    const audio = audioRef.current;
+    if (audio && !isNaN(pendingSeek) && isFinite(pendingSeek)) {
+      try { audio.currentTime = pendingSeek; } catch {}
+    }
+    if (ytPlayerRef.current?.seekTo) {
+      try { ytPlayerRef.current.seekTo(pendingSeek, true); } catch {}
+    }
+    clearPendingSeek();
+  }, [pendingSeek, clearPendingSeek]);
 
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';

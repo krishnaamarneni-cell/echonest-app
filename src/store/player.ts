@@ -31,8 +31,14 @@ interface PlayerState {
   isPlayerVisible: boolean;
   isNowPlayingOpen: boolean;
   playbackRate: number;
+  // When set, AudioPlayer will seek the audio element to this time on its
+  // next render, then clear it. Used by listen-along to bring late joiners
+  // (or drifted peers) to the host's current position.
+  pendingSeek: number | null;
 
   play: (song: Song, queue?: Song[], source?: QueueItem['source']) => void;
+  seekTo: (time: number) => void;
+  clearPendingSeek: () => void;
   openNowPlaying: () => void;
   closeNowPlaying: () => void;
   setPlaybackRate: (r: number) => void;
@@ -67,6 +73,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   isPlayerVisible: false,
   isNowPlayingOpen: false,
   playbackRate: 1,
+  pendingSeek: null,
+
+  seekTo: (time) => set({ pendingSeek: time, progress: time }),
+  clearPendingSeek: () => set({ pendingSeek: null }),
 
   openNowPlaying: () => set({ isNowPlayingOpen: true }),
   closeNowPlaying: () => set({ isNowPlayingOpen: false }),
