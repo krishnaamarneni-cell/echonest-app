@@ -38,6 +38,56 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
+// Search YouTube via yt-dlp (no API key required).
+// Returns up to 12 results matching the query.
+app.get('/search', async (req, res) => {
+  const auth = req.headers.authorization || '';
+  const secret = req.query.s || '';
+  const ok = auth === `Bearer ${SHARED_SECRET}` || secret === SHARED_SECRET;
+  if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+
+  const q = (req.query.q || '').toString().trim().slice(0, 200);
+  if (!q) return res.json({ videos: [] });
+
+  try {
+    const { stdout } = await exec(
+      'yt-dlp',
+      [
+        `ytsearch12:${q}`,
+        '--flat-playlist',
+        '--dump-single-json',
+        '--no-warnings',
+        '--skip-download',
+      ],
+      { timeout: 15000, maxBuffer: 1024 * 1024 * 4 },
+    );
+
+    const data = JSON.parse(stdout);
+    const entries = data?.entries || [];
+
+    const videos = entries
+      .filter((e) => e?.id)
+      .map((e) => {
+        const videoId = e.id;
+        const thumb =
+          e.thumbnails?.find((t) => t.url)?.url ||
+          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        return {
+          videoId,
+          title: e.title || 'Untitled',
+          channel: e.channel || e.uploader || 'YouTube',
+          thumbnail: thumb,
+        };
+      });
+
+    return res.json({ videos });
+  } catch (e) {
+    return res.status(502).json({
+      error: e?.message || String(e),
+    });
+  }
+});
+
 async function resolveAudioUrl(videoId) {
   const cached = urlCache.get(videoId);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
