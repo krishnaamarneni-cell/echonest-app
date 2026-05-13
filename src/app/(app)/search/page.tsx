@@ -28,6 +28,10 @@ export default function SearchPage() {
   const [songsInPlaylists, setSongsInPlaylists] = useState<Set<string>>(new Set());
   const [browsePlaylists, setBrowsePlaylists] = useState<Playlist[]>([]);
   const [searching, setSearching] = useState(false);
+  const [ytResults, setYtResults] = useState<
+    { videoId: string; title: string; channel: string; thumbnail: string }[]
+  >([]);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const play = usePlayerStore((s) => s.play);
 
@@ -56,6 +60,7 @@ export default function SearchPage() {
       setAlbums([]);
       setArtists([]);
       setPlaylists([]);
+      setYtResults([]);
       return;
     }
 
@@ -63,7 +68,7 @@ export default function SearchPage() {
     const supabase = createClient();
     const pattern = `%${q}%`;
 
-    const [songsRes, albumsRes, artistsRes, playlistsRes] = await Promise.all([
+    const [songsRes, albumsRes, artistsRes, playlistsRes, ytRes] = await Promise.all([
       supabase
         .from('songs')
         .select('*')
@@ -76,14 +81,58 @@ export default function SearchPage() {
         .limit(6),
       supabase.from('artists').select('*').ilike('name', pattern).limit(6),
       supabase.from('playlists').select('*').ilike('title', pattern).limit(6),
+      fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`)
+        .then((r) => (r.ok ? r.json() : { videos: [] }))
+        .catch(() => ({ videos: [] })),
     ]);
 
     if (songsRes.data) setSongs(songsRes.data);
     if (albumsRes.data) setAlbums(albumsRes.data);
     if (artistsRes.data) setArtists(artistsRes.data);
     if (playlistsRes.data) setPlaylists(playlistsRes.data);
+    setYtResults(
+      Array.isArray(ytRes?.videos) ? ytRes.videos : [],
+    );
     setSearching(false);
   }, []);
+
+  // Add a YouTube search result to the library and play it
+  const playYoutubeResult = useCallback(
+    async (vid: { videoId: string; title: string; channel: string; thumbnail: string }) => {
+      setAddingId(vid.videoId);
+      try {
+        // 1. Check if it's already in the library (by youtube_id)
+        const supabase = createClient();
+        const { data: existing } = await supabase
+          .from('songs')
+          .select('*')
+          .eq('youtube_id', vid.videoId)
+          .eq('source', 'youtube_embed')
+          .limit(1)
+          .maybeSingle();
+        if (existing) {
+          play(existing as Song, [existing as Song], 'library');
+          return;
+        }
+        // 2. Otherwise, add it via the same endpoint that the Upload page uses
+        const res = await fetch('/api/youtube-add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: `https://www.youtube.com/watch?v=${vid.videoId}`,
+            contentType: 'music',
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.song) {
+          play(data.song as Song, [data.song as Song], 'library');
+        }
+      } finally {
+        setAddingId(null);
+      }
+    },
+    [play],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => search(query), 250);
@@ -160,7 +209,8 @@ export default function SearchPage() {
     songs.length > 0 ||
     albums.length > 0 ||
     artists.length > 0 ||
-    playlists.length > 0;
+    playlists.length > 0 ||
+    ytResults.length > 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 animate-fade-in">
@@ -259,6 +309,46 @@ export default function SearchPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* From YouTube — tap to add + play */}
+      {query && ytResults.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3">From YouTube</h2>
+          <div className="space-y-0.5">
+            {ytResults.map((v) => (
+              <button
+                key={v.videoId}
+                type="button"
+                onClick={() => playYoutubeResult(v)}
+                disabled={addingId === v.videoId}
+                className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-card-hover transition-colors text-left disabled:opacity-60"
+              >
+                <div className="w-12 h-12 rounded-md bg-background overflow-hidden flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={v.thumbnail}
+                    alt={v.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{v.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {v.channel}
+                  </p>
+                </div>
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent/90 flex items-center justify-center text-white">
+                  {addingId === v.videoId ? (
+                    <span className="text-xs">…</span>
+                  ) : (
+                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Playlists */}
