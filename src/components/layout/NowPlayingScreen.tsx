@@ -223,7 +223,7 @@ export function NowPlayingScreen() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] bg-background overflow-y-auto"
+      className="fixed inset-0 z-[80] bg-background overflow-y-auto overflow-x-hidden"
       role="dialog"
       aria-modal="true"
       style={{
@@ -313,7 +313,7 @@ export function NowPlayingScreen() {
         <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-8 py-4">
           <div
             ref={coverWrapperRef}
-            className="relative w-full max-w-sm aspect-square select-none"
+            className="relative w-full max-w-sm aspect-square select-none overflow-hidden rounded-2xl"
             // touch-action: none → my handler owns ALL touches on the cover
             // so the browser doesn't scroll the page underneath while I'm tracking the gesture
             style={{ touchAction: 'none' }}
