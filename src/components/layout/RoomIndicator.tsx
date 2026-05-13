@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useListenAlong } from '@/store/listenAlong';
-import { Users, X } from 'lucide-react';
+import { X, Radio, Volume2 } from 'lucide-react';
 
 // Small pill that floats above the player when you're in a listen-along
 // room, no matter what page you're on. Tap to leave.
 // Also shows toast-style hints when peers join or leave.
 export function RoomIndicator() {
   const roomCode = useListenAlong((s) => s.roomCode);
+  const isHost = useListenAlong((s) => s.isHost);
   const peerCount = useListenAlong((s) => s.peerCount);
   const leaveRoom = useListenAlong((s) => s.leaveRoom);
   const lastPeerRef = useRef<number>(0);
@@ -41,11 +42,15 @@ export function RoomIndicator() {
         className="fixed left-1/2 -translate-x-1/2 z-40 px-3 py-1.5 rounded-full bg-accent text-white text-xs font-medium flex items-center gap-2 shadow-lg shadow-accent/30 animate-fade-in"
         style={{ bottom: 'calc(var(--floating-bottom) + 8px)' }}
       >
-        <Users className="w-3.5 h-3.5" />
-        Room {roomCode}
+        {isHost ? (
+          <Radio className="w-3.5 h-3.5" />
+        ) : (
+          <Volume2 className="w-3.5 h-3.5" />
+        )}
+        {isHost ? `Hosting ${roomCode}` : `Speaker · ${roomCode}`}
         {peerCount > 0 && (
           <span className="opacity-80">
-            · {peerCount} {peerCount === 1 ? 'listener' : 'listeners'}
+            · {peerCount} {peerCount === 1 ? 'in room' : 'in room'}
           </span>
         )}
         <button

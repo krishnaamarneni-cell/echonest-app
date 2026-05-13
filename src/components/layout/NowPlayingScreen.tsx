@@ -111,7 +111,7 @@ export function NowPlayingScreen() {
         alert(data?.error || 'Could not create room');
         return;
       }
-      joinRoom(data.code);
+      joinRoom(data.code, true);
       const link = `${window.location.origin}/listen/${data.code}`;
       try {
         if (navigator.share) {

@@ -6,21 +6,28 @@ import { usePlayerStore } from '@/store/player';
 import { useListenAlong } from '@/store/listenAlong';
 import type { Song } from '@/types';
 
-// Mounts once at the app shell. When the user is in a listen-along room
-// it (a) subscribes to the room's broadcast channel and applies incoming
-// state, and (b) re-broadcasts the local player's mutations so peers
-// stay in sync.
+// Mounts once at the app shell. Two modes:
+//
+//   HOST: broadcasts the local player's state at high frequency so peers
+//   stay synced. Persists state to the room row in the DB so late
+//   joiners can compute the right starting position.
+//
+//   LISTENER: receives the host's broadcasts and applies them to the
+//   local player. The listener's own play/pause/skip do NOT broadcast.
+//   Effectively, the listener is a passive speaker for the host's DJ
+//   session.
 
 type RoomState = {
   song: Song | null;
   isPlaying: boolean;
   position: number;
-  at: number; // server-style timestamp from sender
-  by: string; // user id of sender
+  at: number;
+  by: string;
 };
 
 export function ListenAlongSync() {
   const roomCode = useListenAlong((s) => s.roomCode);
+  const isHost = useListenAlong((s) => s.isHost);
   const setPeerCount = useListenAlong((s) => s.setPeerCount);
   const setSuppressBroadcast = useListenAlong((s) => s.setSuppressBroadcast);
 
@@ -29,13 +36,9 @@ export function ListenAlongSync() {
   const progress = usePlayerStore((s) => s.progress);
   const suppressBroadcast = useListenAlong((s) => s.suppressBroadcast);
 
-  // Debounce send: don't flood the channel on every tick. We coalesce
-  // rapid changes with a small timeout.
-  const sendTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSentRef = useRef<{ songId?: string; playing?: boolean; pos?: number } | null>(null);
   const userIdRef = useRef<string | null>(null);
 
-  // Subscribe / unsubscribe to the room channel
+  // Subscribe / unsubscribe to the room channel (both modes)
   useEffect(() => {
     if (!roomCode) return;
     const supabase = createClient();
@@ -43,97 +46,109 @@ export function ListenAlongSync() {
       config: { broadcast: { self: false }, presence: { key: roomCode } },
     });
 
-    // Fetch user id once
     (async () => {
       const { data } = await supabase.auth.getUser();
       userIdRef.current = data.user?.id || null;
     })();
 
-    // Apply remote state to local player
+    // Listeners apply incoming state from the host
     channel = channel.on('broadcast', { event: 'state' }, ({ payload }) => {
+      if (isHost) return; // host ignores any echoes
       const p = payload as Partial<RoomState>;
       if (!p) return;
       const player = usePlayerStore.getState();
       setSuppressBroadcast(true);
       try {
-        // Different song → swap
         if (p.song && p.song.id !== player.currentSong?.id) {
           player.play(p.song, [p.song], 'library');
+          // After the new song mounts, jump to the host's position
+          if (typeof p.position === 'number') {
+            setTimeout(() => player.seekTo(p.position!), 400);
+          }
+        } else if (typeof p.position === 'number') {
+          // Tight drift correction: 0.4s threshold (was 0.8s)
+          const drift = Math.abs(player.progress - p.position);
+          if (drift > 0.4) player.seekTo(p.position);
         }
-        // Sync playing state
         if (typeof p.isPlaying === 'boolean' && p.isPlaying !== player.isPlaying) {
           if (p.isPlaying) player.resume();
           else player.pause();
-        }
-        // Snap to position if drift > 0.8s. Use seekTo so the audio
-        // element / iframe actually jumps, not just the visual.
-        if (typeof p.position === 'number') {
-          const drift = Math.abs(player.progress - p.position);
-          if (drift > 0.8) {
-            player.seekTo(p.position);
-          }
         }
       } finally {
         setTimeout(() => setSuppressBroadcast(false), 50);
       }
     });
 
-    // Presence
     channel = channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
-      const count = Object.keys(state).length;
-      setPeerCount(count);
+      setPeerCount(Object.keys(state).length);
     });
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        try { await channel.track({ joined_at: Date.now() }); } catch {}
+        try {
+          await channel.track({
+            joined_at: Date.now(),
+            host: isHost,
+          });
+        } catch {}
       }
     });
 
     return () => {
       try { channel.unsubscribe(); } catch {}
     };
-  }, [roomCode, setPeerCount, setSuppressBroadcast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode, isHost]);
 
-  // Local player → broadcast outbound (debounced)
+  // HOST: broadcast on state change + periodic position updates so
+  // listeners stay tightly synced and late joiners have fresh state.
+  const sendTimerRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (!roomCode || suppressBroadcast) return;
-    if (!currentSong) return;
-
+    if (!roomCode || !isHost || suppressBroadcast || !currentSong) return;
     const supabase = createClient();
     const channel = supabase.channel(`room:${roomCode}`);
 
-    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
-    sendTimerRef.current = setTimeout(() => {
+    const broadcastNow = () => {
+      const player = usePlayerStore.getState();
       const payload: RoomState = {
-        song: currentSong,
-        isPlaying,
-        position: progress,
+        song: player.currentSong,
+        isPlaying: player.isPlaying,
+        position: player.progress,
         at: Date.now(),
         by: userIdRef.current || 'unknown',
       };
       channel.send({ type: 'broadcast', event: 'state', payload }).catch(() => {});
-      // Also persist to DB so late joiners can compute the effective
-      // current position from `position_seconds + (now - last_action_at)`.
       supabase
         .from('listening_rooms')
         .update({
-          current_song: currentSong,
-          position_seconds: progress,
-          is_playing: isPlaying,
+          current_song: player.currentSong,
+          position_seconds: player.progress,
+          is_playing: player.isPlaying,
           last_action_by: userIdRef.current,
           last_action_at: new Date().toISOString(),
         })
         .eq('code', roomCode)
         .then(() => {}, () => {});
-    }, 250);
+    };
+
+    // Fire immediately for state changes
+    if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+    sendTimerRef.current = setTimeout(broadcastNow, 100);
+
+    // While playing, also re-sync position every 750ms so listeners
+    // don't drift. Pause clears this.
+    let interval: NodeJS.Timeout | null = null;
+    if (isPlaying) {
+      interval = setInterval(broadcastNow, 750);
+    }
 
     return () => {
       if (sendTimerRef.current) clearTimeout(sendTimerRef.current);
+      if (interval) clearInterval(interval);
     };
-    // Only re-fire when meaningful state changes — NOT every progress tick
-  }, [roomCode, currentSong?.id, isPlaying, suppressBroadcast]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode, isHost, currentSong?.id, isPlaying, suppressBroadcast]);
 
   return null;
 }
