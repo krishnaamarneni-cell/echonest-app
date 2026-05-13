@@ -19,10 +19,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     hydrate();
   }, [hydrate]);
 
-  // Auto-sign-in as the public account when no session exists
+  // Auto-sign-in as the public account when no session exists — UNLESS
+  // the user explicitly signed out (we honor that and let them see the
+  // login screen until they manually sign in again).
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (typeof window !== 'undefined' &&
+          localStorage.getItem('echonest-explicit-signout') === '1') {
+        // User opted out — bounce to /login so they don't sit in an
+        // unauthenticated app shell.
+        window.location.href = '/login?manual=1';
+        return;
+      }
       const supabase = createClient();
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;

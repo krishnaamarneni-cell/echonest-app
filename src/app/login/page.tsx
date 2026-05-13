@@ -26,7 +26,11 @@ export default function LoginPage() {
       typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search)
         : null;
-    if (params?.get('manual') === '1') {
+    // Manual flag, or user explicitly signed out earlier — show the form.
+    const explicit =
+      typeof window !== 'undefined' &&
+      localStorage.getItem('echonest-explicit-signout') === '1';
+    if (params?.get('manual') === '1' || explicit) {
       setAutoSigningIn(false);
       return;
     }
@@ -70,9 +74,11 @@ export default function LoginPage() {
     }
 
     // Signing in manually with credentials = you're the owner. Enable owner
-    // mode so delete buttons are visible right away.
+    // mode so delete buttons are visible right away. Clear the
+    // explicit-signout flag so future cold launches auto-sign-in normally.
     if (typeof window !== 'undefined') {
       localStorage.setItem('echonest-owner-mode', '1');
+      localStorage.removeItem('echonest-explicit-signout');
     }
 
     router.push('/dashboard');

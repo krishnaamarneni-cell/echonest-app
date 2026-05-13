@@ -69,8 +69,14 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    // Flag so AppLayout's and /login's auto-public-signin don't immediately
+    // sign the user back in. Cleared when they sign in manually again.
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('echonest-explicit-signout', '1');
+      localStorage.removeItem('echonest-owner-mode');
+    }
+    // Hard redirect so middleware/AppLayout re-evaluate against the new state
+    window.location.href = '/login?manual=1';
   };
 
   // Sign out the auto-signed-in public account first, then hard-redirect
