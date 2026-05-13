@@ -194,6 +194,13 @@ export function AudioPlayer() {
   const [ytReady, setYtReady] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytView, setYtView] = useState<'hidden' | 'mini' | 'full'>('hidden');
+  // Once we observe a duration we trust, lock it. Streaming audio can
+  // re-estimate duration mid-playback (especially after backgrounding),
+  // sometimes doubling it — we ignore those updates per song.
+  const stableDurationRef = useRef<{ songId: string | null; value: number }>({
+    songId: null,
+    value: 0,
+  });
   const bgMode = useBackgroundMode((s) => s.enabled);
   const hydrateBg = useBackgroundMode((s) => s.hydrate);
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
@@ -591,13 +598,32 @@ export function AudioPlayer() {
   const handleLoadedMetadata = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    setDuration(audio.duration);
-    // Re-apply pendingSeek now that we actually know the duration and the
-    // browser will accept the currentTime write. Without this, seekTo() called
-    // before the audio finished loading was silently dropped — the cause of
-    // listeners always starting from 0:00 instead of the host's position.
+    const newDur = audio.duration;
+    if (!isFinite(newDur) || newDur <= 0) return;
+
+    const songId = usePlayerStore.getState().currentSong?.id || null;
+    const stable = stableDurationRef.current;
+
+    // First time we see a duration for this song — lock it in.
+    if (stable.songId !== songId) {
+      stableDurationRef.current = { songId, value: newDur };
+      setDuration(newDur);
+    } else {
+      // Same song, new duration estimate from the streaming audio. Accept
+      // only if it's within ±30% of the locked value — otherwise it's a
+      // streaming-buffer artifact (the "duration doubled" bug).
+      const ratio = newDur / (stable.value || 1);
+      if (ratio > 0.7 && ratio < 1.3) {
+        stableDurationRef.current = { songId, value: newDur };
+        setDuration(newDur);
+      }
+      // Else: leave the locked value alone.
+    }
+
+    // Re-apply pendingSeek once metadata is actually loaded
     const pending = usePlayerStore.getState().pendingSeek;
-    if (pending != null && pending > 0 && audio.duration > pending) {
+    const seekTarget = stableDurationRef.current.value || newDur;
+    if (pending != null && pending > 0 && seekTarget > pending) {
       try { audio.currentTime = pending; } catch {}
       usePlayerStore.getState().clearPendingSeek();
     }
@@ -637,6 +663,7 @@ export function AudioPlayer() {
         ref={audioRef}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onDurationChange={handleLoadedMetadata}
         onEnded={handleEnded}
         preload="metadata"
       />
