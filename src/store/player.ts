@@ -2,6 +2,22 @@ import { create } from 'zustand';
 import { Song, RepeatMode, QueueItem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/lib/supabase/client';
+import { useListenAlong } from './listenAlong';
+
+// When the user is in a listen-along room as a non-host (passive
+// "speaker"), block any local mutation that would diverge from the
+// host's broadcast. Remote events from ListenAlongSync set
+// suppressBroadcast=true around the mutation, which we read here as a
+// pass-through signal so the system can apply them.
+function isListenerLocked() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const s = useListenAlong.getState();
+    return !!s.roomCode && !s.isHost && !s.suppressBroadcast;
+  } catch {
+    return false;
+  }
+}
 
 async function logRecentlyPlayed(song: Song) {
   // Skip ad-hoc YouTube playlist videos (they don't have a real DB id)
@@ -83,6 +99,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setPlaybackRate: (r) => set({ playbackRate: r }),
 
   play: (song, queueSongs, source = 'library') => {
+    if (isListenerLocked()) return;
     const newQueue: QueueItem[] = queueSongs
       ? queueSongs.map((s) => ({ id: uuidv4(), song: s, source }))
       : [{ id: uuidv4(), song, source }];
@@ -103,11 +120,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
 
-  pause: () => set({ isPlaying: false }),
-  resume: () => set({ isPlaying: true }),
-  togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+  pause: () => { if (isListenerLocked()) return; set({ isPlaying: false }); },
+  resume: () => { if (isListenerLocked()) return; set({ isPlaying: true }); },
+  togglePlay: () => {
+    if (isListenerLocked()) return;
+    set((s) => ({ isPlaying: !s.isPlaying }));
+  },
 
   next: () => {
+    if (isListenerLocked()) return;
     const { queue, queueIndex, shuffle, repeat } = get();
     if (queue.length === 0) return;
 
@@ -137,6 +158,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   previous: () => {
+    if (isListenerLocked()) return;
     const { queue, queueIndex, progress } = get();
     if (queue.length === 0) return;
 

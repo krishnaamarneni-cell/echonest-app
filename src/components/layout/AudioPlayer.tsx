@@ -230,17 +230,26 @@ export function AudioPlayer() {
   } = usePlayerStore();
 
   // External seek (e.g. listen-along sync) — apply to the audio element
-  // and to the YT player if active, then clear so it doesn't re-fire.
+  // and to the YT player if active. Only clear if the audio has actually
+  // loaded enough metadata that setting currentTime will take effect;
+  // otherwise leave pendingSeek for handleLoadedMetadata to apply.
   useEffect(() => {
     if (pendingSeek == null) return;
     const audio = audioRef.current;
-    if (audio && !isNaN(pendingSeek) && isFinite(pendingSeek)) {
-      try { audio.currentTime = pendingSeek; } catch {}
+    let applied = false;
+    if (
+      audio &&
+      !isNaN(pendingSeek) &&
+      isFinite(pendingSeek) &&
+      audio.readyState >= 1 && // HAVE_METADATA
+      audio.duration > pendingSeek
+    ) {
+      try { audio.currentTime = pendingSeek; applied = true; } catch {}
     }
     if (ytPlayerRef.current?.seekTo) {
-      try { ytPlayerRef.current.seekTo(pendingSeek, true); } catch {}
+      try { ytPlayerRef.current.seekTo(pendingSeek, true); applied = true; } catch {}
     }
-    clearPendingSeek();
+    if (applied) clearPendingSeek();
   }, [pendingSeek, clearPendingSeek]);
 
   const isYouTube = currentSong?.source === 'youtube_embed';
@@ -583,6 +592,15 @@ export function AudioPlayer() {
     const audio = audioRef.current;
     if (!audio) return;
     setDuration(audio.duration);
+    // Re-apply pendingSeek now that we actually know the duration and the
+    // browser will accept the currentTime write. Without this, seekTo() called
+    // before the audio finished loading was silently dropped — the cause of
+    // listeners always starting from 0:00 instead of the host's position.
+    const pending = usePlayerStore.getState().pendingSeek;
+    if (pending != null && pending > 0 && audio.duration > pending) {
+      try { audio.currentTime = pending; } catch {}
+      usePlayerStore.getState().clearPendingSeek();
+    }
   }, [setDuration]);
 
   const handleEnded = useCallback(() => {
