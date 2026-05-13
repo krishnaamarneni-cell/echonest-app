@@ -31,6 +31,7 @@ export default function SearchPage() {
   const [ytResults, setYtResults] = useState<
     { videoId: string; title: string; channel: string; thumbnail: string }[]
   >([]);
+  const [ytError, setYtError] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const play = usePlayerStore((s) => s.play);
@@ -82,17 +83,29 @@ export default function SearchPage() {
       supabase.from('artists').select('*').ilike('name', pattern).limit(6),
       supabase.from('playlists').select('*').ilike('title', pattern).limit(6),
       fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`)
-        .then((r) => (r.ok ? r.json() : { videos: [] }))
-        .catch(() => ({ videos: [] })),
+        .then(async (r) => {
+          const body = await r.json().catch(() => null);
+          return { ok: r.ok, status: r.status, body };
+        })
+        .catch((e) => ({ ok: false, status: 0, body: { error: String(e) } })),
     ]);
 
     if (songsRes.data) setSongs(songsRes.data);
     if (albumsRes.data) setAlbums(albumsRes.data);
     if (artistsRes.data) setArtists(artistsRes.data);
     if (playlistsRes.data) setPlaylists(playlistsRes.data);
-    setYtResults(
-      Array.isArray(ytRes?.videos) ? ytRes.videos : [],
-    );
+    if (ytRes.ok && Array.isArray(ytRes.body?.videos)) {
+      setYtResults(ytRes.body.videos);
+      setYtError(null);
+    } else {
+      setYtResults([]);
+      setYtError(
+        ytRes.body?.error ||
+          (ytRes.status === 503
+            ? 'YOUTUBE_API_KEY not set on the server'
+            : `YouTube search unavailable (${ytRes.status || 'network'})`),
+      );
+    }
     setSearching(false);
   }, []);
 
@@ -308,6 +321,13 @@ export default function SearchPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* YouTube search error chip */}
+      {query && ytError && ytResults.length === 0 && (
+        <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
+          From YouTube: {ytError}
         </div>
       )}
 
