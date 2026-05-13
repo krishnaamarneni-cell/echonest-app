@@ -20,10 +20,12 @@ if (!SHARED_SECRET) {
   process.exit(1);
 }
 
-// Tiny in-memory cache: videoId -> { url, expiresAt }. yt-dlp resolution is
-// the slow part (~1-2s); cache it for 5 minutes so repeat plays are instant.
+// In-memory cache: videoId -> { url, expiresAt }. yt-dlp resolution is the
+// slow part (1-2s per cold call). YouTube's signed audio URLs typically
+// expire after ~6 hours, so 4 hours is a safe re-use window. Within a
+// session, repeat plays and listen-along catch-up are instant.
 const urlCache = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
