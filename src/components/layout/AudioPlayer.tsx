@@ -599,6 +599,13 @@ export function AudioPlayer() {
   }, [setDuration]);
 
   const handleEnded = useCallback(() => {
+    // In hybrid mode and foreground, the iframe is the authoritative
+    // player — its YT.PlayerState.ENDED handler already handles
+    // repeat/next. Skip the audio element's handler to avoid double-fire
+    // (which manifested as "repeat 1 plays next song anyway").
+    if (useHybrid && typeof document !== 'undefined' && !document.hidden) {
+      return;
+    }
     if (repeat === 'one') {
       const audio = audioRef.current;
       if (audio) {
@@ -608,7 +615,7 @@ export function AudioPlayer() {
     } else {
       next();
     }
-  }, [repeat, next]);
+  }, [repeat, next, useHybrid]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);

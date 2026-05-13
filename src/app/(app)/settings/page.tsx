@@ -83,7 +83,9 @@ export default function SettingsPage() {
     } catch {
       // ignore — we navigate either way
     }
-    window.location.href = path;
+    // ?manual=1 tells the auth page the user explicitly wants the form,
+    // bypassing the public-account auto-signin we added on /login.
+    window.location.href = `${path}?manual=1`;
   };
 
   const handleUnlock = async (e: React.FormEvent) => {

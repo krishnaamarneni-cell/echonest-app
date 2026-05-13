@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/ui/Logo';
@@ -13,7 +13,44 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [autoSigningIn, setAutoSigningIn] = useState(true);
   const router = useRouter();
+
+  // PWA cold-launches sometimes land here (last-visited URL persisted by
+  // iOS). If a public account is configured server-side, sign in as it
+  // automatically so the user never sees the empty form. Set
+  // ?manual=1 in the URL to force the form (Settings → "Make it yours"
+  // already does this when a visitor explicitly wants to sign in/up).
+  useEffect(() => {
+    const params =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search)
+        : null;
+    if (params?.get('manual') === '1') {
+      setAutoSigningIn(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (data.session) {
+          router.replace('/dashboard');
+          return;
+        }
+        const res = await fetch('/api/public-session', { method: 'POST' });
+        if (cancelled) return;
+        if (res.ok) {
+          window.location.href = '/dashboard';
+          return;
+        }
+      } catch {}
+      if (!cancelled) setAutoSigningIn(false);
+    })();
+    return () => { cancelled = true; };
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +78,17 @@ export default function LoginPage() {
     router.push('/dashboard');
     router.refresh();
   };
+
+  if (autoSigningIn) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-3 animate-fade-in">
+          <Logo size="lg" />
+          <p className="text-sm text-muted-foreground">Opening your library…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
