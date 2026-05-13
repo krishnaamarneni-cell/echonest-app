@@ -89,6 +89,9 @@ export function NowPlayingScreen() {
   const bgMode = useBackgroundMode((s) => s.enabled);
   const [showInlineVideo, setShowInlineVideo] = useState(false);
   const joinRoom = useListenAlong((s) => s.joinRoom);
+  const leaveRoom = useListenAlong((s) => s.leaveRoom);
+  const activeRoomCode = useListenAlong((s) => s.roomCode);
+  const activePeers = useListenAlong((s) => s.peerCount);
 
   // Create a new listen-along room with the current song and copy the link
   const startListenAlong = async () => {
@@ -355,11 +358,18 @@ export function NowPlayingScreen() {
               </button>
             }
             items={[
-              {
-                label: 'Start listen-along',
-                icon: Users,
-                onClick: startListenAlong,
-              },
+              activeRoomCode
+                ? {
+                    label: `Leave room ${activeRoomCode}`,
+                    icon: Users,
+                    onClick: leaveRoom,
+                    variant: 'danger' as const,
+                  }
+                : {
+                    label: 'Start listen-along',
+                    icon: Users,
+                    onClick: startListenAlong,
+                  },
               ...(isYTPlaylist
                 ? []
                 : [
