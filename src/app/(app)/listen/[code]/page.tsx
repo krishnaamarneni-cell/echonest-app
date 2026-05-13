@@ -20,8 +20,10 @@ export default function ListenAlongPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roomSong, setRoomSong] = useState<Song | null>(null);
+  const [hasJoined, setHasJoined] = useState(false);
 
-  // Join the room: load its current song and start mirroring
+  // Look up the room and stash the current song (don't play yet — browsers
+  // require a user gesture, so the user has to tap "Join the music").
   useEffect(() => {
     if (!code) return;
     const upper = code.toUpperCase();
@@ -39,20 +41,22 @@ export default function ListenAlongPage() {
         setLoading(false);
         return;
       }
-      // Adopt the room's current song into our player
       const song = data.current_song as Song | null;
-      if (song) {
-        setRoomSong(song);
-        // Start playback locally — the ListenAlongSync will catch up the rest
-        play(song, [song], 'library');
-      }
-      joinRoom(upper);
+      if (song) setRoomSong(song);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [code, joinRoom, play]);
+  }, [code]);
+
+  const acceptAndJoin = () => {
+    if (!code) return;
+    const upper = code.toUpperCase();
+    if (roomSong) play(roomSong, [roomSong], 'library');
+    joinRoom(upper);
+    setHasJoined(true);
+  };
 
   const handleLeave = () => {
     leaveRoom();
@@ -88,12 +92,19 @@ export default function ListenAlongPage() {
           Listen-along room
         </div>
         <h1 className="text-3xl font-bold">{code?.toUpperCase()}</h1>
-        <p className="text-muted-foreground text-sm">
-          {peerCount > 0
-            ? `${peerCount} ${peerCount === 1 ? 'person' : 'people'} listening`
-            : 'Connecting to room…'}
-          {' · '}Anyone can pick a song. Everyone hears it together.
-        </p>
+        {!hasJoined ? (
+          <p className="text-muted-foreground text-sm">
+            Tap below to start listening with the room. Browsers block
+            auto-playing audio, so we need one tap from you.
+          </p>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {peerCount > 0
+              ? `${peerCount} ${peerCount === 1 ? 'person' : 'people'} listening`
+              : 'Connecting to room…'}
+            {' · '}Anyone can pick a song. Everyone hears it together.
+          </p>
+        )}
         {roomSong && (
           <div className="flex items-center gap-3 bg-card/60 rounded-xl p-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -114,13 +125,22 @@ export default function ListenAlongPage() {
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => router.push('/dashboard')} variant="secondary">
-            Browse library
-          </Button>
-          <Button onClick={handleLeave} variant="danger">
-            <LogOut className="w-4 h-4" />
-            Leave room
-          </Button>
+          {!hasJoined ? (
+            <Button onClick={acceptAndJoin}>
+              <Users className="w-4 h-4" />
+              Join the music
+            </Button>
+          ) : (
+            <>
+              <Button onClick={() => router.push('/dashboard')} variant="secondary">
+                Browse library
+              </Button>
+              <Button onClick={handleLeave} variant="danger">
+                <LogOut className="w-4 h-4" />
+                Leave room
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
