@@ -68,7 +68,13 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    try { await supabase.auth.signOut(); } catch {}
+    // Also clear server-side cookies — client signOut alone doesn't always
+    // remove the SSR auth cookies, so middleware keeps the user "logged in"
+    // on next request.
+    try {
+      await fetch('/api/auth/signout', { method: 'POST' });
+    } catch {}
     // Flag so AppLayout's and /login's auto-public-signin don't immediately
     // sign the user back in. Cleared when they sign in manually again.
     if (typeof window !== 'undefined') {
