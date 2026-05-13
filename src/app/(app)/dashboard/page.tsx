@@ -262,19 +262,7 @@ export default function DashboardPage() {
       {/* === ALL tab: previews of everything (5-10 per type) === */}
       {tab === 'all' && (
         <>
-          {/* All songs from your playlists — preview only */}
-          {allPlaylistSongs.length > 0 && (
-            <Section
-              title={`All Songs in Your Playlists (${allPlaylistSongs.length})`}
-              icon={Disc}
-              seeAllHref="/library"
-            >
-              {allPlaylistSongs.slice(0, 10).map((song) => (
-                <SongCard key={song.id} song={song} songs={allPlaylistSongs} />
-              ))}
-            </Section>
-          )}
-
+          {/* Recently Played — pinned at the top per user preference */}
           {(loading || recentSongs.length > 0) && (
             <Section
               title="Recently Played"
@@ -285,6 +273,19 @@ export default function DashboardPage() {
             >
               {recentSongs.slice(0, 8).map((song) => (
                 <SongCard key={song.id} song={song} songs={recentSongs} />
+              ))}
+            </Section>
+          )}
+
+          {/* All songs from your playlists — preview only */}
+          {allPlaylistSongs.length > 0 && (
+            <Section
+              title={`All Songs in Your Playlists (${allPlaylistSongs.length})`}
+              icon={Disc}
+              seeAllHref="/library"
+            >
+              {allPlaylistSongs.slice(0, 10).map((song) => (
+                <SongCard key={song.id} song={song} songs={allPlaylistSongs} />
               ))}
             </Section>
           )}
