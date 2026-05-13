@@ -301,6 +301,27 @@ export function AudioPlayer() {
         onReady: (e: { target?: unknown }) => {
           (e.target as { setVolume: (v: number) => void; playVideo: () => void }).setVolume((isMuted ? 0 : volume) * 100);
           (e.target as { playVideo: () => void }).playVideo();
+          // Grant Picture-in-Picture permission to the embed so iOS Safari
+          // can auto-PiP when the user swipes the app away. The YT IFrame
+          // API doesn't expose this via playerVars, so we patch the
+          // generated iframe's allow attribute after it mounts.
+          try {
+            const iframe = wrapper.querySelector('iframe');
+            if (iframe) {
+              const existing = iframe.getAttribute('allow') || '';
+              if (!existing.includes('picture-in-picture')) {
+                iframe.setAttribute(
+                  'allow',
+                  [existing, 'picture-in-picture', 'autoplay', 'encrypted-media']
+                    .filter(Boolean)
+                    .join('; '),
+                );
+              }
+              // Some iOS builds key off the (non-standard) attribute too.
+              iframe.setAttribute('allowpictureinpicture', 'true');
+              iframe.setAttribute('webkit-playsinline', 'true');
+            }
+          } catch {}
         },
         onStateChange: (e: { data?: number }) => {
           // Sync YT player state with our store
