@@ -1,0 +1,91 @@
+2026-05-14T14:59:55Z INF Thank you for trying Cloudflare Tunnel. Doing so, without a Cloudflare account, is a quick way to experiment and try it out. However, be aware that these account-less Tunnels have no uptime guarantee, are subject to the Cloudflare Online Services Terms of Use (https://www.cloudflare.com/website-terms/), and Cloudflare reserves the right to investigate your use of Tunnels for violations of such terms. If you intend to use Tunnels in production you should use a pre-created named tunnel by following: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
+2026-05-14T14:59:55Z INF Requesting new quick Tunnel on trycloudflare.com...
+2026-05-14T14:59:59Z INF +--------------------------------------------------------------------------------------------+
+2026-05-14T14:59:59Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+2026-05-14T14:59:59Z INF |  https://thoughts-overseas-proceedings-enough.trycloudflare.com                            |
+2026-05-14T14:59:59Z INF +--------------------------------------------------------------------------------------------+
+2026-05-14T14:59:59Z INF Cannot determine default configuration path. No file [config.yml config.yaml] in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp]
+2026-05-14T14:59:59Z INF Version 2026.3.0 (Checksum 59b12880b24af581cf5b1013db601c7d843b9b097e9c78aa5957c7f39f741885)
+2026-05-14T14:59:59Z INF GOOS: windows, GOVersion: go1.24.13, GoArch: amd64
+2026-05-14T14:59:59Z INF Settings: map[ha-connections:1 no-autoupdate:true protocol:quic url:http://localhost:8080]
+2026-05-14T14:59:59Z INF cloudflared will not automatically update on Windows systems.
+2026-05-14T14:59:59Z INF Generated Connector ID: 927170e2-34f1-4ea7-ae26-60169c007910
+2026-05-14T14:59:59Z INF Initial protocol quic
+2026-05-14T14:59:59Z INF ICMP proxy will use 192.168.1.118 as source for IPv4
+2026-05-14T14:59:59Z INF ICMP proxy will use 2600:382:ba38:165::548 in zone Wi-Fi as source for IPv6
+2026-05-14T14:59:59Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2026-05-14T14:59:59Z INF ICMP proxy will use 192.168.1.118 as source for IPv4
+2026-05-14T14:59:59Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T14:59:59Z INF ICMP proxy will use 2600:382:ba38:165::548 in zone Wi-Fi as source for IPv6
+2026-05-14T14:59:59Z INF Starting metrics server on 127.0.0.1:20242/metrics
+2026-05-14T14:59:59Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T14:59:59Z ERR failed to serve tunnel connection error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T14:59:59Z ERR Serve tunnel error error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T14:59:59Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:00Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:00Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:00Z ERR failed to serve tunnel connection error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:00Z ERR Serve tunnel error error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:00Z INF Retrying connection in up to 4s connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z ERR failed to serve tunnel connection error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z ERR Serve tunnel error error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z INF Retrying connection in up to 8s connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z ERR failed to serve tunnel connection error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z ERR Serve tunnel error error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:01Z INF Retrying connection in up to 16s connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:09Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:10Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:10Z ERR failed to serve tunnel connection error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:10Z ERR Serve tunnel error error="control stream encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:10Z INF Retrying connection in up to 32s connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:39Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:00:39Z INF Registered tunnel connection connIndex=0 connection=dd508487-77f0-4be7-9b33-cf7df196d9fe event=0 ip=198.41.200.43 location=ewr15 protocol=quic
+2026-05-14T15:01:18Z INF Initiating graceful shutdown due to signal interrupt ...
+2026-05-14T15:01:18Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:01:18Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:01:18Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:01:18Z INF Retrying connection in up to 1s connIndex=0 event=0 ip=198.41.200.43
+2026-05-14T15:01:18Z ERR Connection terminated connIndex=0
+2026-05-14T15:01:18Z ERR no more connections active and exiting
+2026-05-14T15:01:18Z INF Tunnel server stopped
+2026-05-14T15:01:18Z INF Metrics server stopped
+2026-05-14T15:01:29Z INF Thank you for trying Cloudflare Tunnel. Doing so, without a Cloudflare account, is a quick way to experiment and try it out. However, be aware that these account-less Tunnels have no uptime guarantee, are subject to the Cloudflare Online Services Terms of Use (https://www.cloudflare.com/website-terms/), and Cloudflare reserves the right to investigate your use of Tunnels for violations of such terms. If you intend to use Tunnels in production you should use a pre-created named tunnel by following: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps
+2026-05-14T15:01:29Z INF Requesting new quick Tunnel on trycloudflare.com...
+2026-05-14T15:01:33Z INF +--------------------------------------------------------------------------------------------+
+2026-05-14T15:01:33Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+2026-05-14T15:01:33Z INF |  https://heavy-organizations-recreational-turn.trycloudflare.com                           |
+2026-05-14T15:01:33Z INF +--------------------------------------------------------------------------------------------+
+2026-05-14T15:01:33Z INF Cannot determine default configuration path. No file [config.yml config.yaml] in [~/.cloudflared ~/.cloudflare-warp ~/cloudflare-warp]
+2026-05-14T15:01:33Z INF Version 2026.3.0 (Checksum 59b12880b24af581cf5b1013db601c7d843b9b097e9c78aa5957c7f39f741885)
+2026-05-14T15:01:33Z INF GOOS: windows, GOVersion: go1.24.13, GoArch: amd64
+2026-05-14T15:01:33Z INF Settings: map[ha-connections:1 no-autoupdate:true p:http2 protocol:http2 url:http://localhost:8080]
+2026-05-14T15:01:33Z INF cloudflared will not automatically update on Windows systems.
+2026-05-14T15:01:33Z INF Generated Connector ID: 7f4cb9da-40ae-4f4d-b215-799b6e31eb18
+2026-05-14T15:01:33Z INF Initial protocol http2
+2026-05-14T15:01:33Z INF ICMP proxy will use 192.168.1.118 as source for IPv4
+2026-05-14T15:01:33Z INF ICMP proxy will use 2600:382:ba38:165::548 in zone Wi-Fi as source for IPv6
+2026-05-14T15:01:34Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2026-05-14T15:01:34Z INF ICMP proxy will use 192.168.1.118 as source for IPv4
+2026-05-14T15:01:34Z INF ICMP proxy will use 2600:382:ba38:165::548 in zone Wi-Fi as source for IPv6
+2026-05-14T15:01:34Z INF Starting metrics server on 127.0.0.1:20242/metrics
+2026-05-14T15:01:34Z INF Registered tunnel connection connIndex=0 connection=b9950487-1dad-4274-aba2-5b3b3c99f5e8 event=0 ip=198.41.200.63 location=ewr12 protocol=http2
+2026-05-14T15:03:14Z ERR  error="Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp [::1]:8080: connectex: No connection could be made because the target machine actively refused it." connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:03:14Z ERR failed to serve incoming request error="Failed to proxy HTTP: Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp [::1]:8080: connectex: No connection could be made because the target machine actively refused it."
+2026-05-14T15:09:12Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:09:12Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"
+2026-05-14T15:09:18Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:09:18Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"
+2026-05-14T15:09:21Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:09:21Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"
+2026-05-14T15:09:22Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:09:22Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"
+2026-05-14T15:10:11Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:10:11Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"
+2026-05-14T15:10:12Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:10:12Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"
+2026-05-14T15:12:13Z ERR  error="http2: stream closed" connIndex=0 event=1 ingressRule=0 originService=http://localhost:8080
+2026-05-14T15:12:13Z ERR failed to serve incoming request error="Failed to proxy HTTP: http2: stream closed"

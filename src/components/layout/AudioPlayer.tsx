@@ -287,6 +287,27 @@ export function AudioPlayer() {
   // → iOS keeps its session alive → real background play works.
   const useIframePlayer = isYouTube && !useHybrid;
 
+  // Pre-warm the proxy's cache for the NEXT song in the queue.
+  // The proxy needs ~2s of yt-dlp time to resolve a fresh YouTube URL.
+  // We fire a HEAD request 5s after the current song starts so by the
+  // time the user taps next-track, the next URL is already cached on
+  // the proxy — playback starts in ~0.5s instead of 7-15s.
+  useEffect(() => {
+    if (!proxyConfigured || !bgMode || !proxyUrl || !proxySecret) return;
+    const next = queue[queueIndex + 1]?.song;
+    if (!next) return;
+    if (next.source !== 'youtube_embed') return;
+    if (next.youtube_kind === 'playlist') return;
+    if (!next.youtube_id) return;
+
+    const warmUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${next.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+    const timer = setTimeout(() => {
+      fetch(warmUrl, { method: 'HEAD', cache: 'no-store' }).catch(() => {});
+    }, 5000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueIndex, currentSong?.id, bgMode, proxyConfigured]);
+
   // Surface the mini-player ONCE per new YouTube track when background mode
   // is on — so the user can reach native iOS controls. Tracked by a ref of
   // the last-seen video id so the user closing the mini doesn't auto-reopen
