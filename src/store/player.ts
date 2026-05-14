@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Song, RepeatMode, QueueItem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/lib/supabase/client';
@@ -75,7 +76,9 @@ interface PlayerState {
   setIsPlaying: (v: boolean) => void;
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
+export const usePlayerStore = create<PlayerState>()(
+  persist(
+    (set, get) => ({
   currentSong: null,
   queue: [],
   queueIndex: -1,
@@ -208,4 +211,34 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   clearQueue: () => set({ queue: [], queueIndex: -1 }),
   setIsPlaying: (v) => set({ isPlaying: v }),
-}));
+    }),
+    {
+      name: 'echonest-player',
+      storage: createJSONStorage(() => localStorage),
+      // Only persist what makes sense to restore — not transient state like
+      // play/pause status (we always reopen paused so audio doesn't surprise
+      // the user), the pending seek, or the fullscreen player toggle.
+      partialize: (state) => ({
+        currentSong: state.currentSong,
+        queue: state.queue,
+        queueIndex: state.queueIndex,
+        progress: state.progress,
+        volume: state.volume,
+        isMuted: state.isMuted,
+        shuffle: state.shuffle,
+        repeat: state.repeat,
+        playbackRate: state.playbackRate,
+        isPlayerVisible: state.isPlayerVisible,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // After loading from disk: never auto-play; user must tap play.
+        if (state) {
+          state.isPlaying = false;
+          state.pendingSeek = null;
+          state.isNowPlayingOpen = false;
+        }
+      },
+      version: 1,
+    },
+  ),
+);
