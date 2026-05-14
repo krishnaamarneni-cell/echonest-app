@@ -262,21 +262,21 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
-  // Background-play mode: when bgMode is ON and we're on a single YouTube
-  // video, route playback through the in-app /api/yt-audio/<id> route.
-  // That route resolves the direct YouTube CDN URL via ytdl-core and
-  // 302-redirects the <audio> element to it. Safari then plays it as a
-  // normal HTML5 stream — backgrounds, locks, AirPods all work.
+  // Background-play mode via yt-proxy on Fly.io (the in-app
+  // /api/yt-audio route was tried but YouTube blocks Vercel's IPs with
+  // their bot-check, so we keep using the Fly proxy where yt-dlp can
+  // actually resolve audio URLs).
+  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
   const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
+  const proxyConfigured = !!(proxyUrl && proxySecret);
   const useHybrid =
+    proxyConfigured &&
     bgMode &&
     isYouTube &&
     !isYouTubePlaylist &&
     !!currentSong?.youtube_id;
   const proxyAudioUrl = useHybrid
-    ? `/api/yt-audio/${currentSong!.youtube_id}${
-        proxySecret ? `?s=${encodeURIComponent(proxySecret)}` : ''
-      }`
+    ? `${proxyUrl}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
   // When proxy/hybrid mode is on, the iframe is NOT mounted at all.
   // Reason: iOS allows only one active audio session per origin. If the
