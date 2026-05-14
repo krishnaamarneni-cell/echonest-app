@@ -41,3 +41,4 @@ yarn-error.log*
 next-env.d.ts
 test.m4a
 yt-proxy/node_modules/
+yt-proxy/*.log
