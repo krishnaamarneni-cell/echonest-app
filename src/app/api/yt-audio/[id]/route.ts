@@ -33,12 +33,15 @@ async function resolveAudioUrl(videoId: string): Promise<string> {
 
   const client = await getClient();
 
-  // Try WEB client first, fall back to IOS / TV_EMBEDDED on bot check
-  const clientsToTry: Array<'WEB' | 'IOS' | 'TV_EMBEDDED' | 'ANDROID'> = [
-    'WEB',
+  // Try multiple Innertube clients — formats returned and decipher
+  // requirements vary by client. Pick the first one that gives us a
+  // deciphered, playable URL.
+  const clientsToTry: Array<'WEB' | 'IOS' | 'TV_EMBEDDED' | 'ANDROID' | 'YTMUSIC'> = [
     'IOS',
-    'TV_EMBEDDED',
     'ANDROID',
+    'WEB',
+    'TV_EMBEDDED',
+    'YTMUSIC',
   ];
 
   let lastErr: unknown = null;
@@ -46,24 +49,37 @@ async function resolveAudioUrl(videoId: string): Promise<string> {
     try {
       // @ts-expect-error youtubei.js client param accepted at runtime
       const info = await client.getInfo(videoId, clientType);
-      const fmt =
-        info.streaming_data?.adaptive_formats?.find(
-          (f) => f.itag === 140 && f.url,
-        ) ||
-        info.streaming_data?.adaptive_formats?.find(
-          (f) => f.has_audio && !f.has_video && f.url,
-        );
-      if (fmt?.url) {
+
+      // Use chooseFormat — handles deciphering and finds the best audio
+      let chosen;
+      try {
+        chosen = info.chooseFormat({
+          type: 'audio',
+          quality: 'best',
+          format: 'mp4',
+        });
+      } catch {
+        chosen = info.chooseFormat({ type: 'audio', quality: 'best' });
+      }
+
+      // Get the deciphered URL. youtubei.js exposes decipher() on the
+      // format object that handles signature decoding.
+      let url = chosen?.url;
+      if (!url && chosen && 'decipher' in chosen && client.session?.player) {
+        try {
+          // @ts-expect-error decipher exists at runtime
+          url = chosen.decipher(client.session.player);
+        } catch {}
+      }
+
+      if (url) {
         urlCache.set(videoId, {
-          url: fmt.url,
+          url,
           expiresAt: Date.now() + CACHE_TTL_MS,
         });
-        return fmt.url;
+        return url;
       }
-      // Some clients return decipher-needed URLs — youtubei.js handles that
-      // via toDash() / chooseFormat() helpers; let's also try its own
-      // dash manifest route as a last resort.
-      lastErr = new Error(`No usable audio format from ${clientType} client`);
+      lastErr = new Error(`No deciphered URL from ${clientType} client`);
     } catch (e) {
       lastErr = e;
     }
