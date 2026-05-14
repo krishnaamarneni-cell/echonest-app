@@ -197,9 +197,10 @@ export function AudioPlayer() {
   // Once we observe a duration we trust, lock it. Streaming audio can
   // re-estimate duration mid-playback (especially after backgrounding),
   // sometimes doubling it — we ignore those updates per song.
-  const stableDurationRef = useRef<{ songId: string | null; value: number }>({
+  const stableDurationRef = useRef<{ songId: string | null; value: number; locked: boolean }>({
     songId: null,
     value: 0,
+    locked: false,
   });
   const bgMode = useBackgroundMode((s) => s.enabled);
   const hydrateBg = useBackgroundMode((s) => s.hydrate);
@@ -602,20 +603,29 @@ export function AudioPlayer() {
     const songId = usePlayerStore.getState().currentSong?.id || null;
     const stable = stableDurationRef.current;
 
+    // If we've locked in an authoritative duration from YouTube metadata,
+    // ignore everything the audio element says.
+    if (stable.songId === songId && stable.locked) {
+      // Still apply pendingSeek if needed
+      const pending = usePlayerStore.getState().pendingSeek;
+      if (pending != null && pending > 0 && stable.value > pending) {
+        try { audio.currentTime = pending; } catch {}
+        usePlayerStore.getState().clearPendingSeek();
+      }
+      return;
+    }
+
     // First time we see a duration for this song — lock it in.
     if (stable.songId !== songId) {
-      stableDurationRef.current = { songId, value: newDur };
+      stableDurationRef.current = { songId, value: newDur, locked: false };
       setDuration(newDur);
     } else {
       // Same song, new duration estimate from the streaming audio. Accept
-      // only if it's within ±30% of the locked value — otherwise it's a
-      // streaming-buffer artifact (the "duration doubled" bug).
-      const ratio = newDur / (stable.value || 1);
-      if (ratio > 0.7 && ratio < 1.3) {
-        stableDurationRef.current = { songId, value: newDur };
+      // only shorter values (streaming bug only ever inflates duration).
+      if (newDur < stable.value && newDur > 30) {
+        stableDurationRef.current = { ...stable, value: newDur };
         setDuration(newDur);
       }
-      // Else: leave the locked value alone.
     }
 
     // Re-apply pendingSeek once metadata is actually loaded
@@ -626,6 +636,29 @@ export function AudioPlayer() {
       usePlayerStore.getState().clearPendingSeek();
     }
   }, [setDuration]);
+
+  // Fetch authoritative duration from YouTube Data API for YT songs.
+  // This is the ground truth — the audio element's estimate can double
+  // when streaming through a proxy. Once we have this value, we lock
+  // and ignore anything else.
+  useEffect(() => {
+    if (!currentSong || !isYouTube || !currentSong.youtube_id) return;
+    if (currentSong.youtube_kind === 'playlist') return;
+    let cancelled = false;
+    fetch(`/api/youtube-meta/${currentSong.youtube_id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { duration?: number } | null) => {
+        if (cancelled || !data?.duration || data.duration < 5) return;
+        stableDurationRef.current = {
+          songId: currentSong.id,
+          value: data.duration,
+          locked: true,
+        };
+        setDuration(data.duration);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentSong?.id, isYouTube, setDuration]);
 
   const handleEnded = useCallback(() => {
     if (repeat === 'one') {
