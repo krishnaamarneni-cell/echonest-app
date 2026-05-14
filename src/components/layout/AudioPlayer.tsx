@@ -262,23 +262,21 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
-  // Hybrid mode: when bgMode is ON AND we have a personal yt-proxy deployed,
-  // we run BOTH the YT IFrame (for video while the app is foreground) AND a
-  // muted <audio> element backed by the proxy. On `visibilitychange` to
-  // hidden we unmute the audio so playback continues seamlessly when the
-  // user locks the phone or switches apps. When visibility returns, we
-  // mute the audio and let the IFrame take back over.
-  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
+  // Background-play mode: when bgMode is ON and we're on a single YouTube
+  // video, route playback through the in-app /api/yt-audio/<id> route.
+  // That route resolves the direct YouTube CDN URL via ytdl-core and
+  // 302-redirects the <audio> element to it. Safari then plays it as a
+  // normal HTML5 stream — backgrounds, locks, AirPods all work.
   const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
-  const proxyConfigured = !!(proxyUrl && proxySecret);
   const useHybrid =
-    proxyConfigured &&
     bgMode &&
     isYouTube &&
     !isYouTubePlaylist &&
     !!currentSong?.youtube_id;
   const proxyAudioUrl = useHybrid
-    ? `${proxyUrl}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
+    ? `/api/yt-audio/${currentSong!.youtube_id}${
+        proxySecret ? `?s=${encodeURIComponent(proxySecret)}` : ''
+      }`
     : null;
   // When proxy/hybrid mode is on, the iframe is NOT mounted at all.
   // Reason: iOS allows only one active audio session per origin. If the

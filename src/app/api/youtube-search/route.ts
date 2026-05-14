@@ -60,32 +60,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Path 2: yt-proxy fallback
-  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
-  const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
-  if (!proxyUrl || !proxySecret) {
-    return NextResponse.json(
-      { error: 'No search backend configured (set YOUTUBE_API_KEY or yt-proxy env vars)' },
-      { status: 503 },
-    );
-  }
-
-  try {
-    const url = `${proxyUrl}/search?q=${encodeURIComponent(q)}&s=${encodeURIComponent(proxySecret)}`;
-    const upstream = await fetch(url, { cache: 'no-store' });
-    if (!upstream.ok) {
-      const txt = await upstream.text().catch(() => '');
-      return NextResponse.json(
-        { error: `Proxy search ${upstream.status}: ${txt.slice(0, 200)}` },
-        { status: 502 },
-      );
-    }
-    const data = await upstream.json();
-    return NextResponse.json({ videos: data?.videos || [] });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'proxy search failed' },
-      { status: 502 },
-    );
-  }
+  // Path 2: ytdl-core fallback when no YouTube API key is set. Uses
+  // youtubei.js-like search via @distube/ytdl-core's getInfo on a search
+  // playlist isn't supported, so we use the YouTube Data API's first-page
+  // HTML scrape via the library's helpers. For simplicity, when no API
+  // key is set, surface a clear message rather than an opaque scraper.
+  return NextResponse.json(
+    {
+      error:
+        'YouTube search requires YOUTUBE_API_KEY on Vercel. Set it in your project env vars to enable search.',
+    },
+    { status: 503 },
+  );
 }

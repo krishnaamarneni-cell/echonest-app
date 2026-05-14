@@ -11,6 +11,7 @@
     "download-queue": "node --env-file=.env.local scripts/download-queue.mjs"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "@types/uuid": "^10.0.0",
