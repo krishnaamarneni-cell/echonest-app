@@ -262,29 +262,21 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
-  // Background-play mode via public Invidious instances. They proxy
-  // YouTube audio on their own (non-flagged) infrastructure, so the
-  // <audio> element can play directly. Instance is picked once on
-  // mount and rotated if playback fails.
-  const [invidiousInstance, setInvidiousInstance] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { pickInvidiousInstance } = await import('@/lib/invidious');
-      const inst = await pickInvidiousInstance();
-      if (!cancelled) setInvidiousInstance(inst);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
+  // Background-play mode via the personal yt-proxy at
+  // NEXT_PUBLIC_YT_PROXY_URL. Could be Fly, a laptop+Cloudflare-Tunnel,
+  // an Oracle VM, etc. — whatever is currently running yt-dlp on a
+  // non-flagged IP.
+  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
+  const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
+  const proxyConfigured = !!(proxyUrl && proxySecret);
   const useHybrid =
+    proxyConfigured &&
     bgMode &&
     isYouTube &&
     !isYouTubePlaylist &&
-    !!currentSong?.youtube_id &&
-    !!invidiousInstance;
-  const proxyAudioUrl = useHybrid && invidiousInstance
-    ? `${invidiousInstance.replace(/\/+$/, '')}/latest_version?id=${currentSong!.youtube_id}&itag=140`
+    !!currentSong?.youtube_id;
+  const proxyAudioUrl = useHybrid
+    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
   // When proxy/hybrid mode is on, the iframe is NOT mounted at all.
   // Reason: iOS allows only one active audio session per origin. If the
@@ -671,17 +663,6 @@ export function AudioPlayer() {
         onLoadedMetadata={handleLoadedMetadata}
         onDurationChange={handleLoadedMetadata}
         onEnded={handleEnded}
-        onError={() => {
-          // If we're on Invidious and the audio failed, rotate to the
-          // next instance and retry. Best-effort — don't loop forever.
-          if (!useHybrid || !invidiousInstance) return;
-          import('@/lib/invidious').then(({ rotateInstance }) => {
-            const next = rotateInstance();
-            if (next !== invidiousInstance) {
-              setInvidiousInstance(next);
-            }
-          });
-        }}
         preload="metadata"
       />
       {/* YT iframe — always rendered to keep iframe alive */}

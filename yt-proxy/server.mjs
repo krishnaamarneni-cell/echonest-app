@@ -14,6 +14,9 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const SHARED_SECRET = process.env.SHARED_SECRET;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
+// Allow override for Windows / non-PATH installs. On Linux/Docker the
+// defaults work because the binaries are in PATH.
+const YTDLP_PATH = process.env.YTDLP_PATH || 'yt-dlp';
 
 if (!SHARED_SECRET) {
   console.error('FATAL: SHARED_SECRET env var is required');
@@ -53,7 +56,7 @@ app.get('/search', async (req, res) => {
 
   try {
     const { stdout } = await exec(
-      'yt-dlp',
+      YTDLP_PATH,
       [
         `ytsearch12:${q}`,
         '--flat-playlist',
@@ -94,7 +97,7 @@ async function resolveAudioUrl(videoId) {
   const cached = urlCache.get(videoId);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-  const { stdout } = await exec('yt-dlp', [
+  const { stdout } = await exec(YTDLP_PATH, [
     '-f', '140',           // m4a / AAC 128kbps — Safari plays natively
     '--no-playlist',
     '--no-warnings',
