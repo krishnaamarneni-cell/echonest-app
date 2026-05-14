@@ -36,21 +36,32 @@ async function resolveAudioUrl(videoId: string): Promise<string> {
   // Try multiple Innertube clients — formats returned and decipher
   // requirements vary by client. Pick the first one that gives us a
   // deciphered, playable URL.
-  const clientsToTry: Array<'WEB' | 'IOS' | 'TV_EMBEDDED' | 'ANDROID' | 'YTMUSIC'> = [
+  const clientsToTry: string[] = [
+    'IOS_MUSIC',
+    'ANDROID_MUSIC',
     'IOS',
     'ANDROID',
-    'WEB',
     'TV_EMBEDDED',
-    'YTMUSIC',
+    'WEB_REMIX',
+    'WEB',
   ];
 
-  let lastErr: unknown = null;
+  // Track diagnostic info per client so the error response tells us
+  // which step is failing for which client.
+  const attempts: Record<string, string> = {};
   for (const clientType of clientsToTry) {
     try {
       // @ts-expect-error youtubei.js client param accepted at runtime
       const info = await client.getInfo(videoId, clientType);
 
-      // Use chooseFormat — handles deciphering and finds the best audio
+      if (!info?.streaming_data?.adaptive_formats?.length) {
+        attempts[clientType] =
+          info?.playability_status?.status === 'OK'
+            ? 'no streaming_data'
+            : `status: ${info?.playability_status?.status || 'unknown'} - ${info?.playability_status?.reason || ''}`.slice(0, 80);
+        continue;
+      }
+
       let chosen;
       try {
         chosen = info.chooseFormat({
@@ -59,7 +70,12 @@ async function resolveAudioUrl(videoId: string): Promise<string> {
           format: 'mp4',
         });
       } catch {
-        chosen = info.chooseFormat({ type: 'audio', quality: 'best' });
+        try {
+          chosen = info.chooseFormat({ type: 'audio', quality: 'best' });
+        } catch (e) {
+          attempts[clientType] = `chooseFormat: ${e instanceof Error ? e.message : String(e)}`.slice(0, 80);
+          continue;
+        }
       }
 
       // Get the deciphered URL. youtubei.js exposes decipher() on the
@@ -79,12 +95,15 @@ async function resolveAudioUrl(videoId: string): Promise<string> {
         });
         return url;
       }
-      lastErr = new Error(`No deciphered URL from ${clientType} client`);
+      attempts[clientType] = 'no deciphered URL';
     } catch (e) {
-      lastErr = e;
+      attempts[clientType] = (e instanceof Error ? e.message : String(e)).slice(0, 80);
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error('All clients failed');
+  // No client worked — throw an error that reveals what each client said
+  throw new Error(
+    'All clients failed: ' + JSON.stringify(attempts).slice(0, 600),
+  );
 }
 
 export async function GET(
