@@ -561,12 +561,16 @@ export function AudioPlayer() {
     if (!audio || !currentSong) return;
     const isUpload = !isYouTube;
     if (isUpload) {
-      audio.src = currentSong.file_url || '';
+      const want = currentSong.file_url || '';
+      // Only set src if it changed — re-assigning the same URL would
+      // restart the audio, breaking the synchronous next-track transition
+      // we do in handleEnded for background play.
+      if (audio.src !== want) audio.src = want;
       audio.muted = false;
       audio.volume = isMuted ? 0 : volume;
       if (isPlaying) audio.play().catch(() => {});
     } else if (useHybrid && proxyAudioUrl) {
-      audio.src = proxyAudioUrl;
+      if (audio.src !== proxyAudioUrl) audio.src = proxyAudioUrl;
       audio.muted = false;
       audio.volume = isMuted ? 0 : volume;
       if (isPlaying) audio.play().catch(() => {});
@@ -688,10 +692,46 @@ export function AudioPlayer() {
         audio.currentTime = 0;
         audio.play().catch(() => {});
       }
-    } else {
-      next();
+      return;
     }
-  }, [repeat, next]);
+
+    // In hybrid mode + background, iOS pauses the audio session the moment
+    // the current track ends. The normal React effect that updates audio.src
+    // to the next song runs too late — by then the session is gone and
+    // audio.play() fails silently, leaving the queue stuck. Transition
+    // synchronously: pick the next song, set audio.src directly, call
+    // play() in the same tick so the session never goes idle.
+    const audio = audioRef.current;
+    const state = usePlayerStore.getState();
+    const nextItem = state.queue[state.queueIndex + 1];
+    const fallbackToReactPath =
+      !useHybrid || !audio || !nextItem || !proxyUrl || !proxySecret ||
+      nextItem.song.source !== 'youtube_embed' ||
+      nextItem.song.youtube_kind === 'playlist' ||
+      !nextItem.song.youtube_id;
+
+    if (fallbackToReactPath) {
+      next();
+      return;
+    }
+
+    // Sync transition for hybrid mode — keeps iOS audio session alive
+    const nextSong = nextItem.song;
+    const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+    try {
+      audio.src = nextUrl;
+      audio.play().catch(() => {});
+    } catch {}
+    // Update store after audio is already pointed at the new source so the
+    // React effects don't re-set src (which would interrupt playback).
+    usePlayerStore.setState({
+      currentSong: nextSong,
+      queueIndex: state.queueIndex + 1,
+      progress: 0,
+      isPlaying: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repeat, next, useHybrid, proxyUrl, proxySecret]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
