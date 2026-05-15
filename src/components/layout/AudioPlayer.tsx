@@ -188,6 +188,11 @@ declare global {
 
 export function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
+  // Hidden second <audio> that pre-loads the next song in the queue.
+  // When current song ends in background, we transfer its loaded src to
+  // the primary audio element — bytes are already in the browser's media
+  // cache, so play() succeeds even before iOS can pause the session.
+  const nextAudioRef = useRef<HTMLAudioElement>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<InstanceType<typeof window.YT.Player> | null>(null);
   const ytIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -287,23 +292,40 @@ export function AudioPlayer() {
   // → iOS keeps its session alive → real background play works.
   const useIframePlayer = isYouTube && !useHybrid;
 
-  // Pre-warm the proxy's cache for the NEXT song in the queue.
-  // The proxy needs ~2s of yt-dlp time to resolve a fresh YouTube URL.
-  // We fire a HEAD request 5s after the current song starts so by the
-  // time the user taps next-track, the next URL is already cached on
-  // the proxy — playback starts in ~0.5s instead of 7-15s.
+  // Pre-warm the NEXT song in the queue: (a) HEAD request makes the
+  // proxy resolve+cache the URL, (b) load that URL into a hidden <audio>
+  // element so its media bytes are buffered ready-to-play. When the
+  // current song ends — especially in background where audio.play() on
+  // a not-yet-loaded src would silently fail — we transfer the
+  // pre-loaded src to the primary audio element for instant playback.
   useEffect(() => {
     if (!proxyConfigured || !bgMode || !proxyUrl || !proxySecret) return;
     const next = queue[queueIndex + 1]?.song;
-    if (!next) return;
+    if (!next) {
+      // No next song — clear the buffer audio element
+      const nextEl = nextAudioRef.current;
+      if (nextEl) {
+        nextEl.removeAttribute('src');
+        nextEl.load();
+      }
+      return;
+    }
     if (next.source !== 'youtube_embed') return;
     if (next.youtube_kind === 'playlist') return;
     if (!next.youtube_id) return;
 
-    const warmUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${next.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+    const nextProxyUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${next.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
     const timer = setTimeout(() => {
-      fetch(warmUrl, { method: 'HEAD', cache: 'no-store' }).catch(() => {});
-    }, 5000);
+      // (a) Tell proxy to resolve+cache via HEAD
+      fetch(nextProxyUrl, { method: 'HEAD', cache: 'no-store' }).catch(() => {});
+      // (b) Pre-buffer into the hidden audio element
+      const nextEl = nextAudioRef.current;
+      if (nextEl && nextEl.src !== nextProxyUrl) {
+        nextEl.src = nextProxyUrl;
+        nextEl.preload = 'auto';
+        try { nextEl.load(); } catch {}
+      }
+    }, 3000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueIndex, currentSong?.id, bgMode, proxyConfigured]);
@@ -718,9 +740,27 @@ export function AudioPlayer() {
     // Sync transition for hybrid mode — keeps iOS audio session alive
     const nextSong = nextItem.song;
     const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+    const nextEl = nextAudioRef.current;
+
     try {
-      audio.src = nextUrl;
-      audio.play().catch(() => {});
+      // If the hidden audio element already has this URL loaded with
+      // buffered data, "transfer" it: set the same src on the primary
+      // element so the browser's media cache satisfies the load
+      // immediately. play() then succeeds even in background where the
+      // OS audio session is being suspended.
+      if (nextEl && nextEl.src === nextUrl && nextEl.readyState >= 2) {
+        // Move the pre-loaded element's playback state into the primary
+        audio.src = nextUrl;
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+        // Free the buffer element for the song AFTER this one (the
+        // pre-warm effect will reload it on its own when state updates)
+        nextEl.removeAttribute('src');
+        try { nextEl.load(); } catch {}
+      } else {
+        audio.src = nextUrl;
+        audio.play().catch(() => {});
+      }
     } catch {}
     // Update store after audio is already pointed at the new source so the
     // React effects don't re-set src (which would interrupt playback).
@@ -758,6 +798,16 @@ export function AudioPlayer() {
         onDurationChange={handleLoadedMetadata}
         onEnded={handleEnded}
         preload="metadata"
+      />
+      {/* Hidden buffer audio element: pre-loads next song so handleEnded can
+          transfer its already-buffered src to the primary element for gapless
+          background-play continuation. Hidden but kept mounted always. */}
+      <audio
+        ref={nextAudioRef}
+        preload="auto"
+        muted
+        style={{ display: 'none' }}
+        aria-hidden="true"
       />
       {/* YT iframe — always rendered to keep iframe alive */}
       <YouTubeView
