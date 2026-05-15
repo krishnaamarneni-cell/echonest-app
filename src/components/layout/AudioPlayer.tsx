@@ -733,15 +733,26 @@ export function AudioPlayer() {
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
+    if (!isFinite(time) || time < 0) return;
+    // Update UI immediately so slider doesn't snap back during drag
+    setProgress(time);
     if (isYouTube && ytPlayerRef.current) {
       try {
         ytPlayerRef.current.seekTo(time, true);
       } catch {}
-    } else {
-      const audio = audioRef.current;
-      if (audio) audio.currentTime = time;
+      return;
     }
-    setProgress(time);
+    const audio = audioRef.current;
+    if (!audio) return;
+    // For streaming audio (proxy mode), the seekable range may not cover
+    // the full duration yet. Setting currentTime triggers a fresh range
+    // request — only do it when the audio is past metadata load.
+    if (audio.readyState >= 1 /* HAVE_METADATA */) {
+      try { audio.currentTime = time; } catch {}
+    } else {
+      // Audio not ready yet — queue the seek for when metadata loads
+      usePlayerStore.getState().seekTo(time);
+    }
   };
 
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
