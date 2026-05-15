@@ -615,7 +615,31 @@ export function AudioPlayer() {
     const audio = audioRef.current;
     if (!audio) return;
     setProgress(audio.currentTime);
+
+    // The streamed m4a from the proxy is sometimes longer than the actual
+    // YouTube song (extra padding bytes / Safari's flaky duration estimate).
+    // If we've locked the *real* duration from YouTube's metadata API and
+    // the audio is now past it, the song is effectively over — but the
+    // audio element's 'ended' event won't fire until much later. Treat it
+    // as ended now so the queue advances.
+    const stable = stableDurationRef.current;
+    const songId = usePlayerStore.getState().currentSong?.id || null;
+    if (
+      stable.locked &&
+      stable.songId === songId &&
+      stable.value > 0 &&
+      audio.currentTime >= stable.value - 0.2
+    ) {
+      // Force the end-of-song flow
+      try { audio.pause(); } catch {}
+      // Fire the same handler the 'ended' event would
+      handleEndedRef.current?.();
+    }
   }, [setProgress]);
+
+  // Forward-declared ref so handleTimeUpdate can call handleEnded without
+  // creating a circular useCallback dep
+  const handleEndedRef = useRef<(() => void) | null>(null);
 
   const handleLoadedMetadata = useCallback(() => {
     const audio = audioRef.current;
@@ -730,6 +754,11 @@ export function AudioPlayer() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repeat, next, useHybrid, proxyUrl, proxySecret]);
+
+  // Keep ref up to date so handleTimeUpdate can call the latest handleEnded
+  useEffect(() => {
+    handleEndedRef.current = handleEnded;
+  }, [handleEnded]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
