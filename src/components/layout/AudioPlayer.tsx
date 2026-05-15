@@ -741,9 +741,39 @@ export function AudioPlayer() {
     // Sync transition for hybrid mode — keeps iOS audio session alive
     const nextSong = nextItem.song;
     const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+
+    // Explicitly tell the OS we're still playing — this is the lock-screen
+    // session iOS uses to decide whether to allow continued playback. Update
+    // metadata and state BEFORE the src swap so there's no window where
+    // playbackState looks paused.
+    try {
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: nextSong.title,
+          artist: nextSong.artist_name || '',
+          artwork: nextSong.cover_url
+            ? [{ src: nextSong.cover_url, sizes: '512x512', type: 'image/jpeg' }]
+            : [],
+        });
+      }
+    } catch {}
+
     try {
       audio.src = nextUrl;
-      audio.play().catch(() => {});
+      // play() returns a promise; await isn't possible here (not async fn) but
+      // we kick it off and the audio element will start as soon as it's ready
+      const p = audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // If immediate play fails, try once on canplay
+          const onCanPlay = () => {
+            audio.removeEventListener('canplay', onCanPlay);
+            audio.play().catch(() => {});
+          };
+          audio.addEventListener('canplay', onCanPlay, { once: true });
+        });
+      }
     } catch {}
     // Update store after audio is already pointed at the new source so the
     // React effects don't re-set src (which would interrupt playback).
