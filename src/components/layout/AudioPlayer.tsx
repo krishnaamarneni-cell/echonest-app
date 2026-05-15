@@ -630,9 +630,10 @@ export function AudioPlayer() {
       stable.value > 0 &&
       audio.currentTime >= stable.value - 0.2
     ) {
-      // Force the end-of-song flow
-      try { audio.pause(); } catch {}
-      // Fire the same handler the 'ended' event would
+      // Force the end-of-song flow. Crucially DO NOT pause — pausing in
+      // background causes iOS to deactivate the audio session, after which
+      // play() on the next track is silently rejected. Going straight to
+      // src swap keeps the session continuously active.
       handleEndedRef.current?.();
     }
   }, [setProgress]);
