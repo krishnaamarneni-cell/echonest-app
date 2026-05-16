@@ -480,14 +480,20 @@ export function AudioPlayer() {
     };
   }, [ytReady, isYouTube, currentSong?.youtube_id]);
 
-  // YouTube progress polling
+  // YouTube progress polling.
+  // Note: we intentionally DON'T early-return when ytPlayerRef.current is
+  // null. The player gets created asynchronously in a separate effect
+  // (after ytReady flips), so on the first run the ref is almost always
+  // empty. By starting the interval anyway and null-checking inside,
+  // polling kicks in the moment the player is ready — without us having
+  // to wire up another dependency that re-runs the effect.
   useEffect(() => {
-    if (!isYouTube || !ytPlayerRef.current) return;
+    if (!isYouTube) return;
     if (ytIntervalRef.current) clearInterval(ytIntervalRef.current);
 
     ytIntervalRef.current = setInterval(() => {
       const p = ytPlayerRef.current;
-      if (!p) return;
+      if (!p || typeof p.getCurrentTime !== 'function') return;
       try {
         setProgress(p.getCurrentTime() || 0);
         const d = p.getDuration() || 0;
