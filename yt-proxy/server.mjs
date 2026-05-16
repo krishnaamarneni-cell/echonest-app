@@ -151,6 +151,16 @@ app.get('/audio/:videoId', async (req, res) => {
     return res.status(502).json({ error: 'Could not resolve audio URL', detail: String(e?.message || e).slice(0, 200) });
   }
 
+  // Direct mode: 302 the client to googlevideo.com so bytes flow directly
+  // from Google's CDN to the user's device — bypassing the slow tunnel.
+  // googlevideo URLs aren't strictly IP-bound: they redirect again with
+  // `ipbypass=yes` to grant access to the calling IP. <audio> follows the
+  // chain transparently.
+  if (req.query.direct === '1') {
+    console.log(`${tag} 302 direct to googlevideo`);
+    return res.redirect(302, audioUrl);
+  }
+
   // Forward the Range header from the browser so seeking + iOS work.
   const upstreamHeaders = {};
   if (req.headers.range) upstreamHeaders.range = req.headers.range;

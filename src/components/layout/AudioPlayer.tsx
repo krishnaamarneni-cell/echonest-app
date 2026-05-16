@@ -315,7 +315,7 @@ export function AudioPlayer() {
     !isYouTubePlaylist &&
     !!currentSong?.youtube_id;
   const proxyAudioUrl = useHybrid
-    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
+    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}&direct=1`
     : null;
   // When proxy/hybrid mode is on OR an offline blob is loaded, the iframe
   // is NOT mounted at all. Reason: iOS allows only one active audio
@@ -337,7 +337,7 @@ export function AudioPlayer() {
     if (next.youtube_kind === 'playlist') return;
     if (!next.youtube_id) return;
 
-    const nextProxyUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${next.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+    const nextProxyUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${next.youtube_id}?s=${encodeURIComponent(proxySecret)}&direct=1`;
     const timer = setTimeout(() => {
       fetch(nextProxyUrl, { method: 'HEAD', cache: 'no-store' }).catch(() => {});
     }, 5000);
@@ -797,7 +797,7 @@ export function AudioPlayer() {
 
     // Sync transition for hybrid mode — keeps iOS audio session alive
     const nextSong = nextItem.song;
-    const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
+    const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}&direct=1`;
 
     // Explicitly tell the OS we're still playing — this is the lock-screen
     // session iOS uses to decide whether to allow continued playback. Update
