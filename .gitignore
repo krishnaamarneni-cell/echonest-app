@@ -23,6 +23,15 @@
 # misc
 .DS_Store
 *.pem
+*.key
+*.key.pub
+id_rsa
+id_ed25519
+# YouTube auth cookies — never commit
+*cookies*.txt
+*Cookie*.txt
+yt-cookies*
+Netscape*Cookie*
 
 # debug
 npm-debug.log*

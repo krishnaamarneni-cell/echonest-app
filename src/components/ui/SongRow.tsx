@@ -3,8 +3,9 @@
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
+import { useOfflineStore, isDownloadable } from '@/store/offline';
 import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music, Trash2, ListPlus, Download, Check, Loader2, RotateCcw } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, Trash2, ListPlus, Download, Check, Loader2, RotateCcw, HardDriveDownload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
@@ -36,28 +37,25 @@ export function SongRow({
   const isOwner = useOwnerMode((s) => s.isOwner);
   const [isHovered, setIsHovered] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [downloadState, setDownloadState] = useState<Song['download_status']>(
-    song.download_status ?? null,
-  );
 
-  // Songs eligible for the download workflow: must come from YouTube, must
-  // not be a podcast (podcasts stream), must not already be a Supabase audio
-  // file. Already-uploaded songs (source='upload') don't need downloading.
-  const isDownloadEligible =
-    !!song.youtube_id &&
-    song.content_type !== 'podcast' &&
-    song.source === 'youtube_embed';
+  // Subscribe to the offline store so this row re-renders when its
+  // download progresses or completes elsewhere (e.g. via the playlist
+  // "Download all" button).
+  const isOffline = useOfflineStore((s) => s.ids.has(song.id));
+  const downloadProgress = useOfflineStore((s) => s.inProgress.get(song.id));
+  const downloadError = useOfflineStore((s) => s.errors.get(song.id));
+  const downloadSong = useOfflineStore((s) => s.downloadSong);
+  const removeOffline = useOfflineStore((s) => s.remove);
+
+  const isDownloadEligible = isDownloadable(song);
 
   const requestDownload = async () => {
-    setDownloadState('queued');
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('songs')
-      .update({ download_status: 'queued', download_error: null })
-      .eq('id', song.id);
-    if (error) {
-      setDownloadState('error');
-      alert(`Couldn't queue download: ${error.message}`);
+    try {
+      await downloadSong(song);
+    } catch (e) {
+      // store has already captured the error message; just surface to user
+      const msg = e instanceof Error ? e.message : 'Download failed';
+      alert(`Download failed: ${msg}`);
     }
   };
   const isCurrentSong = currentSong?.id === song.id;
@@ -164,6 +162,21 @@ export function SongRow({
             <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
           </button>
         ) : null}
+        {isOffline ? (
+          <span
+            title="Downloaded to device"
+            className="text-emerald-500 inline-flex items-center"
+          >
+            <Check className="w-3.5 h-3.5" />
+          </span>
+        ) : downloadProgress !== undefined ? (
+          <span
+            title={`Downloading ${downloadProgress}%`}
+            className="text-accent inline-flex items-center"
+          >
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          </span>
+        ) : null}
         <span className="text-xs text-muted tabular-nums w-10 text-right">
           {formatDuration(song.duration)}
         </span>
@@ -202,35 +215,27 @@ export function SongRow({
                 ]),
             ...(isDownloadEligible
               ? [
-                  downloadState === 'done'
+                  isOffline
                     ? {
-                        label: 'Downloaded',
-                        icon: Check,
-                        onClick: () => {},
-                        disabled: true,
+                        label: 'Remove download',
+                        icon: HardDriveDownload,
+                        onClick: () => removeOffline(song.id),
                       }
-                    : downloadState === 'queued'
+                    : downloadProgress !== undefined
                     ? {
-                        label: 'Download queued',
+                        label: `Downloading… ${downloadProgress}%`,
                         icon: Loader2,
                         onClick: () => {},
                         disabled: true,
                       }
-                    : downloadState === 'downloading'
-                    ? {
-                        label: 'Downloading…',
-                        icon: Loader2,
-                        onClick: () => {},
-                        disabled: true,
-                      }
-                    : downloadState === 'error'
+                    : downloadError
                     ? {
                         label: 'Retry download',
                         icon: RotateCcw,
                         onClick: requestDownload,
                       }
                     : {
-                        label: 'Download for background play',
+                        label: 'Download to device',
                         icon: Download,
                         onClick: requestDownload,
                       },

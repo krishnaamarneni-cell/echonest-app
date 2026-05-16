@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Song } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { usePlayerStore } from '@/store/player';
 import { Play, Shuffle, ListMusic, ArrowLeft, ExternalLink, Music, MoreHorizontal, Trash2, Heart, ListPlus } from 'lucide-react';
@@ -249,6 +250,27 @@ export default function YouTubePlaylistDetailPage() {
               <Button variant="secondary" onClick={shuffleAll} disabled={videos.length === 0}>
                 <Shuffle className="w-4 h-4" /> Shuffle
               </Button>
+              <BulkDownloadButton
+                songs={videos.map<Song>((v) => ({
+                  id: `yt-${v.videoId}`,
+                  user_id: song?.user_id || '',
+                  title: v.title,
+                  artist_name: v.author,
+                  album_name: null,
+                  album_id: null,
+                  artist_id: null,
+                  duration: 0,
+                  file_url: '',
+                  cover_url: v.thumbnail,
+                  genre: null,
+                  track_number: null,
+                  source: 'youtube_embed',
+                  youtube_id: v.videoId,
+                  youtube_kind: 'video',
+                  content_type: 'music',
+                  created_at: '',
+                }))}
+              />
               {song?.youtube_id && (
                 <a
                   href={`https://www.youtube.com/playlist?list=${song.youtube_id}`}

@@ -25,6 +25,7 @@ import { Song } from '@/types';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
+import { useOfflineStore } from '@/store/offline';
 import { Menu } from '@/components/ui/Menu';
 import { YouTubeView } from './YouTubeView';
 
@@ -263,6 +264,40 @@ export function AudioPlayer() {
   const isYouTube = currentSong?.source === 'youtube_embed';
   const isYouTubePlaylist = isYouTube && currentSong?.youtube_kind === 'playlist';
 
+  // Device-side download (IndexedDB). If the current song is cached on
+  // this device, we play from a local blob URL — no proxy, no network,
+  // perfect iOS background play. This takes priority over hybrid mode.
+  const isOfflineAvailable = useOfflineStore((s) =>
+    currentSong ? s.ids.has(currentSong.id) : false,
+  );
+  const [offlineAudioUrl, setOfflineAudioUrl] = useState<string | null>(null);
+  useEffect(() => {
+    // Resolve the blob → object URL whenever the current song flips to
+    // an offline-available one. Revoke the previous URL to avoid leaking
+    // memory across track changes.
+    let cancelled = false;
+    let urlToRevoke: string | null = null;
+    if (currentSong && isOfflineAvailable) {
+      useOfflineStore
+        .getState()
+        .getBlobUrl(currentSong.id)
+        .then((url) => {
+          if (cancelled) {
+            if (url) URL.revokeObjectURL(url);
+            return;
+          }
+          urlToRevoke = url;
+          setOfflineAudioUrl(url);
+        });
+    } else {
+      setOfflineAudioUrl(null);
+    }
+    return () => {
+      cancelled = true;
+      if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
+    };
+  }, [currentSong?.id, isOfflineAvailable]);
+
   // Background-play mode via the personal yt-proxy at
   // NEXT_PUBLIC_YT_PROXY_URL. Could be Fly, a laptop+Cloudflare-Tunnel,
   // an Oracle VM, etc. — whatever is currently running yt-dlp on a
@@ -270,7 +305,10 @@ export function AudioPlayer() {
   const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
   const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
   const proxyConfigured = !!(proxyUrl && proxySecret);
+  // If the song is downloaded, treat it like an offline-eligible playback
+  // (audio element path, no iframe) regardless of background-play mode.
   const useHybrid =
+    !offlineAudioUrl && // downloaded songs supersede streaming
     proxyConfigured &&
     bgMode &&
     isYouTube &&
@@ -279,13 +317,14 @@ export function AudioPlayer() {
   const proxyAudioUrl = useHybrid
     ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
-  // When proxy/hybrid mode is on, the iframe is NOT mounted at all.
-  // Reason: iOS allows only one active audio session per origin. If the
-  // iframe is loaded (even muted), iOS treats *it* as the audio session
-  // owner and suspends our <audio> element when the app backgrounds.
-  // By not mounting the iframe, the <audio> element is the only player
-  // → iOS keeps its session alive → real background play works.
-  const useIframePlayer = isYouTube && !useHybrid;
+  // When proxy/hybrid mode is on OR an offline blob is loaded, the iframe
+  // is NOT mounted at all. Reason: iOS allows only one active audio
+  // session per origin. If the iframe is loaded (even muted), iOS treats
+  // *it* as the audio session owner and suspends our <audio> element
+  // when the app backgrounds. By not mounting the iframe, the <audio>
+  // element is the only player → iOS keeps its session alive → real
+  // background play works.
+  const useIframePlayer = isYouTube && !useHybrid && !offlineAudioUrl;
 
   // Pre-warm the proxy cache for the NEXT song in the queue. A HEAD
   // request triggers yt-dlp resolution server-side so when the song
@@ -552,6 +591,8 @@ export function AudioPlayer() {
 
   // Audio element src:
   //   - uploads → file_url
+  //   - YT song downloaded to device → blob: URL (preferred when available,
+  //                       works offline, perfect iOS background)
   //   - hybrid YT mode → proxy URL (audible; this is the actual audio source
   //                       — the iframe is muted video-only)
   useEffect(() => {
@@ -567,6 +608,16 @@ export function AudioPlayer() {
       audio.muted = false;
       audio.volume = isMuted ? 0 : volume;
       if (isPlaying) audio.play().catch(() => {});
+    } else if (offlineAudioUrl) {
+      if (audio.src !== offlineAudioUrl) audio.src = offlineAudioUrl;
+      audio.muted = false;
+      audio.volume = isMuted ? 0 : volume;
+      if (isPlaying) audio.play().catch(() => {});
+    } else if (isOfflineAvailable) {
+      // Song is known cached but the blob URL is still being read from
+      // IndexedDB. Don't set proxy src — that would cause a brief network
+      // fetch before the blob URL flips in. Just wait one tick.
+      return;
     } else if (useHybrid && proxyAudioUrl) {
       if (audio.src !== proxyAudioUrl) audio.src = proxyAudioUrl;
       audio.muted = false;
@@ -577,27 +628,27 @@ export function AudioPlayer() {
       audio.load();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong?.id, isYouTube, useHybrid, proxyAudioUrl]);
+  }, [currentSong?.id, isYouTube, useHybrid, proxyAudioUrl, offlineAudioUrl, isOfflineAvailable]);
 
-  // Audio element play/pause for both upload and hybrid modes.
+  // Audio element play/pause for upload, hybrid, AND offline-blob modes.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const isUpload = !isYouTube;
-    if (!isUpload && !useHybrid) return;
+    if (!isUpload && !useHybrid && !offlineAudioUrl) return;
     if (isPlaying) audio.play().catch(() => {});
     else audio.pause();
-  }, [isPlaying, isYouTube, useHybrid]);
+  }, [isPlaying, isYouTube, useHybrid, offlineAudioUrl]);
 
   // Audio element volume — applies whenever audio element is the source
-  // (uploads OR hybrid).
+  // (uploads OR hybrid OR offline blob).
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const isUpload = !isYouTube;
-    if (!isUpload && !useHybrid) return;
+    if (!isUpload && !useHybrid && !offlineAudioUrl) return;
     audio.volume = isMuted ? 0 : volume;
-  }, [volume, isMuted, isYouTube, useHybrid]);
+  }, [volume, isMuted, isYouTube, useHybrid, offlineAudioUrl]);
 
 
   // Playback rate — apply to whichever player is currently audible.
@@ -727,8 +778,14 @@ export function AudioPlayer() {
     const audio = audioRef.current;
     const state = usePlayerStore.getState();
     const nextItem = state.queue[state.queueIndex + 1];
+    // If the next song is downloaded to device, let the React path handle
+    // it — it'll pull from IndexedDB. The async hop is fast enough (<100ms)
+    // that iOS keeps the audio session alive without our sync transition.
+    const nextOffline =
+      !!nextItem && useOfflineStore.getState().ids.has(nextItem.song.id);
     const fallbackToReactPath =
       !useHybrid || !audio || !nextItem || !proxyUrl || !proxySecret ||
+      nextOffline ||
       nextItem.song.source !== 'youtube_embed' ||
       nextItem.song.youtube_kind === 'playlist' ||
       !nextItem.song.youtube_id;

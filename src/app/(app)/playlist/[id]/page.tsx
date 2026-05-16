@@ -9,6 +9,7 @@ import { SongCard } from '@/components/ui/SongCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
+import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
 import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2, Pencil, LayoutGrid, List } from 'lucide-react';
@@ -213,6 +214,8 @@ export default function PlaylistDetailPage() {
                   {syncing ? 'Syncing…' : 'Sync from YouTube'}
                 </Button>
               )}
+              <BulkDownloadButton songs={songs} />
+
               {isOwner && (
                 <Menu
                   trigger={

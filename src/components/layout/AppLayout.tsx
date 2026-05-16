@@ -11,15 +11,20 @@ import { RoomIndicator } from './RoomIndicator';
 import { AddToPlaylistDialog } from '@/components/ui/AddToPlaylistDialog';
 import { usePlayerStore } from '@/store/player';
 import { useOwnerMode } from '@/store/ownerMode';
+import { useOfflineStore } from '@/store/offline';
 import { createClient } from '@/lib/supabase/client';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
   const hydrate = useOwnerMode((s) => s.hydrate);
+  const loadOfflineIds = useOfflineStore((s) => s.loadIds);
 
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
+    // Populate the in-memory set of downloaded song ids so SongRow etc.
+    // can synchronously render their "downloaded" badge from first paint.
+    loadOfflineIds();
+  }, [hydrate, loadOfflineIds]);
 
   // Auto-sign-in as the public account when no session exists — UNLESS
   // the user explicitly signed out (we honor that and let them see the

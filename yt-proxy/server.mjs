@@ -9,6 +9,15 @@ import { promisify } from 'node:util';
 // Result: Safari sees a normal seekable audio source over HTTPS and plays it
 // like any uploaded MP3, including in background and on locked screen.
 
+// Prevent the whole service from dying when one upstream stream blows up
+// (ECONNRESET from googlevideo, broken iPhone connection, etc.)
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err?.message || err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[unhandledRejection]', err instanceof Error ? err.message : err);
+});
+
 const exec = promisify(execFile);
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -114,6 +123,9 @@ async function resolveAudioUrl(videoId) {
 
 app.get('/audio/:videoId', async (req, res) => {
   const { videoId } = req.params;
+  const t0 = Date.now();
+  const tag = `[audio ${videoId} ${req.method}]`;
+  console.log(`${tag} enter`);
 
   // Auth — Bearer header OR ?s=SECRET query param. HTML5 <audio> can't set
   // custom headers, so the query form covers that case.
@@ -121,18 +133,21 @@ app.get('/audio/:videoId', async (req, res) => {
   const secret = req.query.s || '';
   const ok = auth === `Bearer ${SHARED_SECRET}` || secret === SHARED_SECRET;
   if (!ok) {
+    console.log(`${tag} unauthorized`);
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    console.log(`${tag} bad videoId`);
     return res.status(400).json({ error: 'Invalid videoId' });
   }
 
   let audioUrl;
   try {
     audioUrl = await resolveAudioUrl(videoId);
+    console.log(`${tag} resolved in ${Date.now() - t0}ms`);
   } catch (e) {
-    console.error('resolveAudioUrl failed:', e?.message || e);
+    console.error(`${tag} resolveAudioUrl failed:`, e?.message || e);
     return res.status(502).json({ error: 'Could not resolve audio URL', detail: String(e?.message || e).slice(0, 200) });
   }
 
@@ -140,13 +155,21 @@ app.get('/audio/:videoId', async (req, res) => {
   const upstreamHeaders = {};
   if (req.headers.range) upstreamHeaders.range = req.headers.range;
 
+  // Hard timeout on the upstream fetch — googlevideo CDN edges sometimes
+  // hang indefinitely instead of returning an error, which would otherwise
+  // pin the request open forever and exhaust connections.
+  const ctrl = new AbortController();
+  const abortTimer = setTimeout(() => ctrl.abort(), 15000);
   let upstream;
   try {
-    upstream = await fetch(audioUrl, { headers: upstreamHeaders });
+    upstream = await fetch(audioUrl, { headers: upstreamHeaders, signal: ctrl.signal });
+    console.log(`${tag} upstream status=${upstream.status} after ${Date.now() - t0}ms`);
   } catch (e) {
-    console.error('upstream fetch failed:', e?.message || e);
+    console.error(`${tag} upstream fetch failed after ${Date.now() - t0}ms:`, e?.message || e);
+    clearTimeout(abortTimer);
     return res.status(502).json({ error: 'Upstream fetch failed' });
   }
+  clearTimeout(abortTimer);
 
   // Pass through status (200 / 206) and relevant headers
   res.status(upstream.status);

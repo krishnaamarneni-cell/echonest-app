@@ -7,6 +7,7 @@ import { SongRow } from '@/components/ui/SongRow';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
+import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { Heart, Play, Shuffle } from 'lucide-react';
@@ -48,7 +49,7 @@ export default function LikedSongsPage() {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Playlist</p>
             <h1 className="text-3xl lg:text-5xl font-bold mt-1">Liked Songs</h1>
             <p className="text-sm text-muted mt-3">{visibleSongs.length} songs</p>
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex flex-wrap items-center gap-3 mt-4">
               <Button
                 onClick={() => visibleSongs.length > 0 && play(visibleSongs[0], visibleSongs, 'library')}
                 disabled={visibleSongs.length === 0}
@@ -67,6 +68,7 @@ export default function LikedSongsPage() {
               >
                 <Shuffle className="w-4 h-4" /> Shuffle
               </Button>
+              <BulkDownloadButton songs={visibleSongs} />
             </div>
           </div>
         </div>
