@@ -91,11 +91,12 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
     // doesn't auto-evict under pressure.
     requestPersistentStorage().catch(() => {});
 
-    // direct=1 makes the proxy 302-redirect us to googlevideo's CDN,
-    // so the actual bytes flow straight from Google to the device —
-    // not through the proxy's slow upstream tunnel. fetch() follows
-    // the redirect transparently.
-    const url = `${proxyUrl.replace(/\/+$/, '')}/audio/${song.youtube_id}?s=${encodeURIComponent(proxySecret)}&direct=1`;
+    // Downloads have to go through the proxy bytes path — the redirect
+    // alternative (?direct=1) would land on googlevideo.com, which has
+    // no CORS headers, so browser fetch() refuses to read the body.
+    // <audio> playback can still use direct mode because the element
+    // doesn't enforce CORS for cross-origin media sources.
+    const url = `${proxyUrl.replace(/\/+$/, '')}/audio/${song.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
 
     // Mark as 0% so UI flips to "downloading" state immediately
     set((s) => {
