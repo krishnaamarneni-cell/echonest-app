@@ -6,9 +6,11 @@ import { Song, Playlist, Album, Artist } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2 } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
+import { importPopularAlbumsBulk, POPULAR_ALBUMS, PopularAlbumResult } from '@/lib/popularAlbums';
+import { Button } from '@/components/ui/Button';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
 
@@ -25,6 +27,35 @@ export default function DashboardPage() {
   const [podcastPlaylists, setPodcastPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInstallHint, setShowInstallHint] = useState(false);
+  const [importingAlbums, setImportingAlbums] = useState(false);
+  const [albumProgress, setAlbumProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
+
+  const handlePullPopularAlbums = async () => {
+    if (importingAlbums) return;
+    if (!confirm(`Add ${POPULAR_ALBUMS.length} popular albums (with ~10 songs each) to your library? Takes a few minutes.`)) {
+      return;
+    }
+    setImportingAlbums(true);
+    setAlbumProgress({ done: 0, total: POPULAR_ALBUMS.length, added: 0, failed: 0 });
+    const results: PopularAlbumResult[] = await importPopularAlbumsBulk(POPULAR_ALBUMS, 10, (done, total, last) => {
+      setAlbumProgress((prev) => {
+        const base = prev || { done: 0, total, added: 0, failed: 0 };
+        return {
+          done,
+          total,
+          added: base.added + last.songsAdded,
+          failed: base.failed + (last.error ? 1 : 0),
+        };
+      });
+    });
+    setImportingAlbums(false);
+    const totalSongs = results.reduce((a, r) => a + r.songsAdded, 0);
+    const newAlbums = results.filter((r) => !r.reused && r.albumId).length;
+    const failed = results.filter((r) => r.error).length;
+    alert(`Done. Created ${newAlbums} new albums, added ${totalSongs} song${totalSongs === 1 ? '' : 's'}. ${failed} failed.`);
+    // Reload the page so the new albums show up
+    window.location.reload();
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -455,21 +486,51 @@ export default function DashboardPage() {
 
       {/* === ALBUMS tab: every album === */}
       {tab === 'albums' && (
-        albums.length > 0 ? (
-          <Section title={`Your Albums (${albums.length})`} icon={Disc} seeAllHref="/library">
-            {albums.map((album) => (
-              <MediaCard
-                key={album.id}
-                title={album.title}
-                subtitle={album.artist_name}
-                imageUrl={album.cover_url}
-                href={`/album/${album.id}`}
-              />
-            ))}
-          </Section>
-        ) : (
-          <p className="text-center text-muted-foreground py-12">No albums yet.</p>
-        )
+        <div>
+          <div className="flex items-center justify-between mb-4 px-1">
+            <p className="text-sm text-muted-foreground">
+              {albums.length === 0
+                ? 'No albums yet — pull a starter set from YouTube.'
+                : `${albums.length} album${albums.length === 1 ? '' : 's'}`}
+              {albumProgress && importingAlbums && (
+                <span className="ml-2 text-xs">
+                  · Importing {albumProgress.done}/{albumProgress.total} — {albumProgress.added} songs added so far
+                </span>
+              )}
+            </p>
+            <Button
+              variant="secondary"
+              onClick={handlePullPopularAlbums}
+              disabled={importingAlbums}
+              title={`Add ${POPULAR_ALBUMS.length} curated popular albums to your library. Creates new album rows and pulls ~10 songs each.`}
+            >
+              {importingAlbums ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Importing…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" /> Add {POPULAR_ALBUMS.length} popular albums
+                </>
+              )}
+            </Button>
+          </div>
+          {albums.length > 0 ? (
+            <Section title={`Your Albums (${albums.length})`} icon={Disc} seeAllHref="/library">
+              {albums.map((album) => (
+                <MediaCard
+                  key={album.id}
+                  title={album.title}
+                  subtitle={album.artist_name}
+                  imageUrl={album.cover_url}
+                  href={`/album/${album.id}`}
+                />
+              ))}
+            </Section>
+          ) : (
+            <p className="text-center text-muted-foreground py-12">No albums yet.</p>
+          )}
+        </div>
       )}
 
       {/* === ARTISTS tab: every artist with at least one song === */}
