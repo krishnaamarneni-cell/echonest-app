@@ -108,37 +108,70 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
     });
 
     try {
-      const resp = await fetch(url);
-      if (!resp.ok) {
-        throw new Error(`Proxy returned ${resp.status}`);
+      // Probe the file size + content-type via a 0-byte Range request.
+      // This is fast even on a slow tunnel (no real bytes flow) and lets
+      // us pick the chunk strategy below.
+      const probeResp = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+      if (!probeResp.ok && probeResp.status !== 206) {
+        throw new Error(`Proxy returned ${probeResp.status}`);
       }
-      const total = Number(resp.headers.get('content-length') || 0);
-      const mime = resp.headers.get('content-type') || 'audio/mp4';
+      // content-range looks like "bytes 0-0/1234567"
+      const cr = probeResp.headers.get('content-range') || '';
+      const totalFromRange = Number((cr.split('/')[1] || '0').trim());
+      const total =
+        totalFromRange ||
+        Number(probeResp.headers.get('content-length') || 0);
+      const mime = probeResp.headers.get('content-type') || 'audio/mp4';
+      // Drain the 1-byte body so the connection isn't left hanging
+      try { await probeResp.arrayBuffer(); } catch {}
 
-      // Stream + track progress. Fall back to plain .blob() if no body
-      // reader (older browsers).
       let blob: Blob;
-      if (resp.body && total > 0) {
-        const reader = resp.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let received = 0;
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            received += value.length;
-            const pct = Math.min(99, Math.floor((received / total) * 100));
-            set((s) => {
-              const inProgress = new Map(s.inProgress);
-              if (inProgress.has(song.id)) inProgress.set(song.id, pct);
-              return { inProgress };
-            });
-          }
+      if (total > 0) {
+        // Chunked parallel download via Range. YouTube throttles each
+        // stream individually, so 4 concurrent ranges roughly quadruple
+        // throughput AND each chunk fits comfortably within Cloudflare's
+        // ~100s tunnel response timeout.
+        const CHUNK = 512 * 1024;
+        const CONCURRENCY = 4;
+        const total_ = total;
+        const ranges: { start: number; end: number; idx: number }[] = [];
+        for (let off = 0, idx = 0; off < total_; off += CHUNK, idx++) {
+          ranges.push({ start: off, end: Math.min(off + CHUNK - 1, total_ - 1), idx });
         }
-        blob = new Blob(chunks as BlobPart[], { type: mime });
+        const buffers: ArrayBuffer[] = new Array(ranges.length);
+        const completed = { count: 0 };
+
+        const fetchOne = async (r: { start: number; end: number; idx: number }) => {
+          const resp = await fetch(url, { headers: { Range: `bytes=${r.start}-${r.end}` } });
+          if (!resp.ok && resp.status !== 206) {
+            throw new Error(`Chunk ${r.idx} returned ${resp.status}`);
+          }
+          buffers[r.idx] = await resp.arrayBuffer();
+          completed.count++;
+          const pct = Math.min(99, Math.floor((completed.count / ranges.length) * 100));
+          set((s) => {
+            const inProgress = new Map(s.inProgress);
+            if (inProgress.has(song.id)) inProgress.set(song.id, pct);
+            return { inProgress };
+          });
+        };
+
+        // Simple concurrency-limited dispatcher
+        const queue = ranges.slice();
+        const workers = Array.from({ length: Math.min(CONCURRENCY, ranges.length) }, async () => {
+          while (queue.length > 0) {
+            const r = queue.shift();
+            if (!r) break;
+            await fetchOne(r);
+          }
+        });
+        await Promise.all(workers);
+
+        blob = new Blob(buffers, { type: mime });
       } else {
+        // Server didn't tell us the size — fall back to one big fetch.
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Proxy returned ${resp.status}`);
         blob = await resp.blob();
       }
 
