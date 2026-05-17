@@ -9,6 +9,8 @@ import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
+import { useOfflineStore } from '@/store/offline';
+import { getStorageInfo } from '@/lib/offline-storage';
 import {
   Download,
   Play,
@@ -16,6 +18,8 @@ import {
   LayoutGrid,
   List,
   Music,
+  HardDriveDownload,
+  Smartphone,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -23,7 +27,54 @@ export default function DownloadsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
+  const [deviceSongs, setDeviceSongs] = useState<Song[]>([]);
+  const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number; persisted: boolean } | null>(null);
+  const offlineIds = useOfflineStore((s) => s.ids);
+  const listAll = useOfflineStore((s) => s.listAll);
   const play = usePlayerStore((s) => s.play);
+
+  // Re-hydrate the device-side song list whenever the offline-id set
+  // changes (i.e. after a download finishes / one is removed).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const records = await listAll();
+      if (cancelled) return;
+      const mapped: Song[] = records.map((r) => ({
+        id: r.id,
+        user_id: '',
+        title: r.title,
+        artist_name: r.artist,
+        album_name: null,
+        album_id: null,
+        artist_id: null,
+        duration: r.duration,
+        file_url: '',
+        cover_url: r.cover_url,
+        genre: null,
+        track_number: null,
+        source: 'youtube_embed',
+        youtube_id: r.youtube_id,
+        youtube_kind: 'video',
+        content_type: 'music',
+        created_at: new Date(r.downloaded_at).toISOString(),
+      }));
+      // Most recently downloaded first
+      mapped.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      setDeviceSongs(mapped);
+      setStorageInfo(await getStorageInfo());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [offlineIds, listAll]);
+
+  const formatBytes = (n: number) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  };
 
   useEffect(() => {
     const saved =
@@ -106,8 +157,62 @@ export default function DownloadsPage() {
         </div>
       </div>
 
-      {/* Songs */}
+      {/* Downloaded to this device (IndexedDB) */}
+      {deviceSongs.length > 0 && (
+        <div className="p-6 lg:p-8 pt-4 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Smartphone className="w-4 h-4 text-emerald-500" />
+            <h2 className="text-lg font-semibold">On this device</h2>
+            <span className="text-xs text-muted-foreground">
+              {deviceSongs.length} song{deviceSongs.length === 1 ? '' : 's'}
+              {storageInfo && storageInfo.usage > 0
+                ? ` · ${formatBytes(storageInfo.usage)} used`
+                : ''}
+              {storageInfo && !storageInfo.persisted
+                ? ' · (may be evicted under storage pressure — add to Home Screen)'
+                : ''}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <Button
+              onClick={() => deviceSongs.length && play(deviceSongs[0], deviceSongs, 'library')}
+            >
+              <Play className="w-4 h-4 fill-current" /> Play
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (deviceSongs.length === 0) return;
+                const shuffled = [...deviceSongs].sort(() => Math.random() - 0.5);
+                play(shuffled[0], shuffled, 'library');
+              }}
+            >
+              <Shuffle className="w-4 h-4" /> Shuffle
+            </Button>
+          </div>
+          <div className="space-y-0.5">
+            {deviceSongs.map((song, i) => (
+              <SongRow
+                key={song.id}
+                song={song}
+                index={i}
+                showIndex
+                songs={deviceSongs}
+                source="library"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Uploaded audio files (Supabase) */}
       <div className="p-6 lg:p-8 pt-4 space-y-4">
+        {deviceSongs.length > 0 && songs.length > 0 && (
+          <div className="flex items-center gap-2 mb-1">
+            <HardDriveDownload className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Uploaded files</h2>
+          </div>
+        )}
         {!loading && songs.length > 0 && (
           <div className="flex items-center justify-end gap-1">
             <button
@@ -151,11 +256,11 @@ export default function DownloadsPage() {
               ))}
             </div>
           )
-        ) : songs.length === 0 ? (
+        ) : songs.length === 0 && deviceSongs.length === 0 ? (
           <EmptyState
             icon={Music}
             title="No downloads yet"
-            description="Upload audio files on the Upload page — they show up here and play in the background on your phone."
+            description="Tap the 3-dot menu on any YouTube song and choose 'Download to device', or upload audio on the Upload page. Both play in the background on your phone."
           />
         ) : view === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
