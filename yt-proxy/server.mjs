@@ -102,6 +102,59 @@ app.get('/search', async (req, res) => {
   }
 });
 
+// Pull YouTube's "Mix / Radio" — the algorithm-generated autoplay queue
+// you see when you click a song on youtube.com. yt-dlp extracts the
+// playlist with id `RD<videoId>` which is literally the same list YouTube
+// would feed you on autoplay. We return up to 20 items; the AudioPlayer
+// can append a subset to the queue as the user listens.
+app.get('/recommend/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+  const auth = req.headers.authorization || '';
+  const secret = req.query.s || '';
+  const ok = auth === `Bearer ${SHARED_SECRET}` || secret === SHARED_SECRET;
+  if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    return res.status(400).json({ error: 'Invalid videoId' });
+  }
+
+  try {
+    const mixUrl = `https://www.youtube.com/watch?v=${videoId}&list=RD${videoId}`;
+    const { stdout } = await exec(
+      YTDLP_PATH,
+      [
+        mixUrl,
+        '--flat-playlist',
+        '--dump-single-json',
+        '--no-warnings',
+        '--skip-download',
+        '--playlist-end', '25',
+      ],
+      { timeout: 20000, maxBuffer: 1024 * 1024 * 4 },
+    );
+
+    const data = JSON.parse(stdout);
+    const entries = data?.entries || [];
+
+    const items = entries
+      .filter((e) => e?.id && e.id !== videoId)
+      .slice(0, 20)
+      .map((e) => ({
+        videoId: e.id,
+        title: e.title || 'Untitled',
+        channel: e.channel || e.uploader || 'YouTube',
+        thumbnail:
+          e.thumbnails?.find?.((t) => t.url)?.url ||
+          `https://i.ytimg.com/vi/${e.id}/hqdefault.jpg`,
+      }));
+
+    return res.json({ items });
+  } catch (e) {
+    console.error('recommend failed:', e?.message || e);
+    return res.status(502).json({ error: e?.message || String(e) });
+  }
+});
+
 async function resolveAudioUrl(videoId) {
   const cached = urlCache.get(videoId);
   if (cached && cached.expiresAt > Date.now()) return cached.url;

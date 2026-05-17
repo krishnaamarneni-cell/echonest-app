@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, LogOut, Save, Lock, Unlock, UserPlus, Smartphone } from 'lucide-react';
+import { User, LogOut, Save, Lock, Unlock, UserPlus, Smartphone, Sparkles } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useOwnerMode } from '@/store/ownerMode';
 import { useBackgroundMode } from '@/store/backgroundMode';
+import { useAutoplay } from '@/store/autoplay';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
@@ -24,7 +25,9 @@ export default function SettingsPage() {
   const [ownerLoading, setOwnerLoading] = useState(false);
   const [showOwnerForm, setShowOwnerForm] = useState(false);
   const { enabled: bgEnabled, hydrate: hydrateBg, toggle: toggleBg } = useBackgroundMode();
+  const { enabled: autoplayEnabled, hydrate: hydrateAutoplay, toggle: toggleAutoplay } = useAutoplay();
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
+  useEffect(() => { hydrateAutoplay(); }, [hydrateAutoplay]);
 
   useEffect(() => {
     hydrate();
@@ -157,6 +160,7 @@ export default function SettingsPage() {
         </section>
 
         <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
+        <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
 
         <section className="space-y-3 pt-2">
           <h2 className="text-base font-semibold text-muted-foreground">About</h2>
@@ -218,6 +222,7 @@ export default function SettingsPage() {
 
       {/* Background mode toggle — controls YouTube player so iOS PiP works */}
       <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
+      <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -371,6 +376,50 @@ function BackgroundModeToggle({
       <p className="text-[10px] text-muted">
         On other devices this just shows YouTube&apos;s native player controls in
         the mini-player.
+      </p>
+    </section>
+  );
+}
+
+function AutoplayToggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-pink-500/20">
+          <Sparkles className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold">Autoplay similar songs</h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            When you listen to a YouTube song and the queue is running short,
+            pulls in 10 algorithmic picks from YouTube&apos;s &quot;Mix&quot;
+            (the same engine that decides &quot;Up Next&quot; on youtube.com).
+            Like Spotify&apos;s Smart Shuffle — you never run out of music.
+          </p>
+        </div>
+        <button
+          onClick={onToggle}
+          role="switch"
+          aria-checked={enabled}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+            enabled ? 'bg-accent' : 'bg-card-hover'
+          }`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+              enabled ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+      <p className="text-[10px] text-muted">
+        Needs the proxy running — same one used for background play.
       </p>
     </section>
   );

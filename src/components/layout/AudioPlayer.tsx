@@ -26,8 +26,10 @@ import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useOfflineStore } from '@/store/offline';
+import { useAutoplay } from '@/store/autoplay';
 import { Menu } from '@/components/ui/Menu';
 import { YouTubeView } from './YouTubeView';
+import { fetchRecommendations, videosToQueueItems } from '@/lib/autoplayQueue';
 
 function SpeedButton({
   playbackRate,
@@ -344,6 +346,35 @@ export function AudioPlayer() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueIndex, currentSong?.id, bgMode, proxyConfigured]);
+
+  // Autoplay: when the user is on a YouTube song and the queue has <=2
+  // more items after the current one, pull YouTube's Mix (algorithmic
+  // radio) for the current song and append a few recommendations.
+  // Refs let the effect see the latest values without re-running on every
+  // tick of progress.
+  const autoplayEnabled = useAutoplay((s) => s.enabled);
+  const autoplayFetchedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoplayEnabled) return;
+    if (!currentSong?.youtube_id) return;
+    if (currentSong.source !== 'youtube_embed') return;
+    if (currentSong.youtube_kind === 'playlist') return;
+    // Already filled for this song? Skip — wait for next song.
+    if (autoplayFetchedFor.current === currentSong.youtube_id) return;
+
+    const remaining = queue.length - queueIndex - 1;
+    if (remaining > 2) return; // queue still has plenty — don't bother
+
+    autoplayFetchedFor.current = currentSong.youtube_id;
+    fetchRecommendations(currentSong.youtube_id).then((videos) => {
+      if (videos.length === 0) return;
+      const state = usePlayerStore.getState();
+      const inQueue = new Set(state.queue.map((q) => q.song.id));
+      const items = videosToQueueItems(videos, inQueue).slice(0, 10);
+      if (items.length === 0) return;
+      usePlayerStore.setState({ queue: [...state.queue, ...items] });
+    });
+  }, [autoplayEnabled, currentSong?.youtube_id, currentSong?.source, currentSong?.youtube_kind, queue.length, queueIndex]);
 
   // Surface the mini-player ONCE per new YouTube track when background mode
   // is on — so the user can reach native iOS controls. Tracked by a ref of
