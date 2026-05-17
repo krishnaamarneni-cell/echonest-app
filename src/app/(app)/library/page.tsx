@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fillPlaylistCovers } from '@/lib/playlistQueue';
-import { importArtistsBulk, ImportResult } from '@/lib/importArtistSongs';
+import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } from '@/lib/importArtistSongs';
 import { Button } from '@/components/ui/Button';
 
 const SONGS_PER_PAGE = 8;
@@ -30,6 +30,35 @@ export default function LibraryPage() {
   const [songsView, setSongsView] = useState<'grid' | 'list'>('grid');
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
+  const [importingAlbums, setImportingAlbums] = useState(false);
+  const [albumProgress, setAlbumProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
+
+  const handlePullForAllAlbums = async () => {
+    if (importingAlbums || albums.length === 0) return;
+    if (!confirm(`Search YouTube for top 20 tracks of each of ${albums.length} albums and add them to your library? This may take a few minutes.`)) {
+      return;
+    }
+    setImportingAlbums(true);
+    setAlbumProgress({ done: 0, total: albums.length, added: 0, failed: 0 });
+    const results: AlbumImportResult[] = await importAlbumsBulk(albums, 20, (done, total, last) => {
+      setAlbumProgress((prev) => {
+        const base = prev || { done: 0, total, added: 0, failed: 0 };
+        return {
+          done,
+          total,
+          added: base.added + last.added,
+          failed: base.failed + (last.error ? 1 : 0),
+        };
+      });
+    });
+    setImportingAlbums(false);
+    const totalAdded = results.reduce((a, r) => a + r.added, 0);
+    const totalFailed = results.filter((r) => r.error).length;
+    alert(`Done. Added ${totalAdded} song${totalAdded === 1 ? '' : 's'} across ${albums.length} albums. ${totalFailed} failed.`);
+    // Force a re-fetch
+    setTab('songs');
+    setTimeout(() => setTab('albums'), 50);
+  };
 
   const handlePullForAllArtists = async () => {
     if (importing || artists.length === 0) return;
@@ -179,10 +208,10 @@ export default function LibraryPage() {
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'songs', label: 'Songs', icon: Music },
+    { id: 'playlists', label: 'Playlists', icon: ListMusic },
     { id: 'podcasts', label: 'Podcasts', icon: Mic },
     { id: 'albums', label: 'Albums', icon: Disc3 },
     { id: 'artists', label: 'Artists', icon: Mic2 },
-    { id: 'playlists', label: 'Playlists', icon: ListMusic },
   ];
 
   return (
@@ -350,16 +379,44 @@ export default function LibraryPage() {
 
           {tab === 'albums' && (
             albums.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {albums.map((album) => (
-                  <MediaCard
-                    key={album.id}
-                    title={album.title}
-                    subtitle={album.artist_name}
-                    imageUrl={album.cover_url}
-                    href={`/album/${album.id}`}
-                  />
-                ))}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    {albums.length} album{albums.length === 1 ? '' : 's'}
+                    {albumProgress && importingAlbums && (
+                      <span className="ml-2 text-xs">
+                        · Importing {albumProgress.done}/{albumProgress.total} — {albumProgress.added} songs added so far
+                      </span>
+                    )}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={handlePullForAllAlbums}
+                    disabled={importingAlbums}
+                    title="For each album, search YouTube and add top 20 tracks to your library."
+                  >
+                    {importingAlbums ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Importing…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" /> Pull songs for all albums
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {albums.map((album) => (
+                    <MediaCard
+                      key={album.id}
+                      title={album.title}
+                      subtitle={album.artist_name}
+                      imageUrl={album.cover_url}
+                      href={`/album/${album.id}`}
+                    />
+                  ))}
+                </div>
               </div>
             ) : (
               <EmptyState icon={Disc3} title="No albums" description="Albums appear when you upload music with album info" />

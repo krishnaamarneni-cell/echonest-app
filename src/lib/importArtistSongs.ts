@@ -14,10 +14,17 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-import { Artist } from '@/types';
+import { Artist, Album } from '@/types';
 
 export interface ImportResult {
   artist: Artist;
+  added: number;
+  skipped: number;
+  error?: string;
+}
+
+export interface AlbumImportResult {
+  album: Album;
   added: number;
   skipped: number;
   error?: string;
@@ -124,6 +131,94 @@ export async function importArtistsBulk(
     const r = await importArtistSongs(artists[i], limit);
     results.push(r);
     onProgress?.(i + 1, artists.length, r);
+  }
+  return results;
+}
+
+/**
+ * Pull tracks for a specific album by searching "<artist> <album>" on YouTube.
+ *
+ * Same dedup logic as artists but scoped to the album: we won't re-add a
+ * youtube_id already linked to album_id. The added rows get artist_id and
+ * album_id set so they show up on both the album page and the artist page.
+ */
+export async function importAlbumSongs(
+  album: Album,
+  limit: number = 20,
+): Promise<AlbumImportResult> {
+  const supabase = createClient();
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { album, added: 0, skipped: 0, error: 'Not signed in' };
+    }
+
+    const { data: existingRows } = await supabase
+      .from('songs')
+      .select('youtube_id')
+      .eq('album_id', album.id)
+      .not('youtube_id', 'is', null);
+    const existing = new Set(
+      (existingRows || []).map((r: { youtube_id: string }) => r.youtube_id),
+    );
+
+    // Bias the search toward the album's tracks rather than random hits.
+    const query = `${album.artist_name} ${album.title}`.trim();
+    const candidates = await searchProxy(query);
+    const fresh = candidates
+      .filter((v) => !existing.has(v.videoId))
+      .slice(0, limit);
+
+    if (fresh.length === 0) {
+      return { album, added: 0, skipped: candidates.length };
+    }
+
+    const rows = fresh.map((v) => ({
+      user_id: user.id,
+      title: v.title,
+      artist_name: album.artist_name,
+      artist_id: album.artist_id, // may be null; that's OK
+      album_name: album.title,
+      album_id: album.id,
+      duration: 0,
+      file_url: '',
+      cover_url: v.thumbnail || album.cover_url,
+      source: 'youtube_embed' as const,
+      youtube_id: v.videoId,
+      youtube_kind: 'video' as const,
+      content_type: 'music' as const,
+    }));
+
+    const { error: insertError } = await supabase.from('songs').insert(rows);
+    if (insertError) {
+      return { album, added: 0, skipped: 0, error: insertError.message };
+    }
+
+    return {
+      album,
+      added: fresh.length,
+      skipped: candidates.length - fresh.length,
+    };
+  } catch (e) {
+    return {
+      album,
+      added: 0,
+      skipped: 0,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export async function importAlbumsBulk(
+  albums: Album[],
+  limit: number,
+  onProgress?: (done: number, total: number, last: AlbumImportResult) => void,
+): Promise<AlbumImportResult[]> {
+  const results: AlbumImportResult[] = [];
+  for (let i = 0; i < albums.length; i++) {
+    const r = await importAlbumSongs(albums[i], limit);
+    results.push(r);
+    onProgress?.(i + 1, albums.length, r);
   }
   return results;
 }

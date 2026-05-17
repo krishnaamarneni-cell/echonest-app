@@ -8,8 +8,9 @@ import { SongRow } from '@/components/ui/SongRow';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, Disc3, ArrowLeft } from 'lucide-react';
+import { Play, Shuffle, Disc3, ArrowLeft, Plus, Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { importAlbumSongs } from '@/lib/importArtistSongs';
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,7 +18,27 @@ export default function AlbumDetailPage() {
   const [album, setAlbum] = useState<Album | null>(null);
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const play = usePlayerStore((s) => s.play);
+
+  const handlePullSongs = async () => {
+    if (!album || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    const r = await importAlbumSongs(album, 20);
+    setImporting(false);
+    if (r.error) {
+      setImportResult(`Failed: ${r.error}`);
+    } else if (r.added > 0) {
+      setImportResult(`Added ${r.added} song${r.added === 1 ? '' : 's'}`);
+      const supabase = createClient();
+      const { data } = await supabase.from('songs').select('*').eq('album_id', album.id).order('track_number');
+      if (data) setSongs(data);
+    } else {
+      setImportResult('No new songs found (all top results already in album)');
+    }
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -60,7 +81,7 @@ export default function AlbumDetailPage() {
             {album?.year && <p className="text-sm text-muted mt-1">{album.year}</p>}
             <p className="text-sm text-muted mt-1">{songs.length} songs</p>
 
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex flex-wrap items-center gap-3 mt-4">
               <Button onClick={() => songs.length > 0 && play(songs[0], songs, 'album')} disabled={songs.length === 0}>
                 <Play className="w-4 h-4 fill-current" /> Play
               </Button>
@@ -72,7 +93,28 @@ export default function AlbumDetailPage() {
               }} disabled={songs.length === 0}>
                 <Shuffle className="w-4 h-4" /> Shuffle
               </Button>
+              {album && (
+                <Button
+                  variant="secondary"
+                  onClick={handlePullSongs}
+                  disabled={importing}
+                  title="Search YouTube for this album and add its top 20 tracks"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Pulling…
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" /> Pull top 20 from YouTube
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
+            {importResult && (
+              <p className="text-xs text-muted-foreground mt-2">{importResult}</p>
+            )}
           </div>
         </div>
       </div>
