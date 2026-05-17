@@ -22,7 +22,7 @@ import { useOwnerMode } from '@/store/ownerMode';
 
 const mainNav = [
   { label: 'Home', href: '/dashboard', icon: Home },
-  { label: 'Search', href: '/search', icon: Search },
+  { label: 'Explore', href: '/search', icon: Search },
   { label: 'Library', href: '/library', icon: Library },
   { label: 'Upload', href: '/upload', icon: Upload },
 ];

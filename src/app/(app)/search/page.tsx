@@ -7,10 +7,9 @@ import { SongRow } from '@/components/ui/SongRow';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { BrowseTile, pickGradient } from '@/components/ui/BrowseTile';
 import { usePlayerStore } from '@/store/player';
-import { Search as SearchIcon, X, Music, Play, TrendingUp, Eye, ThumbsUp, Loader2 } from 'lucide-react';
+import { Search as SearchIcon, X, Music, Play, TrendingUp, Loader2 } from 'lucide-react';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import Image from 'next/image';
-import { formatDuration } from '@/lib/utils';
 
 interface TrendingItem {
   videoId: string;
@@ -55,6 +54,7 @@ export default function SearchPage() {
   const [trending, setTrending] = useState<TrendingItem[]>([]);
   const [trendingLoading, setTrendingLoading] = useState(true);
   const [trendingError, setTrendingError] = useState<string | null>(null);
+  const [trendingExpanded, setTrendingExpanded] = useState(false);
 
   const play = usePlayerStore((s) => s.play);
 
@@ -63,7 +63,7 @@ export default function SearchPage() {
   useEffect(() => {
     let cancelled = false;
     setTrendingLoading(true);
-    fetch('/api/youtube-trending')
+    fetch('/api/youtube-trending?max=50')
       .then(async (r) => {
         const body = await r.json().catch(() => null);
         if (cancelled) return;
@@ -284,7 +284,7 @@ export default function SearchPage() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="What do you want to listen to?"
+            placeholder="Search songs, albums, artists, playlists"
             autoFocus
             className="w-full pl-12 pr-10 py-3 rounded-full bg-card border border-border text-foreground placeholder:text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 text-sm"
           />
@@ -303,23 +303,28 @@ export default function SearchPage() {
       {/* Empty state — trending then browse tiles */}
       {!query && (
         <div className="space-y-8">
-          {/* Trending on YouTube */}
+          {/* Trending on YouTube — YouTube-Music-style 3-column ranked list */}
           <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-accent" />
-              <h2 className="text-xl font-bold">Trending on YouTube</h2>
-              {trending.length > 0 && !trendingLoading && (
-                <span className="text-xs text-muted-foreground">
-                  · live stats from YouTube
-                </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-accent" />
+                <h2 className="text-2xl font-bold">Trending</h2>
+              </div>
+              {trending.length > 12 && !trendingLoading && !trendingError && (
+                <button
+                  onClick={() => setTrendingExpanded((v) => !v)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-full bg-card-hover hover:bg-card border border-border text-foreground transition-colors"
+                >
+                  {trendingExpanded ? 'Show less' : `Show all ${trending.length}`}
+                </button>
               )}
             </div>
             {trendingLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-2">
+                {Array.from({ length: 12 }).map((_, i) => (
                   <div
                     key={i}
-                    className="bg-card border border-border rounded-2xl p-3 animate-pulse h-24"
+                    className="h-12 animate-pulse bg-card rounded-lg"
                   />
                 ))}
               </div>
@@ -330,8 +335,8 @@ export default function SearchPage() {
             ) : trending.length === 0 ? (
               <p className="text-sm text-muted-foreground">No trending data right now.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {trending.map((v, idx) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-1">
+                {(trendingExpanded ? trending : trending.slice(0, 12)).map((v, idx) => (
                   <button
                     key={v.videoId}
                     onClick={() =>
@@ -343,43 +348,32 @@ export default function SearchPage() {
                       })
                     }
                     disabled={addingId === v.videoId}
-                    className="group relative flex items-center gap-3 bg-card hover:bg-card-hover border border-border rounded-2xl p-3 text-left transition-colors disabled:opacity-60"
+                    className="group flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-card-hover text-left transition-colors disabled:opacity-60"
                   >
-                    <span className="absolute top-2 left-2 z-10 bg-foreground text-background text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                      {idx + 1}
-                    </span>
-                    <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-card-hover flex-shrink-0">
+                    <div className="relative w-10 h-10 rounded-md overflow-hidden bg-card flex-shrink-0">
                       <Image
                         src={v.thumbnail}
                         alt={v.title}
-                        width={80}
-                        height={80}
+                        width={40}
+                        height={40}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
                         {addingId === v.videoId ? (
-                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                          <Loader2 className="w-4 h-4 text-white animate-spin" />
                         ) : (
-                          <Play className="w-6 h-6 text-white fill-current" />
+                          <Play className="w-4 h-4 text-white fill-current" />
                         )}
                       </div>
                     </div>
+                    <span className="text-sm text-muted-foreground tabular-nums w-6 text-right flex-shrink-0">
+                      {idx + 1}
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">{v.title}</p>
-                      <p className="text-xs text-muted-foreground truncate">{v.channel}</p>
-                      <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted">
-                        <span className="inline-flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          {compactNumber(v.viewCount)}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <ThumbsUp className="w-3 h-3" />
-                          {compactNumber(v.likeCount)}
-                        </span>
-                        {v.duration > 0 && (
-                          <span className="tabular-nums">{formatDuration(v.duration)}</span>
-                        )}
-                      </div>
+                      <p className="text-sm font-medium truncate">{v.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {v.channel} · {compactNumber(v.viewCount)} views
+                      </p>
                     </div>
                   </button>
                 ))}
