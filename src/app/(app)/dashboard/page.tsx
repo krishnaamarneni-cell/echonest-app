@@ -6,11 +6,15 @@ import { Song, Playlist, Album, Artist } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2 } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Search as SearchIcon, Play } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
+import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importPopularAlbumsBulk, POPULAR_ALBUMS, PopularAlbumResult } from '@/lib/popularAlbums';
 import { Button } from '@/components/ui/Button';
+import { usePlayerStore } from '@/store/player';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
 
@@ -29,6 +33,33 @@ export default function DashboardPage() {
   const [showInstallHint, setShowInstallHint] = useState(false);
   const [importingAlbums, setImportingAlbums] = useState(false);
   const [albumProgress, setAlbumProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
+  const [searchQ, setSearchQ] = useState('');
+  const router = useRouter();
+  const play = usePlayerStore((s) => s.play);
+
+  // Quick picks: a stable-per-session shuffle of music songs from the user's
+  // playlists. Same idea as YouTube Music's "Quick picks" — fresh-feeling
+  // suggestions you can tap straight into without thinking.
+  const quickPicks = useMemo(() => {
+    const pool = [...allPlaylistSongs, ...recentlyAdded].filter(
+      (s, i, arr) =>
+        arr.findIndex((x) => x.id === s.id) === i &&
+        s.content_type !== 'podcast',
+    );
+    // Fisher-Yates shuffle on a copy, then take top 12
+    const a = pool.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a.slice(0, 12);
+  }, [allPlaylistSongs, recentlyAdded]);
+
+  const goToSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQ.trim();
+    router.push(q ? `/search?q=${encodeURIComponent(q)}` : '/search');
+  };
 
   const handlePullPopularAlbums = async () => {
     if (importingAlbums) return;
@@ -224,11 +255,23 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-fade-in">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">{greeting()}</h1>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-          Here&apos;s what&apos;s playing in your world
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">{greeting()}</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+            Here&apos;s what&apos;s playing in your world
+          </p>
+        </div>
+        <form onSubmit={goToSearch} className="relative w-full sm:w-80">
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
+          <input
+            type="text"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="Search songs, albums, artists, playlists"
+            className="w-full pl-11 pr-4 py-2.5 rounded-full bg-card border border-border text-foreground placeholder:text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 text-sm"
+          />
+        </form>
       </div>
 
       {/* Tabs */}
@@ -296,7 +339,7 @@ export default function DashboardPage() {
           {/* Recently Played — pinned at the top per user preference */}
           {(loading || recentSongs.length > 0) && (
             <Section
-              title="Recently Played"
+              title="Listen again"
               icon={Clock}
               seeAllHref="/recent"
               loading={loading}
@@ -306,6 +349,60 @@ export default function DashboardPage() {
                 <SongCard key={song.id} song={song} songs={recentSongs} />
               ))}
             </Section>
+          )}
+
+          {/* Quick picks — YouTube-Music-style 3-column compact list of
+              shuffled songs from your library. New tap target on every
+              page reload, useful for "I don't know what to play" moments. */}
+          {quickPicks.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Quick picks</h2>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    quickPicks.length && play(quickPicks[0], quickPicks, 'library')
+                  }
+                >
+                  <Play className="w-4 h-4 fill-current" /> Play all
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-1">
+                {quickPicks.map((song) => (
+                  <button
+                    key={song.id}
+                    onClick={() => play(song, quickPicks, 'library')}
+                    className="group flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-card-hover text-left transition-colors"
+                  >
+                    <div className="relative w-10 h-10 rounded-md overflow-hidden bg-card flex-shrink-0">
+                      {song.cover_url ? (
+                        <Image
+                          src={song.cover_url}
+                          alt={song.title}
+                          width={40}
+                          height={40}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Music className="w-4 h-4 text-muted" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="w-4 h-4 text-white fill-current" />
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{song.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {song.artist_name}
+                        {song.album_name ? ` · ${song.album_name}` : ''}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
           )}
 
           {/* All songs from your playlists — preview only */}

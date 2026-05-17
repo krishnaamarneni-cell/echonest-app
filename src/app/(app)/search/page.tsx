@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Song, Album, Artist, Playlist } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
@@ -37,7 +38,11 @@ interface BrowseItem {
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = useState('');
+  // Accept an initial query from /search?q=... so dashboard search redirects
+  // and shareable search URLs both work.
+  const searchParams = useSearchParams();
+  const initialQ = searchParams?.get('q') || '';
+  const [query, setQuery] = useState(initialQ);
   const [songs, setSongs] = useState<Song[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
