@@ -10,8 +10,9 @@ import { MediaCard } from '@/components/ui/MediaCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, Mic2, ArrowLeft, List, LayoutGrid } from 'lucide-react';
+import { Play, Shuffle, Mic2, ArrowLeft, List, LayoutGrid, Plus, Loader2 } from 'lucide-react';
 import Image from 'next/image';
+import { importArtistSongs } from '@/lib/importArtistSongs';
 
 export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,7 +22,28 @@ export default function ArtistDetailPage() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const play = usePlayerStore((s) => s.play);
+
+  const handlePullSongs = async () => {
+    if (!artist || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    const r = await importArtistSongs(artist, 10);
+    setImporting(false);
+    if (r.error) {
+      setImportResult(`Failed: ${r.error}`);
+    } else if (r.added > 0) {
+      setImportResult(`Added ${r.added} song${r.added === 1 ? '' : 's'}`);
+      // Refresh the songs list so the new entries appear
+      const supabase = createClient();
+      const { data } = await supabase.from('songs').select('*').eq('artist_id', artist.id).order('title');
+      if (data) setSongs(data);
+    } else {
+      setImportResult('No new songs found (all top results already in library)');
+    }
+  };
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-artist-view') : null;
@@ -71,7 +93,7 @@ export default function ArtistDetailPage() {
             <h1 className="text-3xl lg:text-5xl font-bold mt-1">{artist?.name || 'Loading...'}</h1>
             <p className="text-sm text-muted mt-2">{songs.length} songs · {albums.length} albums</p>
 
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex flex-wrap items-center gap-3 mt-4">
               <Button onClick={() => songs.length > 0 && play(songs[0], songs, 'library')} disabled={songs.length === 0}>
                 <Play className="w-4 h-4 fill-current" /> Play all
               </Button>
@@ -83,7 +105,28 @@ export default function ArtistDetailPage() {
               }} disabled={songs.length === 0}>
                 <Shuffle className="w-4 h-4" /> Shuffle
               </Button>
+              {artist && (
+                <Button
+                  variant="secondary"
+                  onClick={handlePullSongs}
+                  disabled={importing}
+                  title="Search YouTube for this artist and add their top 10 songs to your library"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Pulling…
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" /> Pull top 10 from YouTube
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
+            {importResult && (
+              <p className="text-xs text-muted-foreground mt-2">{importResult}</p>
+            )}
           </div>
         </div>
       </div>
