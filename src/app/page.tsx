@@ -71,12 +71,21 @@ export default function LandingPage() {
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             {signedIn ? (
-              <Link
-                href="/dashboard"
-                className="px-4 sm:px-5 py-2 text-sm font-semibold bg-foreground text-background rounded-full hover:scale-[1.02] active:scale-[0.98] transition-transform"
-              >
-                Open library
-              </Link>
+              <>
+                <Link
+                  href="/signup"
+                  className="hidden sm:block px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  title="Create a separate private library"
+                >
+                  Sign up
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="px-4 sm:px-5 py-2 text-sm font-semibold bg-foreground text-background rounded-full hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                >
+                  Open library
+                </Link>
+              </>
             ) : (
               <>
                 <Link
