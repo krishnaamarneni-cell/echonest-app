@@ -128,27 +128,37 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
       let blob: Blob;
       if (total > 0) {
         // Chunked parallel download via Range. YouTube throttles each
-        // stream individually, so 4 concurrent ranges roughly quadruple
+        // stream individually, so concurrent ranges roughly multiply
         // throughput AND each chunk fits comfortably within Cloudflare's
-        // ~100s tunnel response timeout.
-        const CHUNK = 512 * 1024;
-        const CONCURRENCY = 4;
+        // ~100s tunnel response timeout. Bigger chunks = less HTTP overhead
+        // per byte but slower progress updates.
+        const CHUNK = 1024 * 1024; // 1 MB
+        const CONCURRENCY = 6;
         const total_ = total;
         const ranges: { start: number; end: number; idx: number }[] = [];
         for (let off = 0, idx = 0; off < total_; off += CHUNK, idx++) {
           ranges.push({ start: off, end: Math.min(off + CHUNK - 1, total_ - 1), idx });
         }
         const buffers: ArrayBuffer[] = new Array(ranges.length);
-        const completed = { count: 0 };
+        const startTime = Date.now();
+        let bytesFetched = 0;
 
         const fetchOne = async (r: { start: number; end: number; idx: number }) => {
           const resp = await fetch(url, { headers: { Range: `bytes=${r.start}-${r.end}` } });
           if (!resp.ok && resp.status !== 206) {
             throw new Error(`Chunk ${r.idx} returned ${resp.status}`);
           }
-          buffers[r.idx] = await resp.arrayBuffer();
-          completed.count++;
-          const pct = Math.min(99, Math.floor((completed.count / ranges.length) * 100));
+          const buf = await resp.arrayBuffer();
+          buffers[r.idx] = buf;
+          bytesFetched += buf.byteLength;
+          const pct = Math.min(99, Math.floor((bytesFetched / total_) * 100));
+          // Log rate so devs can diagnose slow tunnels — surfaces in the
+          // console as "Download abc... 45% @ 120 KB/s"
+          const elapsed = (Date.now() - startTime) / 1000;
+          const kbps = elapsed > 0 ? Math.round((bytesFetched / 1024) / elapsed) : 0;
+          if (typeof window !== 'undefined' && window.console) {
+            console.debug(`[download ${song.id}] ${pct}% @ ${kbps} KB/s`);
+          }
           set((s) => {
             const inProgress = new Map(s.inProgress);
             if (inProgress.has(song.id)) inProgress.set(song.id, pct);
