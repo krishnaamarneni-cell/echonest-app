@@ -7,9 +7,28 @@ import { SongRow } from '@/components/ui/SongRow';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { BrowseTile, pickGradient } from '@/components/ui/BrowseTile';
 import { usePlayerStore } from '@/store/player';
-import { Search as SearchIcon, X, Music, Play } from 'lucide-react';
+import { Search as SearchIcon, X, Music, Play, TrendingUp, Eye, ThumbsUp, Loader2 } from 'lucide-react';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import Image from 'next/image';
+import { formatDuration } from '@/lib/utils';
+
+interface TrendingItem {
+  videoId: string;
+  title: string;
+  channel: string;
+  thumbnail: string;
+  duration: number;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+}
+
+function compactNumber(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`;
+  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
+  return `${(n / 1_000_000_000).toFixed(1)}B`;
+}
 
 interface BrowseItem {
   title: string;
@@ -33,8 +52,38 @@ export default function SearchPage() {
   >([]);
   const [ytError, setYtError] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [trending, setTrending] = useState<TrendingItem[]>([]);
+  const [trendingLoading, setTrendingLoading] = useState(true);
+  const [trendingError, setTrendingError] = useState<string | null>(null);
 
   const play = usePlayerStore((s) => s.play);
+
+  // Pull "Trending → Music" from YouTube once on mount. Cached server-side
+  // for 1 hour, so this is essentially free on subsequent visits.
+  useEffect(() => {
+    let cancelled = false;
+    setTrendingLoading(true);
+    fetch('/api/youtube-trending')
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (cancelled) return;
+        if (r.ok && Array.isArray(body?.items)) {
+          setTrending(body.items);
+          setTrendingError(null);
+        } else {
+          setTrendingError(body?.error || `Couldn't load trending (${r.status})`);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setTrendingError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setTrendingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load playlist data + the user's playlists for the browse tiles
   useEffect(() => {
@@ -251,21 +300,107 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* Empty state — browse tiles */}
+      {/* Empty state — trending then browse tiles */}
       {!query && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold">Browse your music</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {browseItems.map((item) => (
-              <BrowseTile
-                key={item.href}
-                title={item.title}
-                href={item.href}
-                imageUrl={item.imageUrl}
-                gradient={item.gradient}
-              />
-            ))}
-          </div>
+        <div className="space-y-8">
+          {/* Trending on YouTube */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-accent" />
+              <h2 className="text-xl font-bold">Trending on YouTube</h2>
+              {trending.length > 0 && !trendingLoading && (
+                <span className="text-xs text-muted-foreground">
+                  · live stats from YouTube
+                </span>
+              )}
+            </div>
+            {trendingLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-card border border-border rounded-2xl p-3 animate-pulse h-24"
+                  />
+                ))}
+              </div>
+            ) : trendingError ? (
+              <p className="text-sm text-muted-foreground">
+                Couldn&apos;t load trending — {trendingError}
+              </p>
+            ) : trending.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No trending data right now.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {trending.map((v, idx) => (
+                  <button
+                    key={v.videoId}
+                    onClick={() =>
+                      playYoutubeResult({
+                        videoId: v.videoId,
+                        title: v.title,
+                        channel: v.channel,
+                        thumbnail: v.thumbnail,
+                      })
+                    }
+                    disabled={addingId === v.videoId}
+                    className="group relative flex items-center gap-3 bg-card hover:bg-card-hover border border-border rounded-2xl p-3 text-left transition-colors disabled:opacity-60"
+                  >
+                    <span className="absolute top-2 left-2 z-10 bg-foreground text-background text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-card-hover flex-shrink-0">
+                      <Image
+                        src={v.thumbnail}
+                        alt={v.title}
+                        width={80}
+                        height={80}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {addingId === v.videoId ? (
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        ) : (
+                          <Play className="w-6 h-6 text-white fill-current" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">{v.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{v.channel}</p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted">
+                        <span className="inline-flex items-center gap-1">
+                          <Eye className="w-3 h-3" />
+                          {compactNumber(v.viewCount)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <ThumbsUp className="w-3 h-3" />
+                          {compactNumber(v.likeCount)}
+                        </span>
+                        {v.duration > 0 && (
+                          <span className="tabular-nums">{formatDuration(v.duration)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-bold">Browse your music</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {browseItems.map((item) => (
+                <BrowseTile
+                  key={item.href}
+                  title={item.title}
+                  href={item.href}
+                  imageUrl={item.imageUrl}
+                  gradient={item.gradient}
+                />
+              ))}
+            </div>
+          </section>
         </div>
       )}
 
