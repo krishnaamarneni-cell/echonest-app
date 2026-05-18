@@ -8,7 +8,7 @@ import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useOwnerMode } from '@/store/ownerMode';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu } from './Menu';
 import { createClient } from '@/lib/supabase/client';
 
@@ -26,6 +26,13 @@ export function SongCard({ song, songs, onDeleted }: SongCardProps) {
   const isPlaylist = song.youtube_kind === 'playlist';
   const isLiked = likedIds.has(song.id);
   const canLike = song.source !== 'youtube_embed' || song.youtube_kind === 'video';
+
+  const ytFallback = song.youtube_id
+    ? `https://i.ytimg.com/vi/${song.youtube_id}/hqdefault.jpg`
+    : null;
+  const initialCover = song.cover_url || ytFallback;
+  const [coverSrc, setCoverSrc] = useState<string | null>(initialCover);
+  useEffect(() => { setCoverSrc(song.cover_url || ytFallback); }, [song.cover_url, ytFallback]);
 
   useEffect(() => { loadLikes(); }, [loadLikes]);
 
@@ -56,13 +63,20 @@ export function SongCard({ song, songs, onDeleted }: SongCardProps) {
   const cardContent = (
     <>
       <div className="relative aspect-square overflow-hidden rounded-xl bg-card">
-        {song.cover_url ? (
+        {coverSrc ? (
           <Image
-            src={song.cover_url}
+            src={coverSrc}
             alt={song.title}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
             className="object-cover transition-transform duration-300 group-hover:scale-105"
+            onError={() => {
+              if (coverSrc !== ytFallback && ytFallback) {
+                setCoverSrc(ytFallback);
+              } else {
+                setCoverSrc(null);
+              }
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
