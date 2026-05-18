@@ -12,13 +12,31 @@ import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { Heart, Play, Shuffle, LayoutGrid, List } from 'lucide-react';
+import { SortMenu } from '@/components/ui/SortMenu';
+import { sortSongs, SortKey } from '@/lib/songSort';
 
 export default function LikedSongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
+  const [sortKey, setSortKey] = useState<SortKey>('date_added_desc');
   const play = usePlayerStore((s) => s.play);
   const likedIds = useLikesStore((s) => s.likedIds);
+
+  // Persist sort choice
+  useEffect(() => {
+    const saved =
+      typeof window !== 'undefined'
+        ? (localStorage.getItem('echonest-liked-sort') as SortKey | null)
+        : null;
+    if (saved) setSortKey(saved);
+  }, []);
+  const setSortKeyPersisted = (k: SortKey) => {
+    setSortKey(k);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('echonest-liked-sort', k);
+    }
+  };
 
   // Remember the user's preferred view across sessions.
   useEffect(() => {
@@ -53,8 +71,12 @@ export default function LikedSongsPage() {
     load();
   }, []);
 
-  // Reactively remove songs from the list when they're un-liked elsewhere
-  const visibleSongs = songs.filter((s) => likedIds.has(s.id));
+  // Reactively remove songs from the list when they're un-liked elsewhere,
+  // then sort according to the user's choice.
+  const visibleSongs = sortSongs(
+    songs.filter((s) => likedIds.has(s.id)),
+    sortKey,
+  );
 
   return (
     <div className="animate-fade-in">
@@ -94,7 +116,8 @@ export default function LikedSongsPage() {
 
       <div className="p-6 lg:p-8 pt-4 space-y-4">
         {!loading && visibleSongs.length > 0 && (
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-2">
+            <SortMenu value={sortKey} onChange={setSortKeyPersisted} />
             <button
               onClick={() => setViewMode('list')}
               aria-label="List view"

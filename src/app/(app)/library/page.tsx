@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 import { fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } from '@/lib/importArtistSongs';
 import { Button } from '@/components/ui/Button';
+import { SortMenu } from '@/components/ui/SortMenu';
+import { sortSongs, SortKey } from '@/lib/songSort';
 
 const SONGS_PER_PAGE = 8;
 
@@ -28,6 +30,20 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [songsPage, setSongsPage] = useState(0);
   const [songsView, setSongsView] = useState<'grid' | 'list'>('grid');
+  const [sortKey, setSortKey] = useState<SortKey>('date_added_desc');
+  useEffect(() => {
+    const saved =
+      typeof window !== 'undefined'
+        ? (localStorage.getItem('echonest-library-sort') as SortKey | null)
+        : null;
+    if (saved) setSortKey(saved);
+  }, []);
+  const setSortKeyPersisted = (k: SortKey) => {
+    setSortKey(k);
+    if (typeof window !== 'undefined')
+      localStorage.setItem('echonest-library-sort', k);
+    setSongsPage(0);
+  };
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
   const [importingAlbums, setImportingAlbums] = useState(false);
@@ -92,10 +108,11 @@ export default function LibraryPage() {
     setSongsPage(0);
   }, [tab]);
 
-  const songsTotalPages = Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE));
+  const sortedSongs = useMemo(() => sortSongs(songs, sortKey), [songs, sortKey]);
+  const songsTotalPages = Math.max(1, Math.ceil(sortedSongs.length / SONGS_PER_PAGE));
   const pagedSongs = useMemo(
-    () => songs.slice(songsPage * SONGS_PER_PAGE, (songsPage + 1) * SONGS_PER_PAGE),
-    [songs, songsPage],
+    () => sortedSongs.slice(songsPage * SONGS_PER_PAGE, (songsPage + 1) * SONGS_PER_PAGE),
+    [sortedSongs, songsPage],
   );
 
   useEffect(() => {
@@ -265,6 +282,8 @@ export default function LibraryPage() {
                     </span>{' '}
                     of <span className="text-foreground font-medium">{songs.length}</span> songs
                   </p>
+                  <div className="flex items-center gap-2">
+                    <SortMenu value={sortKey} onChange={setSortKeyPersisted} />
                   <div className="flex gap-1 bg-card border border-border rounded-full p-1">
                     <button
                       onClick={() => setSongsView('grid')}
@@ -290,6 +309,7 @@ export default function LibraryPage() {
                       <List className="w-3 h-3" />
                       List
                     </button>
+                  </div>
                   </div>
                 </div>
 
