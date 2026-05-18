@@ -214,6 +214,16 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Sign out — lets the current user (public account or a real
+            account that hasn't unlocked owner mode) drop the session and
+            land on the manual login form to switch accounts. */}
+        <section className="pt-4 border-t border-border">
+          <Button variant="danger" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </Button>
+        </section>
       </div>
     );
   }
