@@ -32,6 +32,7 @@ import { Menu } from '@/components/ui/Menu';
 import { QueueSheet } from './QueueSheet';
 import { Gauge } from 'lucide-react';
 import { LyricsPanel } from '@/components/ui/LyricsPanel';
+import { coverFor } from '@/lib/coverFor';
 
 export function NowPlayingScreen() {
   const {
@@ -316,11 +317,11 @@ export function NowPlayingScreen() {
       }}
     >
       {/* Background gradient blur */}
-      {currentSong.cover_url && (
+      {coverFor(currentSong) && (
         <div
           className="absolute inset-0 -z-10 opacity-40"
           style={{
-            backgroundImage: `url(${currentSong.cover_url})`,
+            backgroundImage: `url(${coverFor(currentSong)})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             filter: 'blur(80px)',
@@ -441,9 +442,9 @@ export function NowPlayingScreen() {
                   className="absolute top-0 w-full aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl"
                   style={{ right: 'calc(100% + 16px)' }}
                 >
-                  {nextSongInQueue.cover_url ? (
+                  {coverFor(nextSongInQueue) ? (
                     <Image
-                      src={nextSongInQueue.cover_url}
+                      src={coverFor(nextSongInQueue)!}
                       alt={nextSongInQueue.title}
                       width={400}
                       height={400}
@@ -470,9 +471,9 @@ export function NowPlayingScreen() {
                     className="w-full h-full"
                     allow="autoplay; encrypted-media; picture-in-picture"
                   />
-                ) : currentSong.cover_url ? (
+                ) : coverFor(currentSong) ? (
                   <Image
-                    src={currentSong.cover_url}
+                    src={coverFor(currentSong)!}
                     alt={currentSong.title}
                     width={400}
                     height={400}
@@ -547,9 +548,9 @@ export function NowPlayingScreen() {
                   className="absolute top-0 w-full aspect-square rounded-2xl bg-card overflow-hidden shadow-2xl"
                   style={{ left: 'calc(100% + 16px)' }}
                 >
-                  {prevSongInQueue.cover_url ? (
+                  {coverFor(prevSongInQueue) ? (
                     <Image
-                      src={prevSongInQueue.cover_url}
+                      src={coverFor(prevSongInQueue)!}
                       alt={prevSongInQueue.title}
                       width={400}
                       height={400}
@@ -723,9 +724,9 @@ export function NowPlayingScreen() {
                   className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-card-hover transition-colors text-left"
                 >
                   <div className="w-10 h-10 rounded-md bg-card overflow-hidden flex-shrink-0">
-                    {item.song.cover_url ? (
+                    {coverFor(item.song) ? (
                       <Image
-                        src={item.song.cover_url}
+                        src={coverFor(item.song)!}
                         alt={item.song.title}
                         width={40}
                         height={40}

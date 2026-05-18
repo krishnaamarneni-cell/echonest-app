@@ -12,6 +12,7 @@ import { Menu } from './Menu';
 import { createClient } from '@/lib/supabase/client';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useOwnerMode } from '@/store/ownerMode';
+import { coverFor } from '@/lib/coverFor';
 
 interface SongRowProps {
   song: Song;
@@ -123,9 +124,9 @@ export function SongRow({
           </span>
         ) : (
           <div className="w-10 h-10 rounded-md bg-card overflow-hidden flex-shrink-0">
-            {song.cover_url ? (
+            {coverFor(song) ? (
               <Image
-                src={song.cover_url}
+                src={coverFor(song)!}
                 alt={song.title}
                 width={40}
                 height={40}

@@ -5,6 +5,7 @@ import { usePlayerStore } from '@/store/player';
 import { ChevronDown, Music, X, ListMusic } from 'lucide-react';
 import Image from 'next/image';
 import { SortableSongList } from '@/components/ui/SortableSongList';
+import { coverFor } from '@/lib/coverFor';
 
 interface QueueSheetProps {
   open: boolean;
@@ -111,9 +112,9 @@ export function QueueSheet({ open, onClose }: QueueSheetProps) {
         {currentSong && (
           <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-accent-muted/30 flex-shrink-0">
             <div className="w-10 h-10 rounded-md bg-background overflow-hidden flex-shrink-0">
-              {currentSong.cover_url ? (
+              {coverFor(currentSong) ? (
                 <Image
-                  src={currentSong.cover_url}
+                  src={coverFor(currentSong)!}
                   alt={currentSong.title}
                   width={40}
                   height={40}
@@ -168,9 +169,9 @@ export function QueueSheet({ open, onClose }: QueueSheetProps) {
                     className="flex items-center gap-3 flex-1 min-w-0 text-left"
                   >
                     <div className="w-10 h-10 rounded-md bg-background overflow-hidden flex-shrink-0">
-                      {item.song.cover_url ? (
+                      {coverFor(item.song) ? (
                         <Image
-                          src={item.song.cover_url}
+                          src={coverFor(item.song)!}
                           alt={item.song.title}
                           width={40}
                           height={40}

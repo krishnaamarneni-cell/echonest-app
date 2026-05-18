@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Song } from '@/types';
+import { coverFor } from '@/lib/coverFor';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
@@ -565,15 +566,16 @@ export function AudioPlayer() {
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !currentSong) return;
 
+    const lockscreenArt = coverFor(currentSong);
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentSong.title,
       artist: currentSong.artist_name,
       album: currentSong.album_name || 'EchoNest',
-      artwork: currentSong.cover_url
+      artwork: lockscreenArt
         ? [
-            { src: currentSong.cover_url, sizes: '96x96', type: 'image/jpeg' },
-            { src: currentSong.cover_url, sizes: '192x192', type: 'image/jpeg' },
-            { src: currentSong.cover_url, sizes: '512x512', type: 'image/jpeg' },
+            { src: lockscreenArt, sizes: '96x96', type: 'image/jpeg' },
+            { src: lockscreenArt, sizes: '192x192', type: 'image/jpeg' },
+            { src: lockscreenArt, sizes: '512x512', type: 'image/jpeg' },
           ]
         : [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
     });
@@ -854,11 +856,12 @@ export function AudioPlayer() {
     try {
       if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'playing';
+        const nextArt = coverFor(nextSong);
         navigator.mediaSession.metadata = new MediaMetadata({
           title: nextSong.title,
           artist: nextSong.artist_name || '',
-          artwork: nextSong.cover_url
-            ? [{ src: nextSong.cover_url, sizes: '512x512', type: 'image/jpeg' }]
+          artwork: nextArt
+            ? [{ src: nextArt, sizes: '512x512', type: 'image/jpeg' }]
             : [],
         });
       }
@@ -1017,9 +1020,9 @@ export function AudioPlayer() {
               aria-label="Open now playing"
             >
               <div className="w-12 h-12 rounded-lg bg-card overflow-hidden flex-shrink-0 relative">
-                {currentSong.cover_url ? (
+                {coverFor(currentSong) ? (
                   <Image
-                    src={currentSong.cover_url}
+                    src={coverFor(currentSong)!}
                     alt={currentSong.title}
                     width={48}
                     height={48}
