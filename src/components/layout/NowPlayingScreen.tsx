@@ -23,6 +23,7 @@ import {
   Video,
   Image as ImageIcon,
   Users,
+  MicVocal,
 } from 'lucide-react';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useListenAlong } from '@/store/listenAlong';
@@ -30,6 +31,7 @@ import Image from 'next/image';
 import { Menu } from '@/components/ui/Menu';
 import { QueueSheet } from './QueueSheet';
 import { Gauge } from 'lucide-react';
+import { LyricsPanel } from '@/components/ui/LyricsPanel';
 
 export function NowPlayingScreen() {
   const {
@@ -88,6 +90,7 @@ export function NowPlayingScreen() {
   // iframe steals the audio session and background play breaks.
   const bgMode = useBackgroundMode((s) => s.enabled);
   const [showInlineVideo, setShowInlineVideo] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
   const joinRoom = useListenAlong((s) => s.joinRoom);
   const leaveRoom = useListenAlong((s) => s.leaveRoom);
   const activeRoomCode = useListenAlong((s) => s.roomCode);
@@ -133,7 +136,10 @@ export function NowPlayingScreen() {
   };
 
   // Reset video mode whenever we close the screen or change song
-  useEffect(() => { setShowInlineVideo(false); }, [currentSong?.id, isNowPlayingOpen]);
+  useEffect(() => {
+    setShowInlineVideo(false);
+    setShowLyrics(false);
+  }, [currentSong?.id, isNowPlayingOpen]);
 
   // Force video off before iOS backgrounds the page — keeps audio session
   // with the <audio> element so background play survives.
@@ -452,9 +458,11 @@ export function NowPlayingScreen() {
                 </div>
               )}
 
-              {/* Current song — cover art, OR inline YouTube video when toggled */}
+              {/* Current song — cover art, inline YouTube video, OR lyrics */}
               <div className="relative w-full aspect-square rounded-2xl bg-black overflow-hidden shadow-2xl">
-                {showInlineVideo && currentSong.youtube_id ? (
+                {showLyrics ? (
+                  <LyricsPanel />
+                ) : showInlineVideo && currentSong.youtube_id ? (
                   <iframe
                     key={currentSong.youtube_id}
                     src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1`}
@@ -478,29 +486,59 @@ export function NowPlayingScreen() {
                   </div>
                 )}
 
-                {offerVideoToggle && (
+                {/* Bottom-right toggle cluster: Lyrics + (optionally) Watch video */}
+                <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowInlineVideo((v) => !v);
+                      setShowLyrics((v) => !v);
+                      if (!showLyrics) setShowInlineVideo(false);
                     }}
-                    className="absolute bottom-2 right-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-medium inline-flex items-center gap-1.5 hover:bg-black/80 transition-colors"
-                    aria-label={showInlineVideo ? 'Hide video' : 'Watch video'}
+                    className={`px-3 py-1.5 rounded-full backdrop-blur-md text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
+                      showLyrics
+                        ? 'bg-white/90 text-black hover:bg-white'
+                        : 'bg-black/60 text-white hover:bg-black/80'
+                    }`}
+                    aria-label={showLyrics ? 'Hide lyrics' : 'Show lyrics'}
                   >
-                    {showInlineVideo ? (
+                    {showLyrics ? (
                       <>
                         <ImageIcon className="w-3.5 h-3.5" />
                         Cover
                       </>
                     ) : (
                       <>
-                        <Video className="w-3.5 h-3.5" />
-                        Watch video
+                        <MicVocal className="w-3.5 h-3.5" />
+                        Lyrics
                       </>
                     )}
                   </button>
-                )}
+
+                  {offerVideoToggle && !showLyrics && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowInlineVideo((v) => !v);
+                      }}
+                      className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-medium inline-flex items-center gap-1.5 hover:bg-black/80 transition-colors"
+                      aria-label={showInlineVideo ? 'Hide video' : 'Watch video'}
+                    >
+                      {showInlineVideo ? (
+                        <>
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          Cover
+                        </>
+                      ) : (
+                        <>
+                          <Video className="w-3.5 h-3.5" />
+                          Watch video
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Previous song (positioned RIGHT — swipe left reveals it = goes PREVIOUS) */}
