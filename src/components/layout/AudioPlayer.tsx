@@ -27,7 +27,9 @@ import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useOfflineStore } from '@/store/offline';
 import { useAutoplay } from '@/store/autoplay';
+import { useSleepTimer } from '@/store/sleepTimer';
 import { Menu } from '@/components/ui/Menu';
+import { SleepTimerMenu } from '@/components/ui/SleepTimerMenu';
 import { YouTubeView } from './YouTubeView';
 import { fetchRecommendations, videosToQueueItems } from '@/lib/autoplayQueue';
 
@@ -797,6 +799,15 @@ export function AudioPlayer() {
   }, [currentSong?.id, isYouTube, setDuration]);
 
   const handleEnded = useCallback(() => {
+    // Sleep timer's "When current song ends" mode: pause and stop now,
+    // BEFORE we try to advance to the next track.
+    const sleep = useSleepTimer.getState();
+    if (sleep.endOfTrack) {
+      sleep.cancel();
+      try { usePlayerStore.getState().pause(); } catch {}
+      return;
+    }
+
     if (repeat === 'one') {
       const audio = audioRef.current;
       if (audio) {
@@ -1110,6 +1121,7 @@ export function AudioPlayer() {
           </div>
 
           <div className="hidden lg:flex items-center gap-2 justify-end w-1/4">
+            <SleepTimerMenu />
             <SpeedButton playbackRate={playbackRate} setPlaybackRate={setPlaybackRate} />
             <button onClick={toggleMute} className="text-muted-foreground hover:text-foreground transition-colors">
               {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
