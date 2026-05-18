@@ -14,7 +14,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { importYouTubeLibrary, ImportProgress } from '@/lib/youtubeImport';
-import { Youtube, Loader2, CheckCircle2, AlertTriangle, Download, RefreshCw, Unlink } from 'lucide-react';
+import { Youtube, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Unlink } from 'lucide-react';
 
 const YT_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
