@@ -11,6 +11,7 @@ import { Logo } from '@/components/ui/Logo';
 import { useOwnerMode } from '@/store/ownerMode';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
+import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
@@ -161,6 +162,7 @@ export default function SettingsPage() {
 
         <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
         <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
+        <YouTubeImportPanel />
 
         <section className="space-y-3 pt-2">
           <h2 className="text-base font-semibold text-muted-foreground">About</h2>
