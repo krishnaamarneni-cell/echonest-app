@@ -456,9 +456,17 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Logo size="sm" />
           </div>
-          <p className="text-xs text-muted">
-            &copy; {new Date().getFullYear()} EchoNest · Built for music lovers
-          </p>
+          <div className="flex items-center gap-4 text-xs text-muted">
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">
+              Terms
+            </Link>
+            <span>
+              &copy; {new Date().getFullYear()} EchoNest · Built for music lovers
+            </span>
+          </div>
         </div>
       </footer>
     </div>
