@@ -225,6 +225,7 @@ export default function SettingsPage() {
       {/* Background mode toggle — controls YouTube player so iOS PiP works */}
       <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
       <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
+      <YouTubeImportPanel />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
