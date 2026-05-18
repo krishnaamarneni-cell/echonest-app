@@ -14,7 +14,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { importYouTubeLibrary, ImportProgress } from '@/lib/youtubeImport';
-import { Youtube, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Unlink } from 'lucide-react';
+import { Play, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Unlink } from 'lucide-react';
 
 const YT_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -255,7 +255,7 @@ export function YouTubeImportPanel() {
     <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-red-600/20">
-          <Youtube className="w-5 h-5 text-white" />
+          <Play className="w-5 h-5 text-white fill-current" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold">Import from YouTube</h2>
@@ -276,7 +276,7 @@ export function YouTubeImportPanel() {
               onClick={connect}
               className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-full text-xs font-semibold hover:bg-red-700 transition-colors"
             >
-              <Youtube className="w-3.5 h-3.5" /> Connect YouTube & Import
+              <Play className="w-3.5 h-3.5 fill-current" /> Connect YouTube & Import
             </button>
           )}
 
