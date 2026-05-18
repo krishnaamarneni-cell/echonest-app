@@ -10,6 +10,7 @@ import { useOwnerMode } from '@/store/ownerMode';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
+import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
@@ -90,6 +91,7 @@ export default function SettingsPage() {
       <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
       <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
       <YouTubeImportPanel />
+      <ShareInvitePanel />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
