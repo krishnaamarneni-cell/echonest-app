@@ -14,6 +14,7 @@ import {
   ListMusic,
   Music,
   ExternalLink,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -30,6 +31,7 @@ const mainNav = [
 const libraryNav = [
   { label: 'Liked Songs', href: '/liked', icon: Heart },
   { label: 'Recently Played', href: '/recent', icon: Music },
+  { label: 'Stats', href: '/stats', icon: BarChart3 },
   { label: 'YouTube Import', href: '/import', icon: ExternalLink },
 ];
 
