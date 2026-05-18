@@ -20,13 +20,28 @@ import {
   Copy,
   Check,
   MessageCircle,
-  Twitter,
   Linkedin,
   Facebook,
   Send,
   Mail,
   Instagram,
 } from 'lucide-react';
+
+// lucide-react dropped its `Twitter` glyph after the rebrand to X.
+// Inline the new X mark as a tiny SVG so we don't depend on a removed
+// export. Sized to match the other w-5 h-5 lucide icons used here.
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
 const SITE_URL = 'https://echonest-app.vercel.app';
 const INVITE_TEXT =
@@ -43,8 +58,8 @@ const SHARE_TARGETS = [
   },
   {
     id: 'twitter',
-    label: 'X / Twitter',
-    icon: Twitter,
+    label: 'X',
+    icon: XIcon,
     color: 'bg-neutral-900 hover:bg-neutral-800 border border-neutral-700',
     href: (text: string, url: string) =>
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
