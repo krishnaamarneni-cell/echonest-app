@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/ui/Logo';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
@@ -53,6 +54,15 @@ export default function SignupPage() {
           <p className="text-muted-foreground text-sm mt-1">
             Start building your music library
           </p>
+        </div>
+
+        <div className="space-y-3">
+          <GoogleSignInButton label="Sign up with Google" />
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
