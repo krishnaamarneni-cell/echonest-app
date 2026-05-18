@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '@/store/player';
 import { ChevronDown, Music, X, ListMusic } from 'lucide-react';
 import Image from 'next/image';
+import { SortableSongList } from '@/components/ui/SortableSongList';
 
 interface QueueSheetProps {
   open: boolean;
@@ -16,6 +17,7 @@ export function QueueSheet({ open, onClose }: QueueSheetProps) {
   const currentSong = usePlayerStore((s) => s.currentSong);
   const play = usePlayerStore((s) => s.play);
   const removeFromQueue = usePlayerStore((s) => s.removeFromQueue);
+  const reorderUpcoming = usePlayerStore((s) => s.reorderUpcoming);
 
   const touchStart = useRef<{ y: number } | null>(null);
   const [dragY, setDragY] = useState(0);
@@ -142,55 +144,61 @@ export function QueueSheet({ open, onClose }: QueueSheetProps) {
               </p>
             </div>
           ) : (
-            upcoming.map((item, i) => (
-              <div
-                key={item.id}
-                className="group flex items-center gap-3 px-4 py-2 hover:bg-card-hover transition-colors"
-              >
-                <span className="w-6 text-xs text-muted text-center flex-shrink-0">
-                  {i + 1}
-                </span>
-                <button
-                  onClick={() =>
-                    play(
-                      item.song,
-                      queue.map((q) => q.song),
-                      item.source as 'playlist' | 'album' | 'library',
-                    )
-                  }
-                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            <SortableSongList
+              items={upcoming}
+              onReorder={(newOrder) => reorderUpcoming(newOrder)}
+              renderItem={(item, i, { handle, isDragging }) => (
+                <div
+                  className={`group flex items-center gap-2 px-2 py-2 hover:bg-card-hover transition-colors ${
+                    isDragging ? 'bg-card-hover rounded-lg shadow-lg' : ''
+                  }`}
                 >
-                  <div className="w-10 h-10 rounded-md bg-background overflow-hidden flex-shrink-0">
-                    {item.song.cover_url ? (
-                      <Image
-                        src={item.song.cover_url}
-                        alt={item.song.title}
-                        width={40}
-                        height={40}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Music className="w-4 h-4 text-muted" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.song.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {item.song.artist_name}
-                    </p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => removeFromQueue(item.id)}
-                  className="w-8 h-8 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                  aria-label="Remove from queue"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))
+                  {handle}
+                  <span className="w-5 text-xs text-muted text-center flex-shrink-0">
+                    {i + 1}
+                  </span>
+                  <button
+                    onClick={() =>
+                      play(
+                        item.song,
+                        queue.map((q) => q.song),
+                        item.source as 'playlist' | 'album' | 'library',
+                      )
+                    }
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-md bg-background overflow-hidden flex-shrink-0">
+                      {item.song.cover_url ? (
+                        <Image
+                          src={item.song.cover_url}
+                          alt={item.song.title}
+                          width={40}
+                          height={40}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Music className="w-4 h-4 text-muted" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.song.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {item.song.artist_name}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => removeFromQueue(item.id)}
+                    className="w-8 h-8 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                    aria-label="Remove from queue"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            />
           )}
         </div>
       </div>

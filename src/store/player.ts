@@ -74,6 +74,7 @@ interface PlayerState {
   removeFromQueue: (id: string) => void;
   clearQueue: () => void;
   setIsPlaying: (v: boolean) => void;
+  reorderUpcoming: (newUpcoming: QueueItem[]) => void;
 }
 
 export const usePlayerStore = create<PlayerState>()(
@@ -211,6 +212,20 @@ export const usePlayerStore = create<PlayerState>()(
 
   clearQueue: () => set({ queue: [], queueIndex: -1 }),
   setIsPlaying: (v) => set({ isPlaying: v }),
+
+  /**
+   * Reorder the upcoming portion of the queue (everything after the
+   * currently-playing track). The history + current track are left in
+   * place so audio doesn't restart and the user's listening progress
+   * survives the drag.
+   */
+  reorderUpcoming: (newUpcoming: QueueItem[]) => {
+    if (isListenerLocked()) return;
+    const { queue, queueIndex } = get();
+    if (queueIndex < 0) return;
+    const head = queue.slice(0, queueIndex + 1);
+    set({ queue: [...head, ...newUpcoming] });
+  },
     }),
     {
       name: 'echonest-player',

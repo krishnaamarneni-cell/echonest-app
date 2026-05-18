@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Playlist, Song } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
+import { SortableSongList } from '@/components/ui/SortableSongList';
 import { SongCard } from '@/components/ui/SongCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -322,16 +323,70 @@ export default function PlaylistDetailPage() {
             </div>
           ) : (
             <div className="space-y-0.5">
-              {songs.map((song, i) => (
-                <SongRow
-                  key={song.id}
-                  song={song}
-                  index={i}
-                  showIndex
-                  songs={crossQueue.length > 0 ? crossQueue : songs}
-                  source="playlist"
+              {isOwner ? (
+                <SortableSongList
+                  items={songs}
+                  onReorder={async (newOrder) => {
+                    setSongs(newOrder);
+                    // Persist new positions to playlist_songs. RLS scopes
+                    // these updates to the owner of the playlist.
+                    const supabase = createClient();
+                    // Get the link rows for this playlist so we can update
+                    // each one's position to its new index.
+                    const { data: links } = await supabase
+                      .from('playlist_songs')
+                      .select('id, song_id, position')
+                      .eq('playlist_id', id);
+                    if (!links) return;
+                    const linkByPos = new Map<string, string>();
+                    for (const l of links as { id: string; song_id: string }[]) {
+                      linkByPos.set(l.song_id, l.id);
+                    }
+                    // Issue one update per link with the new position. Done
+                    // sequentially to avoid Supabase throttling on a long
+                    // playlist; still <100 ms for typical lengths.
+                    await Promise.all(
+                      newOrder.map((s, idx) => {
+                        const linkId = linkByPos.get(s.id);
+                        if (!linkId) return null;
+                        return supabase
+                          .from('playlist_songs')
+                          .update({ position: idx })
+                          .eq('id', linkId);
+                      }),
+                    );
+                  }}
+                  renderItem={(song, i, { handle, isDragging }) => (
+                    <div
+                      className={`flex items-center gap-1 ${
+                        isDragging ? 'bg-card-hover rounded-lg' : ''
+                      }`}
+                    >
+                      {handle}
+                      <div className="flex-1 min-w-0">
+                        <SongRow
+                          song={song}
+                          index={i}
+                          showIndex
+                          songs={crossQueue.length > 0 ? crossQueue : songs}
+                          source="playlist"
+                        />
+                      </div>
+                    </div>
+                  )}
                 />
-              ))}
+              ) : (
+                songs.map((song, i) => (
+                  <SongRow
+                    key={song.id}
+                    song={song}
+                    index={i}
+                    showIndex
+                    songs={crossQueue.length > 0 ? crossQueue : songs}
+                    source="playlist"
+                  />
+                ))
+              )}
             </div>
           )
         ) : (
