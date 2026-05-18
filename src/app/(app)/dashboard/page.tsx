@@ -732,13 +732,17 @@ function Section({
         </Link>
       </div>
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 [&>*]:flex-shrink-0 [&>*]:w-36 sm:[&>*]:w-44 md:[&>*]:w-48 lg:[&>*]:w-52 [scrollbar-width:thin]">
           {Array.from({ length: 6 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+        // Horizontal scroll instead of a wrapping grid so a section always
+        // stays a single row, matching YouTube Music's home layout. Negative
+        // margins extend the scrollable strip edge-to-edge of the viewport
+        // while keeping the section header aligned with the rest of the page.
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 [&>*]:flex-shrink-0 [&>*]:w-36 sm:[&>*]:w-44 md:[&>*]:w-48 lg:[&>*]:w-52 [scrollbar-width:thin]">
           {children}
         </div>
       )}
