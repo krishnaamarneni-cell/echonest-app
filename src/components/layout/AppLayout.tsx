@@ -32,17 +32,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (typeof window !== 'undefined' &&
-          localStorage.getItem('echonest-explicit-signout') === '1') {
-        // User opted out — bounce to /login so they don't sit in an
-        // unauthenticated app shell.
-        window.location.href = '/login?manual=1';
-        return;
-      }
+      // Check the live session FIRST. If the user has a real session
+      // (e.g. just signed in via Google), respect it and clear any
+      // stale "I signed out" flag — otherwise the next time they land
+      // here we'd bounce them to /login and they'd loop back via the
+      // OAuth callback in an endless refresh.
       const supabase = createClient();
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
-      if (data.session) return; // already signed in
+      if (data.session) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('echonest-explicit-signout');
+        }
+        return;
+      }
+
+      // No session. If the user previously explicitly signed out,
+      // honor that and send them to the manual sign-in form rather
+      // than silently logging them into the public account.
+      if (typeof window !== 'undefined' &&
+          localStorage.getItem('echonest-explicit-signout') === '1') {
+        window.location.href = '/login?manual=1';
+        return;
+      }
+
       try {
         const res = await fetch('/api/public-session', { method: 'POST' });
         if (res.ok && !cancelled) {
