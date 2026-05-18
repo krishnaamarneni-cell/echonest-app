@@ -4,19 +4,37 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Song } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
-import { SongRowSkeleton } from '@/components/ui/Skeleton';
+import { SongCard } from '@/components/ui/SongCard';
+import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
-import { Heart, Play, Shuffle } from 'lucide-react';
+import { Heart, Play, Shuffle, LayoutGrid, List } from 'lucide-react';
 
 export default function LikedSongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'grid'>('list');
   const play = usePlayerStore((s) => s.play);
   const likedIds = useLikesStore((s) => s.likedIds);
+
+  // Remember the user's preferred view across sessions.
+  useEffect(() => {
+    const saved =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('echonest-liked-view')
+        : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('echonest-liked-view', v);
+    }
+  };
 
   useEffect(() => {
     const supabase = createClient();
@@ -74,12 +92,60 @@ export default function LikedSongsPage() {
         </div>
       </div>
 
-      <div className="p-6 lg:p-8 pt-4">
-        {loading ? (
-          <div className="space-y-1">
-            {Array.from({ length: 8 }).map((_, i) => <SongRowSkeleton key={i} />)}
+      <div className="p-6 lg:p-8 pt-4 space-y-4">
+        {!loading && visibleSongs.length > 0 && (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => setViewMode('list')}
+              aria-label="List view"
+              title="List view"
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'list'
+                  ? 'bg-card text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              aria-label="Grid view"
+              title="Grid view"
+              className={`p-2 rounded-lg transition-colors ${
+                view === 'grid'
+                  ? 'bg-card text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-card'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
           </div>
-        ) : visibleSongs.length > 0 ? (
+        )}
+
+        {loading ? (
+          view === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {Array.from({ length: 8 }).map((_, i) => <CardSkeleton key={i} />)}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {Array.from({ length: 8 }).map((_, i) => <SongRowSkeleton key={i} />)}
+            </div>
+          )
+        ) : visibleSongs.length === 0 ? (
+          <EmptyState icon={Heart} title="No liked songs yet" description="Tap the heart icon on any song to add it here" />
+        ) : view === 'grid' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+            {visibleSongs.map((song) => (
+              <SongCard
+                key={song.id}
+                song={song}
+                songs={visibleSongs}
+                onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+              />
+            ))}
+          </div>
+        ) : (
           <div className="space-y-0.5">
             {visibleSongs.map((song, i) => (
               <SongRow
@@ -92,8 +158,6 @@ export default function LikedSongsPage() {
               />
             ))}
           </div>
-        ) : (
-          <EmptyState icon={Heart} title="No liked songs yet" description="Tap the heart icon on any song to add it here" />
         )}
       </div>
     </div>
