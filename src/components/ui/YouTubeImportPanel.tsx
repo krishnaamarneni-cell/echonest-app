@@ -115,8 +115,6 @@ export function YouTubeImportPanel() {
     // Refresh token is only present on the first OAuth callback; if we
     // already have a row from a previous flow we leave that refresh_token
     // alone. If neither is present we can't sync later.
-    // @ts-expect-error provider_refresh_token isn't in the public TS types
-    //  but Supabase populates it after Google OAuth with offline access.
     const refreshToken = session.provider_refresh_token as string | undefined;
     if (!accessToken) return;
     const expiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString(); // assume 1h, with safety
