@@ -9,7 +9,6 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Search as SearchIcon, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importPopularAlbumsBulk, POPULAR_ALBUMS, PopularAlbumResult } from '@/lib/popularAlbums';
@@ -37,23 +36,27 @@ export default function DashboardPage() {
   const router = useRouter();
   const play = usePlayerStore((s) => s.play);
 
-  // Quick picks: a stable-per-session shuffle of music songs from the user's
-  // playlists. Same idea as YouTube Music's "Quick picks" — fresh-feeling
-  // suggestions you can tap straight into without thinking.
-  const quickPicks = useMemo(() => {
+  // Quick picks: a stable shuffle of music songs from the user's playlists.
+  // We keep them in *state* (not useMemo) so they only reshuffle when the
+  // user reloads — re-renders from auth token rotation or sibling state
+  // changes don't cause songs to silently reorder under the user's cursor.
+  const [quickPicks, setQuickPicks] = useState<Song[]>([]);
+  useEffect(() => {
+    if (allPlaylistSongs.length === 0 && recentlyAdded.length === 0) return;
     const pool = [...allPlaylistSongs, ...recentlyAdded].filter(
       (s, i, arr) =>
         arr.findIndex((x) => x.id === s.id) === i &&
         s.content_type !== 'podcast',
     );
-    // Fisher-Yates shuffle on a copy, then take top 12
     const a = pool.slice();
     for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
     }
-    return a.slice(0, 12);
-  }, [allPlaylistSongs, recentlyAdded]);
+    setQuickPicks(a.slice(0, 12));
+    // Only depend on lengths so a new array reference with the same songs
+    // doesn't trigger a reshuffle.
+  }, [allPlaylistSongs.length, recentlyAdded.length]);
 
   const goToSearch = (e: React.FormEvent) => {
     e.preventDefault();
