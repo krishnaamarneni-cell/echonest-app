@@ -43,6 +43,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       if (data.session) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('echonest-explicit-signout');
+          // If this is an OAuth-based session (Google, etc.) the user is
+          // signed in as themselves, not the shared public account — they
+          // are the owner of their own library. Auto-unlock owner mode so
+          // they see their settings + profile instead of the public-visitor
+          // "Make it yours" view. We use app_metadata.provider which is
+          // populated by Supabase to either 'email' (password login or
+          // public auto-signin) or a real provider name like 'google'.
+          const provider = data.session.user?.app_metadata?.provider;
+          if (provider && provider !== 'email') {
+            localStorage.setItem('echonest-owner-mode', '1');
+          }
         }
         return;
       }
