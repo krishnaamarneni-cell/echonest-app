@@ -357,36 +357,38 @@ export default function DashboardPage() {
               cards are static metadata and the destination page fetches. */}
           <section className="space-y-3">
             <h2 className="text-2xl font-bold">Charts</h2>
-            <div className="flex gap-3 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3 sm:gap-4">
               {[
                 { region: 'IN', label: 'India', gradient: 'from-orange-500 via-rose-500 to-red-600', tag: 'DAILY' },
                 { region: 'US', label: 'United States', gradient: 'from-rose-500 via-pink-500 to-red-500', tag: 'DAILY' },
                 { region: 'GB', label: 'United Kingdom', gradient: 'from-blue-500 via-indigo-500 to-purple-600', tag: 'DAILY' },
                 { region: 'global', label: 'Global', gradient: 'from-violet-500 via-purple-500 to-fuchsia-600', tag: 'DAILY' },
                 { region: 'KR', label: 'South Korea', gradient: 'from-cyan-500 via-teal-500 to-emerald-600', tag: 'DAILY' },
+                { region: 'JP', label: 'Japan', gradient: 'from-pink-400 via-fuchsia-500 to-rose-600', tag: 'DAILY' },
+                { region: 'BR', label: 'Brazil', gradient: 'from-emerald-500 via-lime-500 to-yellow-500', tag: 'DAILY' },
               ].map((c) => (
                 <Link
                   key={c.region}
                   href={`/charts/${c.region}`}
-                  className="flex-shrink-0 w-40 group"
+                  className="group min-w-0"
                 >
                   <div
-                    className={`relative aspect-square rounded-2xl bg-gradient-to-br ${c.gradient} p-3 flex flex-col justify-between overflow-hidden shadow-lg group-hover:scale-[1.03] transition-transform`}
+                    className={`relative aspect-square rounded-2xl bg-gradient-to-br ${c.gradient} p-4 flex flex-col justify-between overflow-hidden shadow-lg group-hover:scale-[1.03] transition-transform`}
                   >
-                    <div className="flex items-center gap-1 text-white">
-                      <Play className="w-3 h-3 fill-current" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5 text-white">
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider">
                         {c.tag}
                       </span>
                     </div>
                     <div className="text-white">
-                      <p className="text-3xl font-black leading-none">TOP</p>
-                      <p className="text-4xl font-black leading-none">50</p>
+                      <p className="text-4xl sm:text-5xl font-black leading-none">TOP</p>
+                      <p className="text-5xl sm:text-6xl font-black leading-none">50</p>
                     </div>
-                    <p className="text-[11px] font-bold text-white/95 uppercase tracking-wider">
+                    <p className="text-xs font-bold text-white/95 uppercase tracking-wider">
                       {c.label}
                     </p>
-                    <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-white/10 blur-xl" />
+                    <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full bg-white/10 blur-2xl" />
                   </div>
                   <p className="text-sm font-semibold mt-2 truncate">
                     Top 50 · {c.label}
