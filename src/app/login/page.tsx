@@ -74,11 +74,11 @@ export default function LoginPage() {
       return;
     }
 
-    // Signing in manually with credentials = you're the owner. Enable owner
-    // mode so delete buttons are visible right away. Clear the
-    // explicit-signout flag so future cold launches auto-sign-in normally.
+    // Clear the explicit-signout flag so future cold launches auto-sign-in
+    // normally. Whether they get owner mode (delete permissions) is decided
+    // by AppLayout based on whether their email is in the admin list —
+    // signing in alone doesn't grant admin privileges.
     if (typeof window !== 'undefined') {
-      localStorage.setItem('echonest-owner-mode', '1');
       localStorage.removeItem('echonest-explicit-signout');
     }
 

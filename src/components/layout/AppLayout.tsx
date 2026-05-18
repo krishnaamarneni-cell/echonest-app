@@ -13,6 +13,7 @@ import { usePlayerStore } from '@/store/player';
 import { useOwnerMode } from '@/store/ownerMode';
 import { useOfflineStore } from '@/store/offline';
 import { createClient } from '@/lib/supabase/client';
+import { isAdminEmail } from '@/lib/admin';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
@@ -43,16 +44,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       if (data.session) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('echonest-explicit-signout');
-          // If this is an OAuth-based session (Google, etc.) the user is
-          // signed in as themselves, not the shared public account — they
-          // are the owner of their own library. Auto-unlock owner mode so
-          // they see their settings + profile instead of the public-visitor
-          // "Make it yours" view. We use app_metadata.provider which is
-          // populated by Supabase to either 'email' (password login or
-          // public auto-signin) or a real provider name like 'google'.
-          const provider = data.session.user?.app_metadata?.provider;
-          if (provider && provider !== 'email') {
+          // Admin detection: only people whose email is in the admin list
+          // (configured in src/lib/admin.ts) get owner mode. Everyone else
+          // — including the shared public account and any visitors signed
+          // in with their own Google — can ADD music but can't REMOVE it.
+          const email = data.session.user?.email;
+          if (isAdminEmail(email)) {
             localStorage.setItem('echonest-owner-mode', '1');
+          } else {
+            localStorage.removeItem('echonest-owner-mode');
           }
         }
         return;
