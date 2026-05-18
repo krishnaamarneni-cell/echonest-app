@@ -11,6 +11,7 @@ import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
+import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
@@ -111,6 +112,8 @@ export default function SettingsPage() {
           </Button>
         </div>
       </section>
+
+      <AccountDangerZone />
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">About</h2>
