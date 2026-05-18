@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Song, Album, Artist, Playlist } from '@/types';
@@ -37,7 +37,17 @@ interface BrowseItem {
   gradient: string;
 }
 
+// Next.js requires components that read useSearchParams to be inside a
+// Suspense boundary so the rest of the page can still be prerendered.
 export default function SearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchPageInner />
+    </Suspense>
+  );
+}
+
+function SearchPageInner() {
   // Accept an initial query from /search?q=... so dashboard search redirects
   // and shareable search URLs both work.
   const searchParams = useSearchParams();
