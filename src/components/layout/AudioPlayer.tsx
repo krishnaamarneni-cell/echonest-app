@@ -208,6 +208,12 @@ export function AudioPlayer() {
     value: 0,
     locked: false,
   });
+  // Guards the early-end detector so it fires handleEnded only once per
+  // approach to the end. Without it, a repeat-one restart that hasn't
+  // landed yet (slow seek over the tunnel) lets the next tick re-fire and
+  // the song never cleanly loops. Re-armed once the playhead is back well
+  // before the end.
+  const endTriggeredRef = useRef(false);
   const bgMode = useBackgroundMode((s) => s.enabled);
   const hydrateBg = useBackgroundMode((s) => s.hydrate);
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
@@ -723,17 +729,21 @@ export function AudioPlayer() {
     // as ended now so the queue advances.
     const stable = stableDurationRef.current;
     const songId = usePlayerStore.getState().currentSong?.id || null;
-    if (
-      stable.locked &&
-      stable.songId === songId &&
-      stable.value > 0 &&
-      audio.currentTime >= stable.value - 0.2
-    ) {
-      // Force the end-of-song flow. Crucially DO NOT pause — pausing in
-      // background causes iOS to deactivate the audio session, after which
-      // play() on the next track is silently rejected. Going straight to
-      // src swap keeps the session continuously active.
-      handleEndedRef.current?.();
+    if (stable.locked && stable.songId === songId && stable.value > 0) {
+      if (audio.currentTime >= stable.value - 0.2) {
+        // Fire once per approach to the end (see endTriggeredRef). Crucially
+        // DO NOT pause — pausing in background causes iOS to deactivate the
+        // audio session, after which play() on the next track is silently
+        // rejected. Going straight to src swap keeps the session active.
+        if (!endTriggeredRef.current) {
+          endTriggeredRef.current = true;
+          handleEndedRef.current?.();
+        }
+      } else if (audio.currentTime < stable.value - 1) {
+        // Playhead is back well before the end — a repeat-one restart or a
+        // user seek landed. Re-arm so the next end is detected.
+        endTriggeredRef.current = false;
+      }
     }
   }, [setProgress]);
 
