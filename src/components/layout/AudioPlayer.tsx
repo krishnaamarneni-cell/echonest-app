@@ -319,8 +319,15 @@ export function AudioPlayer() {
     isYouTube &&
     !isYouTubePlaylist &&
     !!currentSong?.youtube_id;
+  // NOTE: no &direct=1 here. Direct mode 302s the phone straight to
+  // googlevideo, but yt-dlp resolves that URL bound to the *laptop's* IP
+  // and Google frequently rejects a fetch from the phone's different IP —
+  // the proxy logs a successful "302" while the phone silently gets a 403
+  // and nothing plays. Streaming through the proxy means the laptop (whose
+  // IP matches the resolved URL) fetches the bytes and pipes them over the
+  // tunnel, which is slower but actually plays.
   const proxyAudioUrl = useHybrid
-    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}&direct=1`
+    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
   // When proxy/hybrid mode is on OR an offline blob is loaded, the iframe
   // is NOT mounted at all. Reason: iOS allows only one active audio
