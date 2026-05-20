@@ -48,7 +48,7 @@ export function NowPlayingScreen() {
     resume,
     next,
     previous,
-    setProgress,
+    seekTo,
     toggleShuffle,
     cycleRepeat,
     queue,
@@ -83,6 +83,10 @@ export function NowPlayingScreen() {
   const [animatingX, setAnimatingX] = useState(false);
   const [dragKind, setDragKind] = useState<'none' | 'horizontal' | 'vertical'>('none');
   const [queueOpen, setQueueOpen] = useState(false);
+  // While the user is dragging the progress bar we hold the dragged value
+  // locally so the live `progress` updates from playback don't yank the
+  // thumb back. The actual seek is committed once on release (below).
+  const [scrubValue, setScrubValue] = useState<number | null>(null);
 
   // Video-in-cover overlay. When the user taps "Watch video" we mount a
   // muted YT iframe in the cover slot for visuals while audio continues
@@ -200,8 +204,19 @@ export function NowPlayingScreen() {
     onLikeClick = () => toggleLike(currentSong.id);
   }
 
+  // During drag: only move the thumb (local state). Committing the seek on
+  // every tick would fire one range request per pixel through the tunnel
+  // and stall playback, so we wait for release.
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProgress(parseFloat(e.target.value));
+    setScrubValue(parseFloat(e.target.value));
+  };
+  // On release: actually seek. seekTo() sets pendingSeek, which AudioPlayer
+  // applies to the <audio> element or the YouTube iframe, whichever is live.
+  const commitSeek = () => {
+    setScrubValue((v) => {
+      if (v != null) seekTo(v);
+      return null;
+    });
   };
 
   const onAddToPlaylist = () => {
@@ -227,7 +242,10 @@ export function NowPlayingScreen() {
   };
 
   const upcoming = queue.slice(queueIndex + 1, queueIndex + 6);
-  const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
+  // While scrubbing, the slider reflects the dragged value; otherwise the
+  // live playback position.
+  const displayProgress = scrubValue ?? progress;
+  const progressPercent = duration > 0 ? (displayProgress / duration) * 100 : 0;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (animatingX) return; // ignore during commit animation
@@ -596,15 +614,19 @@ export function NowPlayingScreen() {
               type="range"
               min={0}
               max={duration || 0}
-              value={progress}
+              value={displayProgress}
               onChange={handleSeek}
+              onPointerUp={commitSeek}
+              onMouseUp={commitSeek}
+              onTouchEnd={commitSeek}
+              onKeyUp={commitSeek}
               className="w-full h-1"
               style={{
                 background: `linear-gradient(to right, var(--accent) ${progressPercent}%, #27272a ${progressPercent}%)`,
               }}
             />
             <div className="flex justify-between text-xs text-muted tabular-nums">
-              <span>{formatDuration(progress)}</span>
+              <span>{formatDuration(displayProgress)}</span>
               <span>{formatDuration(duration)}</span>
             </div>
           </div>
