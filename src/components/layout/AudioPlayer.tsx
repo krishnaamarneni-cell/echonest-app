@@ -257,12 +257,18 @@ export function AudioPlayer() {
     if (pendingSeek == null) return;
     const audio = audioRef.current;
     let applied = false;
+    // NB: do NOT gate on audio.duration. For proxy-streamed m4a it is
+    // frequently NaN/Infinity/inflated until the moov atom is parsed, so
+    // `audio.duration > pendingSeek` silently blocked every seek on iOS
+    // (and the YT branch is null in hybrid mode, so nothing applied and
+    // pendingSeek never cleared). The slider max is already the
+    // authoritative YouTube duration, so the target is a valid position;
+    // let the element clamp if needed.
     if (
       audio &&
-      !isNaN(pendingSeek) &&
       isFinite(pendingSeek) &&
-      audio.readyState >= 1 && // HAVE_METADATA
-      audio.duration > pendingSeek
+      pendingSeek >= 0 &&
+      audio.readyState >= 1 // HAVE_METADATA
     ) {
       try { audio.currentTime = pendingSeek; applied = true; } catch {}
     }
