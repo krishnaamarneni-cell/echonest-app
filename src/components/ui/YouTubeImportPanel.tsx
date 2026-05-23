@@ -11,7 +11,7 @@
  *    older than 24 h, trigger a sync transparently.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { importYouTubeLibrary, ImportProgress } from '@/lib/youtubeImport';
 import { Play, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Unlink } from 'lucide-react';
@@ -54,6 +54,11 @@ export function YouTubeImportPanel() {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [stored, setStored] = useState<StoredTokens | null>(null);
+  // Hard lock against overlapping imports. State updates are async, so two
+  // triggers (e.g. the user mashing "Sync now", or a manual run overlapping
+  // the daily auto-sync) could both start before `state` flips to 'running'
+  // — and concurrent imports are what created duplicate playlists.
+  const runningRef = useRef(false);
 
   // On mount: see if we already have a stored refresh token. If so the
   // user has connected before; otherwise show the Connect button.
@@ -150,6 +155,8 @@ export function YouTubeImportPanel() {
    * post-OAuth auto-trigger, and the stale-auto-sync auto-trigger.
    */
   const run = useCallback(async () => {
+    if (runningRef.current) return; // already importing — ignore re-trigger
+    runningRef.current = true;
     setState('running');
     setError(null);
     try {
@@ -169,6 +176,8 @@ export function YouTubeImportPanel() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setState('error');
+    } finally {
+      runningRef.current = false;
     }
   }, [getAccessToken, loadStored]);
 

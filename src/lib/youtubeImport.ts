@@ -111,6 +111,47 @@ function thumbOf(snip: { thumbnails?: YTPlaylistSnippet['thumbnails'] } | undefi
 }
 
 /**
+ * Race-safe find-or-create for a YouTube-sourced playlist, keyed by
+ * (user_id, source_youtube_id). Two syncs running at once (e.g. a manual
+ * "Sync now" overlapping the daily auto-sync, or two visitors on the shared
+ * public account) used to both miss the find and both insert, producing
+ * duplicate playlists. Here, if our insert loses the race we simply re-find
+ * the row the other run created. A unique index on
+ * (user_id, source_youtube_id) makes the losing insert fail fast; without it
+ * we still converge as long as runs aren't perfectly simultaneous.
+ */
+async function findOrCreatePlaylist(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  sourceYoutubeId: string,
+  fields: Record<string, unknown>,
+): Promise<string | null> {
+  const find = async () => {
+    const { data } = await supabase
+      .from('playlists')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('source_youtube_id', sourceYoutubeId)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    return data && data.length > 0 ? (data[0].id as string) : null;
+  };
+
+  const existing = await find();
+  if (existing) return existing;
+
+  const { data: created } = await supabase
+    .from('playlists')
+    .insert({ user_id: userId, source_youtube_id: sourceYoutubeId, ...fields })
+    .select('id')
+    .single();
+  if (created) return created.id as string;
+
+  // Insert failed — most likely a concurrent run created it first. Re-find.
+  return find();
+}
+
+/**
  * Main entrypoint. Pulls everything from the user's YouTube account and
  * writes it into Supabase. Calls `onProgress` after each major step.
  */
@@ -157,37 +198,23 @@ export async function importYouTubeLibrary(
     progress.message = `Importing "${title}"…`;
     onProgress({ ...progress });
 
-    // Dedupe by source_youtube_id within this user
-    const { data: existingPlaylist } = await supabase
-      .from('playlists')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('source_youtube_id', youtubePlaylistId)
-      .maybeSingle();
-
-    let playlistId: string;
-    if (existingPlaylist) {
-      playlistId = existingPlaylist.id as string;
-    } else {
-      const { data: inserted, error: insertErr } = await supabase
-        .from('playlists')
-        .insert({
-          user_id: user.id,
-          title,
-          description,
-          cover_url: cover,
-          source_youtube_id: youtubePlaylistId,
-          last_synced_at: new Date().toISOString(),
-          content_type: 'music',
-          is_public: false,
-        })
-        .select('id')
-        .single();
-      if (insertErr || !inserted) {
-        console.error('Failed to insert playlist', title, insertErr);
-        continue;
-      }
-      playlistId = inserted.id as string;
+    // Find-or-create (race-safe) by source_youtube_id within this user
+    const playlistId = await findOrCreatePlaylist(
+      supabase,
+      user.id,
+      youtubePlaylistId,
+      {
+        title,
+        description,
+        cover_url: cover,
+        last_synced_at: new Date().toISOString(),
+        content_type: 'music',
+        is_public: false,
+      },
+    );
+    if (!playlistId) {
+      console.error('Failed to find-or-create playlist', title);
+      continue;
     }
 
     // 3. Pull all items in this playlist
@@ -318,37 +345,19 @@ export async function importYouTubeLibrary(
       .filter((id): id is string => !!id);
 
     if (likedVideoIds.length > 0) {
-      // Find-or-create the dedicated "Liked Videos (YouTube)" playlist,
-      // keyed by the synthetic source id "LL" so re-syncs reuse it.
-      const { data: existingLL } = await supabase
-        .from('playlists')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('source_youtube_id', 'LL')
-        .maybeSingle();
-
-      let llPlaylistId: string;
-      if (existingLL) {
-        llPlaylistId = existingLL.id as string;
-      } else {
-        const { data: insertedLL, error: llErr } = await supabase
-          .from('playlists')
-          .insert({
-            user_id: user.id,
-            title: 'Liked Videos (YouTube)',
-            description: 'Your liked videos, synced from YouTube',
-            cover_url: thumbOf(likedItems[0]?.snippet),
-            source_youtube_id: 'LL',
-            last_synced_at: new Date().toISOString(),
-            content_type: 'music',
-            is_public: false,
-          })
-          .select('id')
-          .single();
-        if (llErr || !insertedLL) {
-          throw new Error(llErr?.message || 'Failed to create Liked Videos playlist');
-        }
-        llPlaylistId = insertedLL.id as string;
+      // Find-or-create (race-safe) the dedicated "Liked Videos (YouTube)"
+      // playlist, keyed by the synthetic source id "LL" so re-syncs reuse it
+      // instead of stacking up duplicates.
+      const llPlaylistId = await findOrCreatePlaylist(supabase, user.id, 'LL', {
+        title: 'Liked Videos (YouTube)',
+        description: 'Your liked videos, synced from YouTube',
+        cover_url: thumbOf(likedItems[0]?.snippet),
+        last_synced_at: new Date().toISOString(),
+        content_type: 'music',
+        is_public: false,
+      });
+      if (!llPlaylistId) {
+        throw new Error('Failed to create Liked Videos playlist');
       }
 
       // Ensure a song row exists for each liked video
