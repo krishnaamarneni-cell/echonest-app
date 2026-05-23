@@ -302,6 +302,19 @@ export function YouTubeImportPanel() {
             automatically.
           </p>
 
+          {state === 'needs-connect' && (
+            <div className="mt-3 flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[11px] text-foreground leading-relaxed">
+                <span className="font-semibold">Pick the same Google account you use for EchoNest.</span>{' '}
+                Connecting signs you in with Google — choosing a different
+                Google account switches you to a separate library (your songs,
+                likes and history won&apos;t appear). If that happens, sign out
+                and sign back in with your usual account.
+              </p>
+            </div>
+          )}
+
           {state === 'checking' && (
             <p className="text-xs text-muted mt-3 inline-flex items-center gap-2">
               <Loader2 className="w-3 h-3 animate-spin" /> Checking…
