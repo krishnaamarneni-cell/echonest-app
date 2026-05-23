@@ -247,13 +247,51 @@ export function YouTubeImportPanel() {
   };
 
   const disconnect = async () => {
-    if (!confirm('Disconnect YouTube? Already-imported playlists stay in your library — just no more syncs.')) return;
+    if (
+      !confirm(
+        'Disconnect YouTube and remove everything it brought in?\n\n' +
+          '• All playlists imported from YouTube (including "Liked Videos (YouTube)")\n' +
+          '• All YouTube tracks in your library\n\n' +
+          'Your uploaded songs are NOT affected. This cannot be undone.',
+      )
+    )
+      return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from('user_youtube_tokens').delete().eq('user_id', user.id);
-    setStored(null);
-    setState('needs-connect');
+    try {
+      // 1. Delete every playlist imported from YouTube (the LL "Liked Videos"
+      //    playlist plus any others). playlist_songs cascade on delete.
+      const { error: plErr } = await supabase
+        .from('playlists')
+        .delete()
+        .eq('user_id', user.id)
+        .not('source_youtube_id', 'is', null);
+      if (plErr) throw plErr;
+
+      // 2. Delete every YouTube track. Deleting the song cascades its likes,
+      //    playlist links and recently-played rows. Uploaded songs
+      //    (source = 'upload') are left untouched.
+      const { error: songErr } = await supabase
+        .from('songs')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('source', 'youtube_embed');
+      if (songErr) throw songErr;
+
+      // 3. Forget the OAuth tokens so no more syncs run.
+      const { error: tokErr } = await supabase
+        .from('user_youtube_tokens')
+        .delete()
+        .eq('user_id', user.id);
+      if (tokErr) throw tokErr;
+
+      setStored(null);
+      setState('needs-connect');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setState('error');
+    }
   };
 
   const isConnected = !!stored;
