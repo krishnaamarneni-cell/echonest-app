@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, Music } from 'lucide-react';
+import { Play, Music, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -10,10 +10,11 @@ interface MediaCardProps {
   imageUrl?: string | null;
   href: string;
   onPlay?: () => void;
+  onDelete?: () => void;
   rounded?: boolean;
 }
 
-export function MediaCard({ title, subtitle, imageUrl, href, onPlay, rounded }: MediaCardProps) {
+export function MediaCard({ title, subtitle, imageUrl, href, onPlay, onDelete, rounded }: MediaCardProps) {
   return (
     <Link href={href} className="group block space-y-3">
       <div
@@ -32,6 +33,20 @@ export function MediaCard({ title, subtitle, imageUrl, href, onPlay, rounded }: 
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-card to-card-hover">
             <Music className="w-12 h-12 text-muted" />
           </div>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+            aria-label="Delete"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         )}
         {onPlay && (
           <button
