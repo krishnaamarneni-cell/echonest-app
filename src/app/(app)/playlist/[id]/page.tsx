@@ -78,9 +78,12 @@ export default function PlaylistDetailPage() {
   }, [id, reload]);
 
   // Auto-sync on visit: if this playlist was imported from YouTube AND we
-  // haven't synced in the last 5 minutes, silently fetch new videos
+  // haven't synced in the last 5 minutes, silently fetch new videos.
+  // The "Liked Videos (YouTube)" playlist (source id "LL") is private and
+  // can't be read by the public extractor — it only syncs via the OAuth
+  // flow in Settings → Import from YouTube, so skip it here.
   useEffect(() => {
-    if (!playlist?.source_youtube_id) return;
+    if (!playlist?.source_youtube_id || playlist.source_youtube_id === 'LL') return;
     const recently =
       playlist.last_synced_at &&
       Date.now() - new Date(playlist.last_synced_at).getTime() < 5 * 60 * 1000;
@@ -110,7 +113,7 @@ export default function PlaylistDetailPage() {
   }, [playlist?.id, playlist?.source_youtube_id, playlist?.last_synced_at, syncing, reload]);
 
   const handleManualSync = async () => {
-    if (!playlist?.source_youtube_id || syncing) return;
+    if (!playlist?.source_youtube_id || playlist.source_youtube_id === 'LL' || syncing) return;
     setSyncing(true);
     setSyncMessage('Checking YouTube…');
     const result = await syncYouTubePlaylist({
@@ -204,7 +207,7 @@ export default function PlaylistDetailPage() {
                 <Shuffle className="w-4 h-4" />
                 Shuffle
               </Button>
-              {playlist?.source_youtube_id && (
+              {playlist?.source_youtube_id && playlist.source_youtube_id !== 'LL' && (
                 <Button
                   variant="secondary"
                   onClick={handleManualSync}

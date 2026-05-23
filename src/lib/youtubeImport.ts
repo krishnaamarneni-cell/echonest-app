@@ -17,7 +17,10 @@
  *  - One row in `songs` per unique video (deduped by youtube_id, scoped to
  *    the user)
  *  - One row in `playlist_songs` linking each song to its playlist
- *  - One row in `likes` per liked video
+ *  - The user's YouTube "Liked Videos" go into their OWN dedicated playlist
+ *    ("Liked Videos (YouTube)", source_youtube_id="LL") — deliberately NOT
+ *    into the `likes` table, so a user's YouTube-account likes stay separate
+ *    from the songs they heart inside EchoNest.
  */
 
 import { createClient } from '@/lib/supabase/client';
@@ -294,8 +297,12 @@ export async function importYouTubeLibrary(
     onProgress({ ...progress });
   }
 
-  // 5. Liked videos — separate playlist id "LL". May 404 for users who
-  //    have history disabled; that's fine, we just skip.
+  // 5. Liked videos — YouTube's special playlist id "LL". These are kept
+  //    SEPARATE from EchoNest's own Liked Songs (the `likes` table): we
+  //    import them into a dedicated "Liked Videos (YouTube)" playlist so a
+  //    user's YouTube-account likes don't get clubbed in with songs they
+  //    hearted inside the app. May 404 for users who have history disabled;
+  //    that's fine, we just skip.
   progress.message = 'Importing your liked videos…';
   onProgress({ ...progress });
   let likesAdded = 0;
@@ -311,6 +318,39 @@ export async function importYouTubeLibrary(
       .filter((id): id is string => !!id);
 
     if (likedVideoIds.length > 0) {
+      // Find-or-create the dedicated "Liked Videos (YouTube)" playlist,
+      // keyed by the synthetic source id "LL" so re-syncs reuse it.
+      const { data: existingLL } = await supabase
+        .from('playlists')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('source_youtube_id', 'LL')
+        .maybeSingle();
+
+      let llPlaylistId: string;
+      if (existingLL) {
+        llPlaylistId = existingLL.id as string;
+      } else {
+        const { data: insertedLL, error: llErr } = await supabase
+          .from('playlists')
+          .insert({
+            user_id: user.id,
+            title: 'Liked Videos (YouTube)',
+            description: 'Your liked videos, synced from YouTube',
+            cover_url: thumbOf(likedItems[0]?.snippet),
+            source_youtube_id: 'LL',
+            last_synced_at: new Date().toISOString(),
+            content_type: 'music',
+            is_public: false,
+          })
+          .select('id')
+          .single();
+        if (llErr || !insertedLL) {
+          throw new Error(llErr?.message || 'Failed to create Liked Videos playlist');
+        }
+        llPlaylistId = insertedLL.id as string;
+      }
+
       // Ensure a song row exists for each liked video
       const { data: existingForLikes } = await supabase
         .from('songs')
@@ -361,25 +401,28 @@ export async function importYouTubeLibrary(
         }
       }
 
-      // Create like rows; ignore duplicates via dedupe on song_id
-      const { data: existingLikes } = await supabase
-        .from('likes')
+      // Link each liked video to the LL playlist, skipping ones already linked
+      const { data: existingLinks } = await supabase
+        .from('playlist_songs')
         .select('song_id')
-        .eq('user_id', user.id);
-      const alreadyLiked = new Set(
-        (existingLikes || []).map((r: { song_id: string }) => r.song_id),
+        .eq('playlist_id', llPlaylistId);
+      const linkedSongIds = new Set(
+        (existingLinks || []).map((r: { song_id: string }) => r.song_id),
       );
 
-      const likeRows: Record<string, unknown>[] = [];
+      const linkRows: Record<string, unknown>[] = [];
+      let pos = linkedSongIds.size;
       for (const vid of likedVideoIds) {
         const sid = likeSongMap.get(vid);
-        if (!sid || alreadyLiked.has(sid)) continue;
-        alreadyLiked.add(sid);
-        likeRows.push({ user_id: user.id, song_id: sid });
+        if (!sid || linkedSongIds.has(sid)) continue;
+        linkedSongIds.add(sid);
+        linkRows.push({ playlist_id: llPlaylistId, song_id: sid, position: pos++ });
       }
-      if (likeRows.length > 0) {
-        const { error: likesErr } = await supabase.from('likes').insert(likeRows);
-        if (!likesErr) likesAdded = likeRows.length;
+      if (linkRows.length > 0) {
+        const { error: linksErr } = await supabase
+          .from('playlist_songs')
+          .insert(linkRows);
+        if (!linksErr) likesAdded = linkRows.length;
       }
     }
   } catch (e) {
@@ -388,7 +431,7 @@ export async function importYouTubeLibrary(
   }
 
   progress.phase = 'done';
-  progress.message = `Done. Imported ${playlists.length} playlist${playlists.length === 1 ? '' : 's'}, ${totalSongs} song${totalSongs === 1 ? '' : 's'}, ${likesAdded} like${likesAdded === 1 ? '' : 's'}.`;
+  progress.message = `Done. Imported ${playlists.length} playlist${playlists.length === 1 ? '' : 's'}, ${totalSongs} song${totalSongs === 1 ? '' : 's'}, ${likesAdded} liked video${likesAdded === 1 ? '' : 's'}.`;
   progress.songsAdded = totalSongs;
   progress.likesAdded = likesAdded;
   onProgress({ ...progress });
