@@ -11,22 +11,18 @@ import { RoomIndicator } from './RoomIndicator';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { AddToPlaylistDialog } from '@/components/ui/AddToPlaylistDialog';
 import { usePlayerStore } from '@/store/player';
-import { useOwnerMode } from '@/store/ownerMode';
 import { useOfflineStore } from '@/store/offline';
 import { createClient } from '@/lib/supabase/client';
-import { isAdminEmail } from '@/lib/admin';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
-  const hydrate = useOwnerMode((s) => s.hydrate);
   const loadOfflineIds = useOfflineStore((s) => s.loadIds);
 
   useEffect(() => {
-    hydrate();
     // Populate the in-memory set of downloaded song ids so SongRow etc.
     // can synchronously render their "downloaded" badge from first paint.
     loadOfflineIds();
-  }, [hydrate, loadOfflineIds]);
+  }, [loadOfflineIds]);
 
   // Auto-sign-in as the public account when no session exists — UNLESS
   // the user explicitly signed out (we honor that and let them see the
@@ -45,16 +41,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       if (data.session) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('echonest-explicit-signout');
-          // Admin detection: only people whose email is in the admin list
-          // (configured in src/lib/admin.ts) get owner mode. Everyone else
-          // — including the shared public account and any visitors signed
-          // in with their own Google — can ADD music but can't REMOVE it.
-          const email = data.session.user?.email;
-          if (isAdminEmail(email)) {
-            localStorage.setItem('echonest-owner-mode', '1');
-          } else {
-            localStorage.removeItem('echonest-owner-mode');
-          }
+          // Owner mode removed: the library is read-only for everyone. Clear
+          // any stale owner flag left over from a previous version.
+          localStorage.removeItem('echonest-owner-mode');
         }
         return;
       }

@@ -5,13 +5,11 @@ import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { useOfflineStore, isDownloadable } from '@/store/offline';
 import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music, Trash2, ListPlus, Download, Check, Loader2, RotateCcw, HardDriveDownload } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Check, Loader2, RotateCcw, HardDriveDownload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
-import { createClient } from '@/lib/supabase/client';
 import { usePlaylistDialog } from '@/store/playlistDialog';
-import { useOwnerMode } from '@/store/ownerMode';
 import { coverFor } from '@/lib/coverFor';
 
 interface SongRowProps {
@@ -20,6 +18,7 @@ interface SongRowProps {
   showIndex?: boolean;
   songs?: Song[];
   onAddToPlaylist?: (songId: string) => void;
+  // Retained for caller compatibility; the read-only library has no delete.
   onDeleted?: (songId: string) => void;
   source?: 'playlist' | 'album' | 'library';
 }
@@ -29,15 +28,12 @@ export function SongRow({
   index,
   showIndex,
   songs,
-  onDeleted,
   source = 'library',
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
   const openPlaylistDialog = usePlaylistDialog((s) => s.open);
-  const isOwner = useOwnerMode((s) => s.isOwner);
   const [isHovered, setIsHovered] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // Subscribe to the offline store so this row re-renders when its
   // download progresses or completes elsewhere (e.g. via the playlist
@@ -72,39 +68,11 @@ export function SongRow({
     }
   };
 
-  const handleDelete = async () => {
-    if (deleting) return;
-    if (!confirm(`Delete "${song.title}"? This cannot be undone.`)) return;
-    setDeleting(true);
-
-    const supabase = createClient();
-
-    // For uploaded files, also delete the audio file from storage
-    if (song.source === 'upload' && song.file_url) {
-      try {
-        const url = new URL(song.file_url);
-        const path = url.pathname.split('/storage/v1/object/public/audio/')[1];
-        if (path) {
-          await supabase.storage.from('audio').remove([path]);
-        }
-      } catch {}
-    }
-
-    const { error } = await supabase.from('songs').delete().eq('id', song.id);
-    if (error) {
-      alert('Failed to delete: ' + error.message);
-      setDeleting(false);
-      return;
-    }
-
-    onDeleted?.(song.id);
-  };
-
   return (
     <div
       className={`group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
         isCurrentSong ? 'bg-accent-muted' : 'hover:bg-card-hover'
-      } ${deleting ? 'opacity-50 pointer-events-none' : ''}`}
+      }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handlePlay}
@@ -240,16 +208,6 @@ export function SongRow({
                         icon: Download,
                         onClick: requestDownload,
                       },
-                ]
-              : []),
-            ...(isOwner
-              ? [
-                  {
-                    label: 'Delete',
-                    icon: Trash2,
-                    onClick: handleDelete,
-                    variant: 'danger' as const,
-                  },
                 ]
               : []),
           ]}

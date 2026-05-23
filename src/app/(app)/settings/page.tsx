@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { User, LogOut, Save, Smartphone, Sparkles } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
-import { useOwnerMode } from '@/store/ownerMode';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
@@ -19,16 +18,10 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Hydrate owner mode from localStorage so any code that depends on
-  // `isOwner` (delete buttons across the app) sees the correct state.
-  // The flag itself is set by AppLayout based on the signed-in email,
-  // not by any UI on this page — admin is auto-detected, not unlocked.
-  const hydrateOwner = useOwnerMode((s) => s.hydrate);
   const { enabled: bgEnabled, hydrate: hydrateBg, toggle: toggleBg } = useBackgroundMode();
   const { enabled: autoplayEnabled, hydrate: hydrateAutoplay, toggle: toggleAutoplay } = useAutoplay();
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
   useEffect(() => { hydrateAutoplay(); }, [hydrateAutoplay]);
-  useEffect(() => { hydrateOwner(); }, [hydrateOwner]);
 
   useEffect(() => {
     const supabase = createClient();

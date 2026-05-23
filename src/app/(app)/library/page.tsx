@@ -15,7 +15,6 @@ import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } 
 import { Button } from '@/components/ui/Button';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
-import { useOwnerMode } from '@/store/ownerMode';
 
 const SONGS_PER_PAGE = 8;
 
@@ -29,21 +28,6 @@ export default function LibraryPage() {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
-  const isOwner = useOwnerMode((s) => s.isOwner);
-
-  // Owner-only: delete a playlist (e.g. an imported YouTube playlist or the
-  // "Liked Videos (YouTube)" playlist) straight from the Library grid. Only
-  // the playlist + its song links go; the underlying songs and history stay.
-  const deletePlaylist = async (playlist: Playlist) => {
-    if (!confirm(`Delete playlist "${playlist.title}"? This cannot be undone.`)) return;
-    const supabase = createClient();
-    const { error } = await supabase.from('playlists').delete().eq('id', playlist.id);
-    if (error) {
-      alert('Failed to delete: ' + error.message);
-      return;
-    }
-    setPlaylists((prev) => prev.filter((p) => p.id !== playlist.id));
-  };
   const [songsPage, setSongsPage] = useState(0);
   const [songsView, setSongsView] = useState<'grid' | 'list'>('grid');
   const [sortKey, setSortKey] = useState<SortKey>('date_added_desc');
@@ -516,7 +500,6 @@ export default function LibraryPage() {
                     subtitle={playlist.description || 'Playlist'}
                     imageUrl={playlist.cover_url}
                     href={`/playlist/${playlist.id}`}
-                    onDelete={isOwner ? () => deletePlaylist(playlist) : undefined}
                   />
                 ))}
               </div>

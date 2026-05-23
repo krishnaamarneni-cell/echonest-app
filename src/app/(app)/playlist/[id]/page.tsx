@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Playlist, Song } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
-import { SortableSongList } from '@/components/ui/SortableSongList';
 import { SongCard } from '@/components/ui/SongCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -13,12 +12,9 @@ import { Button } from '@/components/ui/Button';
 import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, Music, ArrowLeft, MoreHorizontal, Trash2, RefreshCw, CheckCircle2, Pencil, LayoutGrid, List } from 'lucide-react';
-import { Menu } from '@/components/ui/Menu';
-import { EditPlaylistDialog } from '@/components/ui/EditPlaylistDialog';
+import { Play, Shuffle, ListMusic, Music, ArrowLeft, RefreshCw, CheckCircle2, LayoutGrid, List } from 'lucide-react';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
-import { useOwnerMode } from '@/store/ownerMode';
 import { syncYouTubePlaylist } from '@/lib/syncYouTubePlaylist';
 
 export default function PlaylistDetailPage() {
@@ -30,10 +26,8 @@ export default function PlaylistDetailPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const play = usePlayerStore((s) => s.play);
-  const isOwner = useOwnerMode((s) => s.isOwner);
 
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-playlist-view') : null;
@@ -219,39 +213,6 @@ export default function PlaylistDetailPage() {
                 </Button>
               )}
               <BulkDownloadButton songs={songs} />
-
-              {isOwner && (
-                <Menu
-                  trigger={
-                    <button className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-card transition-colors">
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
-                  }
-                  items={[
-                    {
-                      label: 'Edit playlist',
-                      icon: Pencil,
-                      onClick: () => setEditOpen(true),
-                    },
-                    {
-                      label: 'Delete playlist',
-                      icon: Trash2,
-                      variant: 'danger',
-                      onClick: async () => {
-                        if (!confirm(`Delete playlist "${playlist?.title}"? This cannot be undone.`)) return;
-                        const supabase = createClient();
-                        const { error } = await supabase.from('playlists').delete().eq('id', id);
-                        if (error) {
-                          alert('Failed to delete: ' + error.message);
-                          return;
-                        }
-                        router.push('/library');
-                        router.refresh();
-                      },
-                    },
-                  ]}
-                />
-              )}
             </div>
           </div>
         </div>
@@ -326,70 +287,16 @@ export default function PlaylistDetailPage() {
             </div>
           ) : (
             <div className="space-y-0.5">
-              {isOwner ? (
-                <SortableSongList
-                  items={songs}
-                  onReorder={async (newOrder) => {
-                    setSongs(newOrder);
-                    // Persist new positions to playlist_songs. RLS scopes
-                    // these updates to the owner of the playlist.
-                    const supabase = createClient();
-                    // Get the link rows for this playlist so we can update
-                    // each one's position to its new index.
-                    const { data: links } = await supabase
-                      .from('playlist_songs')
-                      .select('id, song_id, position')
-                      .eq('playlist_id', id);
-                    if (!links) return;
-                    const linkByPos = new Map<string, string>();
-                    for (const l of links as { id: string; song_id: string }[]) {
-                      linkByPos.set(l.song_id, l.id);
-                    }
-                    // Issue one update per link with the new position. Done
-                    // sequentially to avoid Supabase throttling on a long
-                    // playlist; still <100 ms for typical lengths.
-                    await Promise.all(
-                      newOrder.map((s, idx) => {
-                        const linkId = linkByPos.get(s.id);
-                        if (!linkId) return null;
-                        return supabase
-                          .from('playlist_songs')
-                          .update({ position: idx })
-                          .eq('id', linkId);
-                      }),
-                    );
-                  }}
-                  renderItem={(song, i, { handle, isDragging }) => (
-                    <div
-                      className={`flex items-center gap-1 ${
-                        isDragging ? 'bg-card-hover rounded-lg' : ''
-                      }`}
-                    >
-                      {handle}
-                      <div className="flex-1 min-w-0">
-                        <SongRow
-                          song={song}
-                          index={i}
-                          showIndex
-                          songs={crossQueue.length > 0 ? crossQueue : songs}
-                          source="playlist"
-                        />
-                      </div>
-                    </div>
-                  )}
+              {songs.map((song, i) => (
+                <SongRow
+                  key={song.id}
+                  song={song}
+                  index={i}
+                  showIndex
+                  songs={crossQueue.length > 0 ? crossQueue : songs}
+                  source="playlist"
                 />
-              ) : (
-                songs.map((song, i) => (
-                  <SongRow
-                    key={song.id}
-                    song={song}
-                    index={i}
-                    showIndex
-                    songs={crossQueue.length > 0 ? crossQueue : songs}
-                    source="playlist"
-                  />
-                ))
-              )}
+              ))}
             </div>
           )
         ) : (
@@ -400,15 +307,6 @@ export default function PlaylistDetailPage() {
           />
         )}
       </div>
-
-      <EditPlaylistDialog
-        playlist={playlist}
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        onSaved={(updated) => {
-          setPlaylist(updated);
-        }}
-      />
     </div>
   );
 }
