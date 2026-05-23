@@ -181,7 +181,20 @@ export function YouTubeImportPanel() {
     }
   }, [getAccessToken, loadStored]);
 
-  // Post-OAuth: ?yt_import=1 query param → store tokens then run
+  // Surface an error returned by the direct OAuth callback (?yt_error=...).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ytErr = params.get('yt_error');
+    if (ytErr) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setError(decodeURIComponent(ytErr));
+      setState('error');
+    }
+  }, []);
+
+  // Post-OAuth: ?yt_import=1 query param → tokens are already stored by the
+  // callback, so just (re)load and run the import.
   useEffect(() => {
     if (state !== 'ready' && state !== 'needs-connect') return;
     if (typeof window === 'undefined') return;
@@ -189,9 +202,10 @@ export function YouTubeImportPanel() {
     if (params.get('yt_import') === '1') {
       window.history.replaceState({}, '', window.location.pathname);
       (async () => {
+        // No-op in the direct-OAuth flow (no provider_token on the session);
+        // kept for the legacy path. Tokens are already persisted server-side.
         await saveTokensFromSession();
         await loadStored();
-        // Run an import right away with the freshly-stored session token
         run();
       })();
     }
@@ -218,19 +232,16 @@ export function YouTubeImportPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, stored]);
 
-  const connect = async () => {
+  const connect = () => {
     setError(null);
-    const supabase = createClient();
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        scopes: YT_SCOPE,
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent('/settings?yt_import=1')}`,
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-      },
-    });
-    if (oauthErr) setError(oauthErr.message);
+    // Direct Google OAuth for a YouTube token only — does NOT sign in / switch
+    // the EchoNest account. The server route builds the consent URL; its
+    // callback stores the tokens for the CURRENT user and returns to
+    // /settings?yt_import=1. This lets you connect ANY Google/YouTube account
+    // to import into your own account without it hijacking your login.
+    if (typeof window !== 'undefined') {
+      window.location.href = '/api/youtube/connect';
+    }
   };
 
   const toggleAutoSync = async () => {
