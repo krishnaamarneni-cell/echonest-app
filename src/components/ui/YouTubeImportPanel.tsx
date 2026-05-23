@@ -249,10 +249,10 @@ export function YouTubeImportPanel() {
   const disconnect = async () => {
     if (
       !confirm(
-        'Disconnect YouTube and remove everything it brought in?\n\n' +
-          '• All playlists imported from YouTube (including "Liked Videos (YouTube)")\n' +
-          '• All YouTube tracks in your library\n\n' +
-          'Your uploaded songs are NOT affected. This cannot be undone.',
+        'Disconnect YouTube and remove the playlists it imported?\n\n' +
+          '• All playlists imported from YouTube (including "Liked Videos (YouTube)")\n\n' +
+          'Your uploaded songs, listening history and the tracks themselves are\n' +
+          'kept. This cannot be undone.',
       )
     )
       return;
@@ -260,8 +260,10 @@ export function YouTubeImportPanel() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     try {
-      // 1. Delete every playlist imported from YouTube (the LL "Liked Videos"
-      //    playlist plus any others). playlist_songs cascade on delete.
+      // Delete every playlist imported from YouTube (the LL "Liked Videos"
+      // playlist plus any others). Their playlist_songs links cascade on
+      // delete. We deliberately do NOT delete the song rows: doing so would
+      // cascade-delete recently_played, wiping the user's listening history.
       const { error: plErr } = await supabase
         .from('playlists')
         .delete()
@@ -269,17 +271,7 @@ export function YouTubeImportPanel() {
         .not('source_youtube_id', 'is', null);
       if (plErr) throw plErr;
 
-      // 2. Delete every YouTube track. Deleting the song cascades its likes,
-      //    playlist links and recently-played rows. Uploaded songs
-      //    (source = 'upload') are left untouched.
-      const { error: songErr } = await supabase
-        .from('songs')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('source', 'youtube_embed');
-      if (songErr) throw songErr;
-
-      // 3. Forget the OAuth tokens so no more syncs run.
+      // Forget the OAuth tokens so no more syncs run.
       const { error: tokErr } = await supabase
         .from('user_youtube_tokens')
         .delete()
