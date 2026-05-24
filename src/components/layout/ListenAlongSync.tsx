@@ -95,7 +95,13 @@ export function ListenAlongSync() {
       const song = (data.current_song as Song | null) || null;
       const at = data.last_action_at ? new Date(data.last_action_at as string).getTime() : 0;
       let pos = Number(data.position_seconds) || 0;
-      if (data.is_playing && at) pos += Math.max(0, (Date.now() - at) / 1000);
+      if (data.is_playing && at) {
+        // Compensate for transit time, plus a small look-ahead for the
+        // listener's own seek/buffer latency so it lands ON the host's
+        // position instead of trailing behind it.
+        const LISTENER_LATENCY = 0.45;
+        pos += Math.max(0, (Date.now() - at) / 1000) + LISTENER_LATENCY;
+      }
 
       setSuppressBroadcast(true);
       try {
@@ -103,8 +109,9 @@ export function ListenAlongSync() {
           player.play(song, [song], 'library');
           setTimeout(() => usePlayerStore.getState().seekTo(pos), 400);
         } else if (song) {
-          // Keep playing position in sync; only re-seek on noticeable drift.
-          if (player.isPlaying && Math.abs(player.progress - pos) > 1.2) {
+          // Keep playing position in sync; re-seek on noticeable drift.
+          // (Re-seeking too eagerly causes buffer stutter on streamed audio.)
+          if (player.isPlaying && Math.abs(player.progress - pos) > 0.7) {
             player.seekTo(pos);
           }
         }
@@ -122,7 +129,7 @@ export function ListenAlongSync() {
     };
 
     applyState();
-    const interval = setInterval(applyState, 1500);
+    const interval = setInterval(applyState, 1000);
     return () => {
       cancelled = true;
       clearInterval(interval);
