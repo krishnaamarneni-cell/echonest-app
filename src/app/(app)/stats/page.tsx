@@ -137,7 +137,10 @@ export default function StatsPage() {
       if (!ev.song) continue;
       uniqueSongs.add(ev.song.id);
       if (ev.song.artist_name) uniqueArtists.add(ev.song.artist_name.toLowerCase());
-      if (ev.song.duration > 0) totalSeconds += ev.song.duration;
+      // Use the real duration when we have it; otherwise estimate ~3.5 min per
+      // play (most YouTube songs lacked a stored length). Durations backfill
+      // as songs play, so this gets more accurate over time.
+      totalSeconds += ev.song.duration > 0 ? ev.song.duration : 210;
     }
     return {
       plays: filtered.length,

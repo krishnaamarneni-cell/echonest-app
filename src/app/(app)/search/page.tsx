@@ -11,6 +11,7 @@ import { usePlayerStore } from '@/store/player';
 import { Search as SearchIcon, X, Music, Play, TrendingUp, Loader2 } from 'lucide-react';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import { ChartsRow } from '@/components/ui/ChartsRow';
+import { proxySearch } from '@/lib/ytSearch';
 import Image from 'next/image';
 
 interface TrendingItem {
@@ -136,7 +137,7 @@ function SearchPageInner() {
     const supabase = createClient();
     const pattern = `%${q}%`;
 
-    const [songsRes, albumsRes, artistsRes, playlistsRes, ytRes] = await Promise.all([
+    const [songsRes, albumsRes, artistsRes, playlistsRes, ytVideos] = await Promise.all([
       supabase
         .from('songs')
         .select('*')
@@ -154,12 +155,9 @@ function SearchPageInner() {
         .select('*')
         .or(`title.ilike.${pattern},description.ilike.${pattern}`)
         .limit(12),
-      fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`)
-        .then(async (r) => {
-          const body = await r.json().catch(() => null);
-          return { ok: r.ok, status: r.status, body };
-        })
-        .catch((e) => ({ ok: false, status: 0, body: { error: String(e) } })),
+      // YouTube results via the proxy (yt-dlp) — real YouTube search results,
+      // no API key needed. Covers songs, artists, albums, podcasts, anything.
+      proxySearch(q, AbortSignal.timeout(20000)),
     ]);
 
     if (songsRes.data) setSongs(songsRes.data);
@@ -185,17 +183,12 @@ function SearchPageInner() {
       }
     }
     setPlaylists(merged.slice(0, 12));
-    if (ytRes.ok && Array.isArray(ytRes.body?.videos)) {
-      setYtResults(ytRes.body.videos);
+    if (ytVideos.length > 0) {
+      setYtResults(ytVideos);
       setYtError(null);
     } else {
       setYtResults([]);
-      setYtError(
-        ytRes.body?.error ||
-          (ytRes.status === 503
-            ? 'YOUTUBE_API_KEY not set on the server'
-            : `YouTube search unavailable (${ytRes.status || 'network'})`),
-      );
+      setYtError('No YouTube results — the music proxy may be offline.');
     }
     setSearching(false);
   }, [playlistsWithSongs]);

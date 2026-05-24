@@ -23,6 +23,7 @@ import {
 import Image from 'next/image';
 import { Song } from '@/types';
 import { coverFor } from '@/lib/coverFor';
+import { createClient } from '@/lib/supabase/client';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
@@ -829,6 +830,19 @@ export function AudioPlayer() {
           locked: true,
         };
         setDuration(data.duration);
+        // Backfill the real length onto the song row(s) with this video id so
+        // Stats "Listening time" reflects actual durations. Only touches rows
+        // that still have the placeholder 0 duration.
+        const vid = currentSong.youtube_id;
+        if (vid) {
+          const sb = createClient();
+          sb.from('songs')
+            .update({ duration: Math.round(data.duration) })
+            .eq('source', 'youtube_embed')
+            .eq('youtube_id', vid)
+            .eq('duration', 0)
+            .then(() => {}, () => {});
+        }
       })
       .catch(() => {});
     return () => { cancelled = true; };
