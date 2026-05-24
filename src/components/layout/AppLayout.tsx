@@ -7,6 +7,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { InstallPrompt } from './InstallPrompt';
 import { NowPlayingScreen } from './NowPlayingScreen';
 import { ListenAlongSync } from './ListenAlongSync';
+import { SyncedRoomPlayer } from './SyncedRoomPlayer';
 import { PlaybackSync } from './PlaybackSync';
 import { RoomIndicator } from './RoomIndicator';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
@@ -93,6 +94,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <AddToPlaylistDialog />
       <NowPlayingScreen />
       <ListenAlongSync />
+      <SyncedRoomPlayer />
       <PlaybackSync />
       <RoomIndicator />
       <KeyboardShortcuts />

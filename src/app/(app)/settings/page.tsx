@@ -11,7 +11,8 @@ import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { useMusicLanguages, ALL_LANGUAGES } from '@/store/musicLanguages';
 import { useCrossDeviceSync } from '@/store/crossDeviceSync';
-import { Smartphone as DevicesIcon } from 'lucide-react';
+import { useSyncMode } from '@/store/syncMode';
+import { Smartphone as DevicesIcon, Radio } from 'lucide-react';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
@@ -32,10 +33,16 @@ export default function SettingsPage() {
   const syncEnabled = useCrossDeviceSync((s) => s.enabled);
   const hydrateSync = useCrossDeviceSync((s) => s.hydrate);
   const toggleSync = useCrossDeviceSync((s) => s.toggle);
+  const speakerSyncEnabled = useSyncMode((s) => s.enabled);
+  const speakerNudgeMs = useSyncMode((s) => s.nudgeMs);
+  const hydrateSpeakerSync = useSyncMode((s) => s.hydrate);
+  const toggleSpeakerSync = useSyncMode((s) => s.toggle);
+  const setSpeakerNudge = useSyncMode((s) => s.setNudge);
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
   useEffect(() => { hydrateAutoplay(); }, [hydrateAutoplay]);
   useEffect(() => { hydrateLanguages(); }, [hydrateLanguages]);
   useEffect(() => { hydrateSync(); }, [hydrateSync]);
+  useEffect(() => { hydrateSpeakerSync(); }, [hydrateSpeakerSync]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -128,6 +135,59 @@ export default function SettingsPage() {
             />
           </button>
         </div>
+      </section>
+
+      <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-fuchsia-500/20">
+            <Radio className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold">Speaker sync (Listen Along)</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              In a Listen-Along room, play tightly in sync across devices like one
+              speaker (the host controls; others just play). Uses precise Web-Audio
+              timing.
+            </p>
+          </div>
+          <button
+            onClick={toggleSpeakerSync}
+            role="switch"
+            aria-checked={speakerSyncEnabled}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+              speakerSyncEnabled ? 'bg-accent' : 'bg-card-hover'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+                speakerSyncEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+        {speakerSyncEnabled && (
+          <div className="pt-1">
+            <label className="text-xs text-muted-foreground flex items-center justify-between">
+              <span>Audio delay nudge (for Bluetooth)</span>
+              <span className="tabular-nums text-foreground">{speakerNudgeMs > 0 ? '+' : ''}{speakerNudgeMs} ms</span>
+            </label>
+            <input
+              type="range"
+              min={-500}
+              max={500}
+              step={10}
+              value={speakerNudgeMs}
+              onChange={(e) => setSpeakerNudge(Number(e.target.value))}
+              className="w-full h-1 mt-2"
+              style={{
+                background: `linear-gradient(to right, var(--accent) ${((speakerNudgeMs + 500) / 1000) * 100}%, #27272a ${((speakerNudgeMs + 500) / 1000) * 100}%)`,
+              }}
+            />
+            <p className="text-[10px] text-muted mt-1">
+              If this device lags behind the others, slide right (plays earlier) to line it up.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">

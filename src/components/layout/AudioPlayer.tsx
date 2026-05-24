@@ -25,6 +25,8 @@ import { Song } from '@/types';
 import { coverFor } from '@/lib/coverFor';
 import { createClient } from '@/lib/supabase/client';
 import { useLikesStore } from '@/store/likes';
+import { useListenAlong } from '@/store/listenAlong';
+import { useSyncMode } from '@/store/syncMode';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useOfflineStore } from '@/store/offline';
@@ -334,9 +336,21 @@ export function AudioPlayer() {
   const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
   const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
   const proxyConfigured = !!(proxyUrl && proxySecret);
+
+  // When in a listen-along room with tight sync on, the Web Audio engine
+  // (SyncedRoomPlayer) is the ONLY sound source — suppress this component's
+  // <audio> element and the YouTube iframe so there's no double audio.
+  const roomCode = useListenAlong((s) => s.roomCode);
+  const syncEnabled = useSyncMode((s) => s.enabled);
+  const hydrateSync = useSyncMode((s) => s.hydrate);
+  useEffect(() => { hydrateSync(); }, [hydrateSync]);
+  const syncedRoomActive =
+    isYouTube && !isYouTubePlaylist && !!roomCode && syncEnabled && !!currentSong?.youtube_id;
+
   // If the song is downloaded, treat it like an offline-eligible playback
   // (audio element path, no iframe) regardless of background-play mode.
   const useHybrid =
+    !syncedRoomActive &&
     !offlineAudioUrl && // downloaded songs supersede streaming
     proxyConfigured &&
     bgMode &&
@@ -360,7 +374,7 @@ export function AudioPlayer() {
   // when the app backgrounds. By not mounting the iframe, the <audio>
   // element is the only player → iOS keeps its session alive → real
   // background play works.
-  const useIframePlayer = isYouTube && !useHybrid && !offlineAudioUrl;
+  const useIframePlayer = isYouTube && !useHybrid && !offlineAudioUrl && !syncedRoomActive;
 
   // Pre-warm the proxy cache for the NEXT song in the queue. A HEAD
   // request triggers yt-dlp resolution server-side so when the song
