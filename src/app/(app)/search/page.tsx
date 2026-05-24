@@ -10,6 +10,7 @@ import { BrowseTile, pickGradient } from '@/components/ui/BrowseTile';
 import { usePlayerStore } from '@/store/player';
 import { Search as SearchIcon, X, Music, Play, TrendingUp, Loader2 } from 'lucide-react';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
+import { ChartsRow } from '@/components/ui/ChartsRow';
 import Image from 'next/image';
 
 interface TrendingItem {
@@ -395,6 +396,9 @@ function SearchPageInner() {
               </div>
             )}
           </section>
+
+          {/* Charts — Top 50 by language + by country */}
+          <ChartsRow />
 
           <section className="space-y-4">
             <h2 className="text-xl font-bold">Browse your music</h2>
