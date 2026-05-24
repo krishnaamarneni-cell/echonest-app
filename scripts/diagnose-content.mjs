@@ -1,0 +1,13 @@
+import { createClient } from '@supabase/supabase-js';
+const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const { data: s } = await sb.auth.signInWithPassword({ email: process.env.PUBLIC_USER_EMAIL, password: process.env.PUBLIC_USER_PASSWORD });
+const uid = s.user.id;
+const c = async (t, f=(q)=>q) => (await f(sb.from(t).select('*',{count:'exact',head:true}).eq('user_id',uid))).count ?? 0;
+console.log('songs total      :', await c('songs'));
+console.log('songs music      :', await c('songs',(q)=>q.eq('content_type','music')));
+console.log('songs podcast    :', await c('songs',(q)=>q.eq('content_type','podcast')));
+console.log('songs youtube    :', await c('songs',(q)=>q.eq('source','youtube_embed')));
+console.log('albums           :', await c('albums'));
+console.log('artists          :', await c('artists'));
+console.log('playlists        :', await c('playlists'));
+console.log('recently_played  :', await c('recently_played'));
