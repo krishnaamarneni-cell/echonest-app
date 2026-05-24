@@ -58,6 +58,7 @@ interface PlayerState {
   clearPendingSeek: () => void;
   openNowPlaying: () => void;
   closeNowPlaying: () => void;
+  closePlayer: () => void;
   setPlaybackRate: (r: number) => void;
   pause: () => void;
   resume: () => void;
@@ -100,6 +101,18 @@ export const usePlayerStore = create<PlayerState>()(
 
   openNowPlaying: () => set({ isNowPlayingOpen: true }),
   closeNowPlaying: () => set({ isNowPlayingOpen: false }),
+  // Fully dismiss the player: stop playback and clear the current track +
+  // queue so the mini-player bar disappears.
+  closePlayer: () =>
+    set({
+      currentSong: null,
+      queue: [],
+      queueIndex: -1,
+      isPlaying: false,
+      isPlayerVisible: false,
+      isNowPlayingOpen: false,
+      progress: 0,
+    }),
   setPlaybackRate: (r) => set({ playbackRate: r }),
 
   play: (song, queueSongs, source = 'library') => {

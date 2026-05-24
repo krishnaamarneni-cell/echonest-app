@@ -243,11 +243,22 @@ export function AudioPlayer() {
     queueIndex,
     play,
     openNowPlaying,
+    closePlayer,
     playbackRate,
     setPlaybackRate,
     pendingSeek,
     clearPendingSeek,
   } = usePlayerStore();
+
+  // Stop everything and dismiss the player bar.
+  const handleClosePlayer = useCallback(() => {
+    try { audioRef.current?.pause(); } catch {}
+    try {
+      const yt = ytPlayerRef.current as unknown as { stopVideo?: () => void } | null;
+      yt?.stopVideo?.();
+    } catch {}
+    closePlayer();
+  }, [closePlayer]);
 
   // External seek (e.g. listen-along sync) — apply to the audio element
   // and to the YT player if active. Only clear if the audio has actually
@@ -1033,6 +1044,16 @@ export function AudioPlayer() {
           className="absolute top-0 left-0 h-0.5 bg-accent transition-all duration-100"
           style={{ width: `${progressPercent}%` }}
         />
+
+        {/* Close / dismiss the player entirely (stops playback) */}
+        <button
+          onClick={handleClosePlayer}
+          className="absolute top-1 right-1.5 z-10 w-6 h-6 rounded-full bg-card/70 backdrop-blur-md text-muted-foreground hover:text-foreground hover:bg-card flex items-center justify-center transition-colors"
+          aria-label="Close player"
+          title="Close player"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
 
         <div className="h-full flex items-center justify-between px-4 lg:px-6 max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-3 flex-1 min-w-0 lg:w-1/4">
