@@ -143,7 +143,13 @@ export class SyncedAudioEngine {
     // should be at THAT moment, so it lands on the shared timeline.
     this.stop();
     const LEAD = 0.12; // seconds
-    const startOffset = this.offsetFor(opts.playStartedAtMs) + LEAD + this.nudgeMs / 1000;
+    // Compensate for THIS device's own audio output latency so the sound
+    // reaches the ears on the shared timeline (built-in speakers ~50-150ms,
+    // and it differs phone-vs-laptop — that's the "slight echo"). Each device
+    // cancels its own, so they line up at the ears without manual tuning.
+    const outLat = (ctx.outputLatency || ctx.baseLatency || 0);
+    const startOffset =
+      this.offsetFor(opts.playStartedAtMs) + LEAD + outLat + this.nudgeMs / 1000;
     if (startOffset >= buffer.duration) return;
 
     const src = ctx.createBufferSource();
