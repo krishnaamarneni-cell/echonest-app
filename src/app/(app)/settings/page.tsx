@@ -9,6 +9,7 @@ import { User, LogOut, Save, Smartphone, Sparkles, LogIn, UserPlus } from 'lucid
 import { Logo } from '@/components/ui/Logo';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
+import { useMusicLanguages, ALL_LANGUAGES } from '@/store/musicLanguages';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
@@ -23,8 +24,12 @@ export default function SettingsPage() {
 
   const { enabled: bgEnabled, hydrate: hydrateBg, toggle: toggleBg } = useBackgroundMode();
   const { enabled: autoplayEnabled, hydrate: hydrateAutoplay, toggle: toggleAutoplay } = useAutoplay();
+  const musicLanguages = useMusicLanguages((s) => s.languages);
+  const hydrateLanguages = useMusicLanguages((s) => s.hydrate);
+  const toggleLanguage = useMusicLanguages((s) => s.toggle);
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
   useEffect(() => { hydrateAutoplay(); }, [hydrateAutoplay]);
+  useEffect(() => { hydrateLanguages(); }, [hydrateLanguages]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -88,6 +93,35 @@ export default function SettingsPage() {
 
       <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
       <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
+
+      <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
+        <h2 className="text-base font-semibold">Music languages</h2>
+        <p className="text-xs text-muted-foreground">
+          Pick the languages you listen to. Home shows a &quot;Latest&quot; row
+          of fresh songs for each. We start with a guess from your listening —
+          adjust any time.
+        </p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          {ALL_LANGUAGES.map((lang) => {
+            const on = musicLanguages.includes(lang);
+            return (
+              <button
+                key={lang}
+                onClick={() => toggleLanguage(lang)}
+                aria-pressed={on}
+                className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                  on
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card-hover'
+                }`}
+              >
+                {lang}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <YouTubeImportPanel />
       <ShareInvitePanel />
 

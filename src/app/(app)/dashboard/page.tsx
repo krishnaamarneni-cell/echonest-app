@@ -14,6 +14,8 @@ import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers
 import { importPopularAlbumsBulk, POPULAR_ALBUMS, PopularAlbumResult } from '@/lib/popularAlbums';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
+import { useMusicLanguages } from '@/store/musicLanguages';
+import { LanguageMusicRow } from '@/components/ui/LanguageMusicRow';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
 
@@ -35,6 +37,9 @@ export default function DashboardPage() {
   const [searchQ, setSearchQ] = useState('');
   const router = useRouter();
   const play = usePlayerStore((s) => s.play);
+  const musicLanguages = useMusicLanguages((s) => s.languages);
+  const hydrateLanguages = useMusicLanguages((s) => s.hydrate);
+  useEffect(() => { hydrateLanguages(); }, [hydrateLanguages]);
 
   // Quick picks: a stable shuffle of music songs from the user's playlists.
   // We keep them in *state* (not useMemo) so they only reshuffle when the
@@ -353,6 +358,12 @@ export default function DashboardPage() {
               ))}
             </Section>
           )}
+
+          {/* Latest songs by the user's chosen languages (set in Settings).
+              Each row pulls fresh results live from the proxy search. */}
+          {musicLanguages.map((lang) => (
+            <LanguageMusicRow key={lang} language={lang} />
+          ))}
 
           {/* Charts — five region cards that link to /charts/[region]
               showing each region's Top 50 with live YouTube view counts.
