@@ -5,14 +5,25 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, LogOut, Save, Smartphone, Sparkles, LogIn, UserPlus } from 'lucide-react';
+import {
+  User,
+  LogOut,
+  Save,
+  Smartphone,
+  Sparkles,
+  LogIn,
+  UserPlus,
+  Radio,
+  Languages,
+  MonitorSmartphone,
+  Settings as SettingsIcon,
+} from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { useMusicLanguages, ALL_LANGUAGES } from '@/store/musicLanguages';
 import { useCrossDeviceSync } from '@/store/crossDeviceSync';
 import { useSyncMode } from '@/store/syncMode';
-import { Smartphone as DevicesIcon, Radio } from 'lucide-react';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
@@ -100,163 +111,209 @@ export default function SettingsPage() {
     window.location.href = '/login?manual=1';
   };
 
+  const initial = (displayName || email || '?').trim().charAt(0).toUpperCase();
+
   return (
-    <div className="p-6 lg:p-8 max-w-lg mx-auto space-y-8 animate-fade-in">
-      <h1 className="text-3xl font-bold">Settings</h1>
-
-      <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
-      <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
-
-      <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/20">
-            <DevicesIcon className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-base font-semibold">Sync across devices</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Keep the same song &amp; position on every device signed in here.
-              Pause on your phone, open your laptop, and pick up right where you
-              left off. Turn this on for each device you want kept in sync.
-            </p>
-          </div>
-          <button
-            onClick={toggleSync}
-            role="switch"
-            aria-checked={syncEnabled}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-              syncEnabled ? 'bg-accent' : 'bg-card-hover'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
-                syncEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+    <div className="p-6 lg:p-8 max-w-2xl mx-auto space-y-6 animate-fade-in">
+      {/* Page header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-card-hover">
+          <SettingsIcon className="h-5 w-5 text-muted-foreground" />
         </div>
-      </section>
-
-      <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-fuchsia-500/20">
-            <Radio className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-base font-semibold">Speaker sync (Listen Along)</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              In a Listen-Along room, play tightly in sync across devices like one
-              speaker (the host controls; others just play). Uses precise Web-Audio
-              timing.
-            </p>
-          </div>
-          <button
-            onClick={toggleSpeakerSync}
-            role="switch"
-            aria-checked={speakerSyncEnabled}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-              speakerSyncEnabled ? 'bg-accent' : 'bg-card-hover'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
-                speakerSyncEnabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+        <div>
+          <h1 className="text-2xl font-bold leading-tight">Settings</h1>
+          <p className="text-xs text-muted-foreground">Manage playback, sync and your account</p>
         </div>
-        {speakerSyncEnabled && (
-          <div className="pt-1">
-            <label className="text-xs text-muted-foreground flex items-center justify-between">
-              <span>Audio delay nudge (for Bluetooth)</span>
-              <span className="tabular-nums text-foreground">{speakerNudgeMs > 0 ? '+' : ''}{speakerNudgeMs} ms</span>
-            </label>
-            <input
-              type="range"
-              min={-500}
-              max={500}
-              step={10}
-              value={speakerNudgeMs}
-              onChange={(e) => setSpeakerNudge(Number(e.target.value))}
-              className="w-full h-1 mt-2"
-              style={{
-                background: `linear-gradient(to right, var(--accent) ${((speakerNudgeMs + 500) / 1000) * 100}%, #27272a ${((speakerNudgeMs + 500) / 1000) * 100}%)`,
-              }}
-            />
-            <p className="text-[10px] text-muted mt-1">
-              If this device lags behind the others, slide right (plays earlier) to line it up.
-            </p>
+      </div>
+
+      {/* Profile hero */}
+      <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-accent-muted p-5">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
+        {isPublic ? (
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-purple-600 shadow-lg shadow-accent/30">
+                <User className="h-7 w-7 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold">Shared public library</h2>
+                <p className="text-xs text-muted-foreground">
+                  Browsing as guest — sign in for your own space
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 gap-2">
+              <Link
+                href="/login?manual=1"
+                className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+              >
+                <LogIn className="h-4 w-4" /> Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
+              >
+                <UserPlus className="h-4 w-4" /> Sign up
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="relative flex items-center gap-4">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-purple-600 text-2xl font-bold text-white shadow-lg shadow-accent/30">
+              {initial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-lg font-bold">{displayName || 'Your account'}</h2>
+              <p className="truncate text-xs text-muted-foreground">{email}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="inline-flex flex-shrink-0 items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-card-hover hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
           </div>
         )}
       </section>
 
-      <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
-        <h2 className="text-base font-semibold">Music languages</h2>
-        <p className="text-xs text-muted-foreground">
-          Pick the languages you listen to. Home shows a &quot;Latest&quot; row
-          of fresh songs for each. We start with a guess from your listening —
-          adjust any time.
-        </p>
-        <div className="flex flex-wrap gap-2 pt-1">
-          {ALL_LANGUAGES.map((lang) => {
-            const on = musicLanguages.includes(lang);
-            return (
-              <button
-                key={lang}
-                onClick={() => toggleLanguage(lang)}
-                aria-pressed={on}
-                className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                  on
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card border-border text-muted-foreground hover:text-foreground hover:bg-card-hover'
-                }`}
-              >
-                {lang}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {/* Playback */}
+      <SettingsGroup label="Playback">
+        <ToggleRow
+          gradient="from-accent to-purple-600"
+          icon={<Smartphone className="h-5 w-5 text-white" />}
+          title="Background play"
+          description={
+            <>
+              YouTube tracks play audio-only through the extractor so they keep
+              playing on a locked iPhone, on AirPods, and when you switch apps.
+              Trade-off: the video doesn&apos;t show — you see the cover art instead.
+            </>
+          }
+          footnote="On other devices this just shows YouTube's native player controls in the mini-player."
+          checked={bgEnabled}
+          onToggle={toggleBg}
+        />
+        <ToggleRow
+          gradient="from-pink-500 to-orange-500"
+          icon={<Sparkles className="h-5 w-5 text-white" />}
+          title="Autoplay similar songs"
+          description={
+            <>
+              When the queue runs short, pulls in 10 algorithmic picks from
+              YouTube&apos;s &quot;Mix&quot; (the same engine behind &quot;Up
+              Next&quot;). Like Spotify&apos;s Smart Shuffle — you never run out.
+            </>
+          }
+          footnote="Needs the proxy running — same one used for background play."
+          checked={autoplayEnabled}
+          onToggle={toggleAutoplay}
+        />
+      </SettingsGroup>
 
-      <YouTubeImportPanel />
-      <ShareInvitePanel />
+      {/* Sync & speakers */}
+      <SettingsGroup label="Sync & speakers">
+        <ToggleRow
+          gradient="from-indigo-500 to-blue-600"
+          icon={<MonitorSmartphone className="h-5 w-5 text-white" />}
+          title="Sync across devices"
+          description="Keep the same song & position on every device signed in here. Pause on your phone, open your laptop, pick up where you left off. Turn on per device."
+          checked={syncEnabled}
+          onToggle={toggleSync}
+        />
+        <ToggleRow
+          gradient="from-fuchsia-500 to-purple-600"
+          icon={<Radio className="h-5 w-5 text-white" />}
+          title="Speaker sync (Listen Along)"
+          description="In a Listen-Along room, play tightly in sync across devices like one speaker (host controls; others just play). Uses precise Web-Audio timing."
+          checked={speakerSyncEnabled}
+          onToggle={toggleSpeakerSync}
+        >
+          {speakerSyncEnabled && (
+            <div className="px-4 pb-4 pl-[3.75rem]">
+              <label className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Audio delay nudge (for Bluetooth)</span>
+                <span className="tabular-nums text-foreground">
+                  {speakerNudgeMs > 0 ? '+' : ''}
+                  {speakerNudgeMs} ms
+                </span>
+              </label>
+              <input
+                type="range"
+                min={-500}
+                max={500}
+                step={10}
+                value={speakerNudgeMs}
+                onChange={(e) => setSpeakerNudge(Number(e.target.value))}
+                className="mt-2 h-1 w-full"
+                style={{
+                  background: `linear-gradient(to right, var(--accent) ${((speakerNudgeMs + 500) / 1000) * 100}%, #27272a ${((speakerNudgeMs + 500) / 1000) * 100}%)`,
+                }}
+              />
+              <p className="mt-1 text-[10px] text-muted">
+                If this device lags behind the others, slide right (plays earlier) to line it up.
+              </p>
+            </div>
+          )}
+        </ToggleRow>
+      </SettingsGroup>
 
-      {isPublic ? (
-        // Shared public account: don't expose a personal profile, email, or
-        // account-deletion. Offer Sign in / Sign up instead.
-        <section className="space-y-4">
-          <div className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
-            <h2 className="text-base font-semibold flex items-center gap-2">
-              <User className="w-5 h-5 text-accent" />
-              Your account
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              You&apos;re browsing the shared public library. Sign in or create
-              an account to get your own.
-            </p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Link
-                href="/login?manual=1"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-full text-sm font-semibold hover:bg-accent-hover transition-colors"
-              >
-                <LogIn className="w-4 h-4" /> Sign in
-              </Link>
-              <Link
-                href="/signup"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-full text-sm font-medium hover:bg-card-hover transition-colors"
-              >
-                <UserPlus className="w-4 h-4" /> Sign up
-              </Link>
+      {/* Content */}
+      <SettingsGroup label="Content">
+        <div className="space-y-3 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
+              <Languages className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold">Music languages</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Pick the languages you listen to. Home shows a &quot;Latest&quot; row of
+                fresh songs for each. We start from your listening — adjust any time.
+              </p>
             </div>
           </div>
-        </section>
-      ) : (
-        <>
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <User className="w-5 h-5 text-accent" />
+          <div className="flex flex-wrap gap-2 pl-[3rem]">
+            {ALL_LANGUAGES.map((lang) => {
+              const on = musicLanguages.includes(lang);
+              return (
+                <button
+                  key={lang}
+                  onClick={() => toggleLanguage(lang)}
+                  aria-pressed={on}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    on
+                      ? 'border-accent bg-accent text-white'
+                      : 'border-border bg-card text-muted-foreground hover:bg-card-hover hover:text-foreground'
+                  }`}
+                >
+                  {lang}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </SettingsGroup>
+
+      {/* Connections */}
+      <section className="space-y-3">
+        <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">
+          Connections &amp; sharing
+        </h2>
+        <YouTubeImportPanel />
+        <ShareInvitePanel />
+      </section>
+
+      {/* Account (private accounts only) */}
+      {!isPublic && (
+        <section className="space-y-3">
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">
+            Account
+          </h2>
+          <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <User className="h-4 w-4 text-accent" />
               Profile
-            </h2>
+            </h3>
             <Input
               label="Display name"
               value={displayName}
@@ -265,127 +322,116 @@ export default function SettingsPage() {
             <Input label="Email" value={email} disabled />
             <div className="flex items-center gap-3">
               <Button onClick={handleSave} disabled={saving}>
-                <Save className="w-4 h-4" />
+                <Save className="h-4 w-4" />
                 {saving ? 'Saving...' : saved ? 'Saved!' : 'Save'}
               </Button>
             </div>
-          </section>
-
+          </div>
           <AccountDangerZone />
-        </>
+        </section>
       )}
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">About</h2>
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+      {/* About */}
+      <section className="space-y-3">
+        <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">About</h2>
+        <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
           <Logo size="sm" />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium">EchoNest v1.0</p>
             <p className="text-xs text-muted-foreground">
-              A shared library anyone can add to. Sign up for your own at
-              any time.
+              A shared library anyone can add to. Sign up for your own at any time.
             </p>
           </div>
         </div>
       </section>
-
-      {!isPublic && (
-        <section className="pt-4 border-t border-border">
-          <Button variant="danger" onClick={handleLogout}>
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </Button>
-        </section>
-      )}
     </div>
   );
 }
 
-function BackgroundModeToggle({
-  enabled,
-  onToggle,
+function SettingsGroup({
+  label,
+  children,
 }: {
-  enabled: boolean;
-  onToggle: () => void;
+  label?: string;
+  children: React.ReactNode;
 }) {
   return (
-    <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-accent/20">
-          <Smartphone className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold">Background play</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            YouTube tracks play as audio-only through the extractor so they
-            keep playing on a locked iPhone, on AirPods, and when you switch
-            apps. Trade-off: the video doesn&apos;t show — you see the cover
-            art instead.
-          </p>
-        </div>
-        <button
-          onClick={onToggle}
-          role="switch"
-          aria-checked={enabled}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-            enabled ? 'bg-accent' : 'bg-card-hover'
-          }`}
-        >
-          <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
-              enabled ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
+    <section className="space-y-3">
+      {label && (
+        <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">
+          {label}
+        </h2>
+      )}
+      <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+        {children}
       </div>
-      <p className="text-[10px] text-muted">
-        On other devices this just shows YouTube&apos;s native player controls in
-        the mini-player.
-      </p>
     </section>
   );
 }
 
-function AutoplayToggle({
-  enabled,
+function ToggleRow({
+  icon,
+  gradient,
+  title,
+  description,
+  footnote,
+  checked,
   onToggle,
+  children,
 }: {
-  enabled: boolean;
+  icon: React.ReactNode;
+  gradient: string;
+  title: string;
+  description: React.ReactNode;
+  footnote?: string;
+  checked: boolean;
   onToggle: () => void;
+  children?: React.ReactNode;
 }) {
   return (
-    <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-pink-500/20">
-          <Sparkles className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold">Autoplay similar songs</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            When you listen to a YouTube song and the queue is running short,
-            pulls in 10 algorithmic picks from YouTube&apos;s &quot;Mix&quot;
-            (the same engine that decides &quot;Up Next&quot; on youtube.com).
-            Like Spotify&apos;s Smart Shuffle — you never run out of music.
-          </p>
-        </div>
-        <button
-          onClick={onToggle}
-          role="switch"
-          aria-checked={enabled}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-            enabled ? 'bg-accent' : 'bg-card-hover'
-          }`}
+    <div>
+      <div className="flex items-start gap-3 p-4">
+        <div
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg ${gradient}`}
         >
-          <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
-              enabled ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+          {footnote && <p className="mt-1.5 text-[10px] text-muted">{footnote}</p>}
+        </div>
+        <Switch checked={checked} onChange={onToggle} label={title} />
       </div>
-      <p className="text-[10px] text-muted">
-        Needs the proxy running — same one used for background play.
-      </p>
-    </section>
+      {children}
+    </div>
+  );
+}
+
+function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onChange}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`relative mt-0.5 inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+        checked ? 'bg-accent' : 'bg-card-hover'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
   );
 }
