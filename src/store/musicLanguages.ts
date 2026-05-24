@@ -3,8 +3,16 @@ import { createClient } from '@/lib/supabase/client';
 
 // Languages offered for music recommendations. Add more here to expand the
 // picker — each one drives a "Latest <lang> songs" row on Home.
-export const ALL_LANGUAGES = ['Telugu', 'Tamil', 'Hindi', 'English'] as const;
+export const ALL_LANGUAGES = [
+  'Telugu', 'Tamil', 'Hindi', 'English',
+  'Punjabi', 'Malayalam', 'Kannada', 'Marathi', 'Bengali',
+  'Korean', 'Spanish', 'Japanese',
+] as const;
 export type MusicLanguage = (typeof ALL_LANGUAGES)[number];
+
+// Sensible default when we can't infer anything from listening — keeps Home
+// to a few rows instead of one per language.
+const DEFAULT_LANGUAGES: MusicLanguage[] = ['Telugu', 'Tamil', 'Hindi', 'English'];
 
 const KEY = 'echonest-music-languages';
 
@@ -58,15 +66,23 @@ async function guessFromListening(): Promise<MusicLanguage[]> {
     if (/telugu|tollywood/.test(blob)) found.push('Telugu');
     if (/tamil|kollywood/.test(blob)) found.push('Tamil');
     if (/hindi|bollywood/.test(blob)) found.push('Hindi');
+    if (/punjabi|punjab/.test(blob)) found.push('Punjabi');
+    if (/malayalam|mollywood/.test(blob)) found.push('Malayalam');
+    if (/kannada|sandalwood/.test(blob)) found.push('Kannada');
+    if (/marathi/.test(blob)) found.push('Marathi');
+    if (/bengali|bangla/.test(blob)) found.push('Bengali');
+    if (/korean|k-pop|kpop/.test(blob)) found.push('Korean');
+    if (/spanish|latino|reggaeton/.test(blob)) found.push('Spanish');
+    if (/japanese|j-pop|jpop|anime/.test(blob)) found.push('Japanese');
     if (/english|pop|edm|hits|remix/.test(blob)) found.push('English');
-    return found.length > 0 ? found : [...ALL_LANGUAGES];
+    return found.length > 0 ? found : [...DEFAULT_LANGUAGES];
   } catch {
-    return [...ALL_LANGUAGES];
+    return [...DEFAULT_LANGUAGES];
   }
 }
 
 export const useMusicLanguages = create<MusicLanguagesState>((set) => ({
-  languages: [...ALL_LANGUAGES],
+  languages: [...DEFAULT_LANGUAGES],
   hydrated: false,
 
   hydrate: async () => {

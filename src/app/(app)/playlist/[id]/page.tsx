@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, Music, ArrowLeft, RefreshCw, CheckCircle2, LayoutGrid, List } from 'lucide-react';
+import { Play, Shuffle, ListMusic, Music, ArrowLeft, RefreshCw, CheckCircle2, LayoutGrid, List, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 import { syncYouTubePlaylist } from '@/lib/syncYouTubePlaylist';
@@ -213,6 +213,21 @@ export default function PlaylistDetailPage() {
                 </Button>
               )}
               <BulkDownloadButton songs={songs} />
+              <Button
+                variant="danger"
+                onClick={async () => {
+                  if (!confirm(`Delete playlist "${playlist?.title}"? The playlist is removed (songs stay in the library). This cannot be undone.`)) return;
+                  const supabase = createClient();
+                  const { error } = await supabase.from('playlists').delete().eq('id', id);
+                  if (error) { alert('Failed to delete: ' + error.message); return; }
+                  router.push('/library');
+                  router.refresh();
+                }}
+                title="Delete this playlist"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </Button>
             </div>
           </div>
         </div>

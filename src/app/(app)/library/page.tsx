@@ -28,6 +28,17 @@ export default function LibraryPage() {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Delete a playlist from the grid (e.g. an imported/synced YouTube playlist).
+  // Removes only the playlist + its song links; the songs stay in the library.
+  const deletePlaylist = async (playlist: Playlist) => {
+    if (!confirm(`Delete playlist "${playlist.title}"? This cannot be undone (songs stay in your library).`)) return;
+    const supabase = createClient();
+    const { error } = await supabase.from('playlists').delete().eq('id', playlist.id);
+    if (error) { alert('Failed to delete: ' + error.message); return; }
+    setPlaylists((prev) => prev.filter((p) => p.id !== playlist.id));
+    setPodcastPlaylists((prev) => prev.filter((p) => p.id !== playlist.id));
+  };
   const [songsPage, setSongsPage] = useState(0);
   const [songsView, setSongsView] = useState<'grid' | 'list'>('grid');
   const [sortKey, setSortKey] = useState<SortKey>('date_added_desc');
@@ -385,6 +396,7 @@ export default function LibraryPage() {
                     subtitle={playlist.description || 'Podcast'}
                     imageUrl={playlist.cover_url}
                     href={`/playlist/${playlist.id}`}
+                    onDelete={() => deletePlaylist(playlist)}
                   />
                 ))}
               </div>
@@ -500,6 +512,7 @@ export default function LibraryPage() {
                     subtitle={playlist.description || 'Playlist'}
                     imageUrl={playlist.cover_url}
                     href={`/playlist/${playlist.id}`}
+                    onDelete={() => deletePlaylist(playlist)}
                   />
                 ))}
               </div>
