@@ -1039,7 +1039,7 @@ export function AudioPlayer() {
         </div>
       )}
 
-      {showPlayer && currentSong && (<div className="fixed bottom-[var(--total-bottom-nav)] lg:bottom-0 left-0 lg:left-[var(--sidebar-width)] right-0 z-50 h-[var(--player-height)] glass border-t border-border animate-slide-up">
+      {showPlayer && currentSong && (<div className={`fixed bottom-[var(--total-bottom-nav)] lg:bottom-0 left-0 lg:left-[var(--sidebar-width)] right-0 h-[var(--player-height)] glass border-t border-border animate-slide-up ${ytView === 'full' ? 'z-[65]' : 'z-50'}`}>
         <div
           className="absolute top-0 left-0 h-0.5 bg-accent transition-all duration-100"
           style={{ width: `${progressPercent}%` }}

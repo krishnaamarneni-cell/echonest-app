@@ -68,7 +68,10 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: #27272a;
+  /* Transparent so the inline linear-gradient on the input itself shows the
+     filled/played portion. An opaque colour here hides that gradient and the
+     bar looks empty even while a song plays. */
+  background: transparent;
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -84,6 +87,27 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 input[type="range"]:hover::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+/* Firefox: same idea — transparent track so the input's gradient fill shows. */
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: #8b5cf6;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+input[type="range"]:hover::-moz-range-thumb {
   opacity: 1;
 }
 
