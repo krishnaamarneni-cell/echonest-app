@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { ArrowLeft, Play, Music, Shuffle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
 import { proxySearchMany, ytVideoToSong, YtVideo } from '@/lib/ytSearch';
+import { YtTrackList } from '@/components/ui/YtTrackList';
+import { ViewToggle } from '@/components/ui/ViewToggle';
 
 export default function LatestLanguagePage() {
   const { lang } = useParams<{ lang: string }>();
@@ -15,6 +16,16 @@ export default function LatestLanguagePage() {
   const play = usePlayerStore((s) => s.play);
   const [videos, setVideos] = useState<YtVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'grid'>('grid');
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-chart-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-chart-view', v);
+  };
 
   useEffect(() => {
     if (!language) return;
@@ -37,8 +48,8 @@ export default function LatestLanguagePage() {
     return () => { cancelled = true; };
   }, [language]);
 
-  const playAt = (index: number, list: YtVideo[]) => {
-    const songs = list.map(ytVideoToSong);
+  const playAt = (index: number) => {
+    const songs = videos.map(ytVideoToSong);
     play(songs[index], songs, 'library');
   };
 
@@ -56,20 +67,23 @@ export default function LatestLanguagePage() {
       </div>
 
       {!loading && videos.length > 0 && (
-        <div className="flex gap-2">
-          <Button onClick={() => playAt(0, videos)}>
-            <Play className="w-4 h-4 fill-current" /> Play
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              const shuffled = [...videos].sort(() => Math.random() - 0.5);
-              const songs = shuffled.map(ytVideoToSong);
-              play(songs[0], songs, 'library');
-            }}
-          >
-            <Shuffle className="w-4 h-4" /> Shuffle
-          </Button>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-2">
+            <Button onClick={() => playAt(0)}>
+              <Play className="w-4 h-4 fill-current" /> Play
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const shuffled = [...videos].sort(() => Math.random() - 0.5);
+                const songs = shuffled.map(ytVideoToSong);
+                play(songs[0], songs, 'library');
+              }}
+            >
+              <Shuffle className="w-4 h-4" /> Shuffle
+            </Button>
+          </div>
+          <ViewToggle view={view} onChange={setViewMode} />
         </div>
       )}
 
@@ -90,32 +104,7 @@ export default function LatestLanguagePage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-          {videos.map((v, i) => (
-            <button key={v.videoId} onClick={() => playAt(i, videos)} className="group text-left">
-              <div className="relative aspect-square rounded-xl overflow-hidden bg-card">
-                {v.thumbnail ? (
-                  <Image
-                    src={v.thumbnail}
-                    alt={v.title}
-                    fill
-                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px"
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Music className="w-10 h-10 text-muted" />
-                  </div>
-                )}
-                <div className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center shadow-lg opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all">
-                  <Play className="w-5 h-5 fill-current ml-0.5" />
-                </div>
-              </div>
-              <p className="font-medium text-sm truncate mt-2">{v.title}</p>
-              <p className="text-xs text-muted-foreground truncate">{v.channel}</p>
-            </button>
-          ))}
-        </div>
+        <YtTrackList items={videos} view={view} onPlay={playAt} />
       )}
     </div>
   );

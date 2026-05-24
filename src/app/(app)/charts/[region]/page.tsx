@@ -10,11 +10,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { createClient } from '@/lib/supabase/client';
-import { TrendingUp, Eye, ThumbsUp, ArrowLeft, Play, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play } from 'lucide-react';
+import { YtTrackList } from '@/components/ui/YtTrackList';
+import { ViewToggle } from '@/components/ui/ViewToggle';
 
 interface TrendingItem {
   videoId: string;
@@ -41,29 +42,25 @@ const REGION_LABELS: Record<string, string> = {
   global: 'Global',
 };
 
-function compactNumber(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`;
-  if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
-  return `${(n / 1_000_000_000).toFixed(1)}B`;
-}
-
-function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
-}
-
 export default function ChartsRegionPage() {
   const { region } = useParams<{ region: string }>();
   const router = useRouter();
   const [items, setItems] = useState<TrendingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [addingId, setAddingId] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'grid'>('list');
   const play = usePlayerStore((s) => s.play);
 
   const regionLabel = REGION_LABELS[region?.toUpperCase()] || region;
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-chart-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-chart-view', v);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +84,6 @@ export default function ChartsRegionPage() {
   }, [region]);
 
   const playItem = async (v: TrendingItem) => {
-    setAddingId(v.videoId);
     try {
       const supabase = createClient();
       const { data: existing } = await supabase
@@ -113,9 +109,7 @@ export default function ChartsRegionPage() {
       if (res.ok && data?.song) {
         play(data.song as Song, [data.song as Song], 'library');
       }
-    } finally {
-      setAddingId(null);
-    }
+    } catch {}
   };
 
   return (
@@ -159,7 +153,12 @@ export default function ChartsRegionPage() {
         </div>
       </div>
 
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-4">
+        {!loading && !error && items.length > 0 && (
+          <div className="flex items-center justify-end">
+            <ViewToggle view={view} onChange={setViewMode} />
+          </div>
+        )}
         {loading ? (
           <div className="space-y-1">
             {Array.from({ length: 12 }).map((_, i) => (
@@ -169,53 +168,7 @@ export default function ChartsRegionPage() {
         ) : error ? (
           <p className="text-sm text-muted-foreground">Couldn&apos;t load — {error}</p>
         ) : (
-          <div className="space-y-0.5">
-            {items.map((v, idx) => (
-              <button
-                key={v.videoId}
-                onClick={() => playItem(v)}
-                disabled={addingId === v.videoId}
-                className="group flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-card-hover text-left transition-colors disabled:opacity-60 w-full"
-              >
-                <span className="text-sm text-muted-foreground tabular-nums w-8 text-right flex-shrink-0">
-                  {idx + 1}
-                </span>
-                <div className="relative w-10 h-10 rounded-md overflow-hidden bg-card flex-shrink-0">
-                  <Image
-                    src={v.thumbnail}
-                    alt={v.title}
-                    width={40}
-                    height={40}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {addingId === v.videoId ? (
-                      <Loader2 className="w-4 h-4 text-white animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4 text-white fill-current" />
-                    )}
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{v.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{v.channel}</p>
-                </div>
-                <div className="hidden sm:flex items-center gap-3 text-xs text-muted">
-                  <span className="inline-flex items-center gap-1">
-                    <Eye className="w-3 h-3" />
-                    {compactNumber(v.viewCount)}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <ThumbsUp className="w-3 h-3" />
-                    {compactNumber(v.likeCount)}
-                  </span>
-                  {v.duration > 0 && (
-                    <span className="tabular-nums">{formatDuration(v.duration)}</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+          <YtTrackList items={items} view={view} onPlay={(i) => playItem(items[i])} showRank />
         )}
       </div>
     </div>

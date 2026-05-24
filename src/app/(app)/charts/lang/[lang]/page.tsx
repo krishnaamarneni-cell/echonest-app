@@ -6,10 +6,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { ArrowLeft, Play } from 'lucide-react';
 import { usePlayerStore } from '@/store/player';
 import { proxySearchMany, ytVideoToSong, YtVideo } from '@/lib/ytSearch';
+import { YtTrackList } from '@/components/ui/YtTrackList';
+import { ViewToggle } from '@/components/ui/ViewToggle';
 
 export default function LanguageChartPage() {
   const { lang } = useParams<{ lang: string }>();
@@ -18,6 +19,16 @@ export default function LanguageChartPage() {
   const play = usePlayerStore((s) => s.play);
   const [items, setItems] = useState<YtVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'grid'>('list');
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('echonest-chart-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-chart-view', v);
+  };
 
   useEffect(() => {
     if (!language) return;
@@ -80,7 +91,12 @@ export default function LanguageChartPage() {
         </div>
       </div>
 
-      <div className="p-4 sm:p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-4">
+        {!loading && items.length > 0 && (
+          <div className="flex items-center justify-end">
+            <ViewToggle view={view} onChange={setViewMode} />
+          </div>
+        )}
         {loading ? (
           <div className="space-y-1">
             {Array.from({ length: 12 }).map((_, i) => (
@@ -92,35 +108,7 @@ export default function LanguageChartPage() {
             Couldn&apos;t load the {language} chart right now — the music proxy may be offline.
           </p>
         ) : (
-          <div className="space-y-0.5">
-            {items.map((v, idx) => (
-              <button
-                key={v.videoId}
-                onClick={() => playAt(idx)}
-                className="group flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-card-hover text-left transition-colors w-full"
-              >
-                <span className="text-sm text-muted-foreground tabular-nums w-8 text-right flex-shrink-0">
-                  {idx + 1}
-                </span>
-                <div className="relative w-10 h-10 rounded-md overflow-hidden bg-card flex-shrink-0">
-                  <Image
-                    src={v.thumbnail || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`}
-                    alt={v.title}
-                    width={40}
-                    height={40}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Play className="w-4 h-4 text-white fill-current" />
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{v.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{v.channel}</p>
-                </div>
-              </button>
-            ))}
-          </div>
+          <YtTrackList items={items} view={view} onPlay={playAt} showRank />
         )}
       </div>
     </div>
