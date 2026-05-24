@@ -23,14 +23,37 @@ export function ListenAlongSync() {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   const userIdRef = useRef<string | null>(null);
+  // serverNow() ≈ Date.now() + clockOffset. Estimated against the DB clock so
+  // host + listeners share ONE timeline (kills inter-device clock skew).
+  const clockOffsetRef = useRef(0);
+  const serverNow = () => Date.now() + clockOffsetRef.current;
 
   useEffect(() => {
     if (!roomCode) return;
     const supabase = createClient();
+    let cancelled = false;
     (async () => {
       const { data } = await supabase.auth.getUser();
       userIdRef.current = data.user?.id || null;
+
+      // Estimate offset to the server clock with a few round-trips; take the
+      // median to shrug off jittery samples.
+      const samples: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const t0 = Date.now();
+        const { data: ms, error } = await supabase.rpc('server_now_ms');
+        const t1 = Date.now();
+        if (cancelled) return;
+        if (error || ms == null) continue;
+        const serverAtT1 = Number(ms) + (t1 - t0) / 2; // server time at t1
+        samples.push(serverAtT1 - t1);
+      }
+      if (!cancelled && samples.length) {
+        samples.sort((a, b) => a - b);
+        clockOffsetRef.current = samples[Math.floor(samples.length / 2)];
+      }
     })();
+    return () => { cancelled = true; };
   }, [roomCode]);
 
   // Presence channel — peer count only (subscribe-only, reliable).
@@ -65,7 +88,8 @@ export function ListenAlongSync() {
           position_seconds: player.progress,
           is_playing: player.isPlaying,
           last_action_by: userIdRef.current,
-          last_action_at: new Date().toISOString(),
+          // Stamp with the shared server clock, not this device's local clock.
+          last_action_at: new Date(serverNow()).toISOString(),
         })
         .eq('code', roomCode)
         .then(() => {}, () => {});
@@ -96,11 +120,11 @@ export function ListenAlongSync() {
       const at = data.last_action_at ? new Date(data.last_action_at as string).getTime() : 0;
       let pos = Number(data.position_seconds) || 0;
       if (data.is_playing && at) {
-        // Compensate for transit time, plus a small look-ahead for the
-        // listener's own seek/buffer latency so it lands ON the host's
-        // position instead of trailing behind it.
+        // Elapsed since the host's stamp, measured on the SHARED server clock
+        // (both sides use serverNow), plus a small look-ahead for the
+        // listener's own seek/buffer latency so it lands ON the host's spot.
         const LISTENER_LATENCY = 0.45;
-        pos += Math.max(0, (Date.now() - at) / 1000) + LISTENER_LATENCY;
+        pos += Math.max(0, (serverNow() - at) / 1000) + LISTENER_LATENCY;
       }
 
       setSuppressBroadcast(true);
