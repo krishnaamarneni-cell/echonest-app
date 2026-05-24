@@ -63,9 +63,12 @@ export function SyncedRoomPlayer() {
     const supabase = createClient();
     let cancelled = false;
 
-    syncClock();
-
     const tick = async () => {
+      // Make sure the shared-clock offset is established BEFORE we schedule —
+      // device clocks can be seconds off, and scheduling against a wrong clock
+      // throws everything out of sync. Cached after the first call.
+      await syncClock();
+      if (cancelled) return;
       engine.nudgeMs = nudgeMs;
       const { data } = await supabase
         .from('listening_rooms')

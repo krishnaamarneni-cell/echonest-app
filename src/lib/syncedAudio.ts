@@ -133,7 +133,7 @@ export class SyncedAudioEngine {
     // If already playing this song, only re-schedule on noticeable drift.
     if (this.source && this.playingVideoId === opts.videoId) {
       const drift = Math.abs(this.estimatedOffset(opts.playStartedAtMs) - this.offsetFor(opts.playStartedAtMs));
-      if (drift < (opts.driftThreshold ?? 0.25)) {
+      if (drift < (opts.driftThreshold ?? 0.12)) {
         this.setVolume(opts.volume);
         return; // in sync — leave it
       }
