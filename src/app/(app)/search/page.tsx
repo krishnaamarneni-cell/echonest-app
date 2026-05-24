@@ -59,6 +59,7 @@ function SearchPageInner() {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [allPlaylistSongs, setAllPlaylistSongs] = useState<Song[]>([]);
+  const [playlistsWithSongs, setPlaylistsWithSongs] = useState<{ playlist: Playlist; songs: Song[] }[]>([]);
   const [songsInPlaylists, setSongsInPlaylists] = useState<Set<string>>(new Set());
   const [browsePlaylists, setBrowsePlaylists] = useState<Playlist[]>([]);
   const [searching, setSearching] = useState(false);
@@ -106,6 +107,7 @@ function SearchPageInner() {
     fetchAllPlaylistsWithSongs().then((data) => {
       const flat = buildCrossPlaylistQueue(data);
       setAllPlaylistSongs(flat);
+      setPlaylistsWithSongs(data);
       setSongsInPlaylists(new Set(flat.map((s) => s.id)));
     });
 
@@ -146,7 +148,12 @@ function SearchPageInner() {
         .or(`title.ilike.${pattern},artist_name.ilike.${pattern}`)
         .limit(6),
       supabase.from('artists').select('*').ilike('name', pattern).limit(6),
-      supabase.from('playlists').select('*').ilike('title', pattern).limit(6),
+      // Match playlists by title OR description.
+      supabase
+        .from('playlists')
+        .select('*')
+        .or(`title.ilike.${pattern},description.ilike.${pattern}`)
+        .limit(12),
       fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`)
         .then(async (r) => {
           const body = await r.json().catch(() => null);
@@ -158,7 +165,26 @@ function SearchPageInner() {
     if (songsRes.data) setSongs(songsRes.data);
     if (albumsRes.data) setAlbums(albumsRes.data);
     if (artistsRes.data) setArtists(artistsRes.data);
-    if (playlistsRes.data) setPlaylists(playlistsRes.data);
+
+    // Playlists: title/description matches from the DB, PLUS any playlist that
+    // CONTAINS a song matching the query (so searching a song surfaces the
+    // playlists it's in). Merge + de-dupe by id.
+    const ql = q.toLowerCase();
+    const merged: Playlist[] = [...((playlistsRes.data as Playlist[]) || [])];
+    const seenIds = new Set(merged.map((p) => p.id));
+    for (const pw of playlistsWithSongs) {
+      if (seenIds.has(pw.playlist.id)) continue;
+      const hit = pw.songs.some(
+        (s) =>
+          s.title.toLowerCase().includes(ql) ||
+          s.artist_name.toLowerCase().includes(ql),
+      );
+      if (hit) {
+        merged.push(pw.playlist);
+        seenIds.add(pw.playlist.id);
+      }
+    }
+    setPlaylists(merged.slice(0, 12));
     if (ytRes.ok && Array.isArray(ytRes.body?.videos)) {
       setYtResults(ytRes.body.videos);
       setYtError(null);
@@ -172,7 +198,7 @@ function SearchPageInner() {
       );
     }
     setSearching(false);
-  }, []);
+  }, [playlistsWithSongs]);
 
   // Add a YouTube search result to the library and play it
   const playYoutubeResult = useCallback(
@@ -472,6 +498,25 @@ function SearchPageInner() {
         </div>
       )}
 
+      {/* Playlists — shown above YouTube results so library playlists are
+          easy to find (includes playlists that contain a matching song). */}
+      {query && playlists.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3">Playlists</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {playlists.map((playlist) => (
+              <MediaCard
+                key={playlist.id}
+                title={playlist.title}
+                subtitle="Playlist"
+                imageUrl={playlist.cover_url}
+                href={`/playlist/${playlist.id}`}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* YouTube search error chip */}
       {query && ytError && ytResults.length === 0 && (
         <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
@@ -514,24 +559,6 @@ function SearchPageInner() {
                   )}
                 </div>
               </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Playlists */}
-      {query && playlists.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3">Playlists</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-            {playlists.map((playlist) => (
-              <MediaCard
-                key={playlist.id}
-                title={playlist.title}
-                subtitle="Playlist"
-                imageUrl={playlist.cover_url}
-                href={`/playlist/${playlist.id}`}
-              />
             ))}
           </div>
         </section>
