@@ -1,20 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, LogOut, Save, Smartphone, Sparkles } from 'lucide-react';
+import { User, LogOut, Save, Smartphone, Sparkles, LogIn, UserPlus } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
+import { isPublicAccountEmail } from '@/lib/publicAccount';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -28,6 +31,7 @@ export default function SettingsPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setEmail(user.email || '');
+        setIsPublic(isPublicAccountEmail(user.email));
         supabase
           .from('profiles')
           .select('display_name')
@@ -87,26 +91,59 @@ export default function SettingsPage() {
       <YouTubeImportPanel />
       <ShareInvitePanel />
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <User className="w-5 h-5 text-accent" />
-          Profile
-        </h2>
-        <Input
-          label="Display name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-        />
-        <Input label="Email" value={email} disabled />
-        <div className="flex items-center gap-3">
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save'}
-          </Button>
-        </div>
-      </section>
+      {isPublic ? (
+        // Shared public account: don't expose a personal profile, email, or
+        // account-deletion. Offer Sign in / Sign up instead.
+        <section className="space-y-4">
+          <div className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <User className="w-5 h-5 text-accent" />
+              Your account
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              You&apos;re browsing the shared public library. Sign in or create
+              an account to get your own.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link
+                href="/login?manual=1"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-full text-sm font-semibold hover:bg-accent-hover transition-colors"
+              >
+                <LogIn className="w-4 h-4" /> Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-card border border-border text-foreground rounded-full text-sm font-medium hover:bg-card-hover transition-colors"
+              >
+                <UserPlus className="w-4 h-4" /> Sign up
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
+          <section className="space-y-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <User className="w-5 h-5 text-accent" />
+              Profile
+            </h2>
+            <Input
+              label="Display name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+            <Input label="Email" value={email} disabled />
+            <div className="flex items-center gap-3">
+              <Button onClick={handleSave} disabled={saving}>
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : saved ? 'Saved!' : 'Save'}
+              </Button>
+            </div>
+          </section>
 
-      <AccountDangerZone />
+          <AccountDangerZone />
+        </>
+      )}
 
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">About</h2>
@@ -122,12 +159,14 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="pt-4 border-t border-border">
-        <Button variant="danger" onClick={handleLogout}>
-          <LogOut className="w-4 h-4" />
-          Sign out
-        </Button>
-      </section>
+      {!isPublic && (
+        <section className="pt-4 border-t border-border">
+          <Button variant="danger" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </Button>
+        </section>
+      )}
     </div>
   );
 }
