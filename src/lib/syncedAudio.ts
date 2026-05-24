@@ -124,8 +124,21 @@ export class SyncedAudioEngine {
       return;
     }
 
+    // Song changed → stop the old one IMMEDIATELY so it doesn't keep playing
+    // while the new song downloads/decodes. Without this, listeners hear the
+    // previous track until the new buffer is ready (the "stuck on old song"
+    // bug when the host switches songs).
+    if (this.playingVideoId && this.playingVideoId !== opts.videoId) {
+      this.stop();
+    }
+
     const buffer = await this.load(opts.videoId, opts.url);
-    if (!buffer) return; // still downloading/decoding; try again next tick
+    if (!buffer) {
+      // Still downloading/decoding. Remember the target so we don't re-stop
+      // every tick, and try again on the next one.
+      this.playingVideoId = opts.videoId;
+      return;
+    }
 
     const targetOffset = this.offsetFor(opts.playStartedAtMs) + this.nudgeMs / 1000;
     if (targetOffset >= buffer.duration) return; // past the end
