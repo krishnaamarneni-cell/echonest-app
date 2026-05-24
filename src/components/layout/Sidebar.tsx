@@ -96,12 +96,7 @@ export function Sidebar() {
   return (
     <aside
       className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-full bg-background border-r border-border"
-      style={{
-        paddingTop: 'var(--safe-top)',
-        // Reserve room for the full-width player bar so "Settings" sits above
-        // it (and its border lines up with the player's top edge).
-        paddingBottom: isPlayerVisible ? 'var(--player-height)' : undefined,
-      }}
+      style={{ paddingTop: 'var(--safe-top)' }}
     >
       <Link href="/" className="p-6 block hover:opacity-80 transition-opacity">
         <Logo />
@@ -187,11 +182,20 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="p-3 border-t border-border">
+      <div
+        className="px-3 border-t border-border flex items-center"
+        style={{
+          // Match the player bar's height when it's showing so this row's
+          // top border lines up exactly with the player's top border.
+          height: isPlayerVisible ? 'var(--player-height)' : undefined,
+          paddingTop: isPlayerVisible ? undefined : '0.75rem',
+          paddingBottom: isPlayerVisible ? undefined : '0.75rem',
+        }}
+      >
         <Link
           href="/settings"
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
+            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors w-full',
             pathname === '/settings'
               ? 'bg-accent-muted text-accent'
               : 'text-muted-foreground hover:text-foreground hover:bg-card'
