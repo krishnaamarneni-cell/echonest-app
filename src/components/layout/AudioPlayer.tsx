@@ -1044,7 +1044,10 @@ export function AudioPlayer() {
           // Expanded video overlay covers the sidebar/bottom-nav, so span the
           // full width at the very bottom and sit above the overlay.
           ? 'left-0 right-0 bottom-0 z-[65]'
-          : 'left-0 lg:left-[var(--sidebar-width)] right-0 bottom-[var(--total-bottom-nav)] lg:bottom-0 z-50'
+          // Full-width bar across the whole bottom (sidebar ends above it), so
+          // its top line runs edge-to-edge instead of starting beside the
+          // sidebar's Settings row.
+          : 'left-0 right-0 bottom-[var(--total-bottom-nav)] lg:bottom-0 z-50'
       }`}>
         <div
           className="absolute top-0 left-0 h-0.5 bg-accent transition-all duration-100"

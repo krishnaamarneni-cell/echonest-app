@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { usePlayerStore } from '@/store/player';
 
 const mainNav = [
   { label: 'Home', href: '/dashboard', icon: Home },
@@ -44,6 +45,7 @@ type SidebarPlaylist = {
 export function Sidebar() {
   const pathname = usePathname();
   const [playlists, setPlaylists] = useState<SidebarPlaylist[]>([]);
+  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
 
   useEffect(() => {
     const supabase = createClient();
@@ -94,7 +96,12 @@ export function Sidebar() {
   return (
     <aside
       className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-full bg-background border-r border-border"
-      style={{ paddingTop: 'var(--safe-top)' }}
+      style={{
+        paddingTop: 'var(--safe-top)',
+        // Reserve room for the full-width player bar so "Settings" sits above
+        // it (and its border lines up with the player's top edge).
+        paddingBottom: isPlayerVisible ? 'var(--player-height)' : undefined,
+      }}
     >
       <Link href="/" className="p-6 block hover:opacity-80 transition-opacity">
         <Logo />
