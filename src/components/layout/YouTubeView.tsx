@@ -133,9 +133,10 @@ export function YouTubeView({
         style={
           isFull
             ? {
-                // Leave room at the bottom for the player bar so the video +
-                // queue sit above it instead of being cut off behind it.
-                paddingBottom: 'calc(var(--player-height) + var(--total-bottom-nav) + 1rem)',
+                // Leave room at the bottom for the full-width player bar (which
+                // sits at bottom-0 in this view) so the video + queue sit above
+                // it instead of being cut off behind it.
+                paddingBottom: 'calc(var(--player-height) + 1rem)',
               }
             : {
                 position: 'fixed',
