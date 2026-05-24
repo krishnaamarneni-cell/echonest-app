@@ -21,14 +21,53 @@ function isListenerLocked() {
 }
 
 async function logRecentlyPlayed(song: Song) {
-  // Skip ad-hoc YouTube playlist videos (they don't have a real DB id)
-  if (song.id.startsWith('yt-')) return;
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    let songId = song.id;
+
+    // Ad-hoc YouTube songs (id "yt-<videoId>", e.g. from the Latest/Charts
+    // rows) aren't in the DB. Persist a real row (find-or-create by
+    // youtube_id) so the play can be logged and shows up in Recently Played,
+    // Stats and Library — otherwise these plays were silently dropped.
+    if (song.id.startsWith('yt-')) {
+      if (!song.youtube_id || song.youtube_kind === 'playlist') return;
+      const { data: existing } = await supabase
+        .from('songs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('source', 'youtube_embed')
+        .eq('youtube_id', song.youtube_id)
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        songId = existing.id as string;
+      } else {
+        const { data: created } = await supabase
+          .from('songs')
+          .insert({
+            user_id: user.id,
+            title: song.title,
+            artist_name: song.artist_name,
+            duration: song.duration || 0,
+            file_url: '',
+            cover_url: song.cover_url,
+            source: 'youtube_embed',
+            youtube_id: song.youtube_id,
+            youtube_kind: 'video',
+            content_type: song.content_type || 'music',
+          })
+          .select('id')
+          .single();
+        if (!created) return;
+        songId = created.id as string;
+      }
+    }
+
     await supabase.from('recently_played').insert({
-      song_id: song.id,
+      song_id: songId,
       user_id: user.id,
     });
   } catch {}

@@ -10,6 +10,8 @@ import { Logo } from '@/components/ui/Logo';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useAutoplay } from '@/store/autoplay';
 import { useMusicLanguages, ALL_LANGUAGES } from '@/store/musicLanguages';
+import { useCrossDeviceSync } from '@/store/crossDeviceSync';
+import { Smartphone as DevicesIcon } from 'lucide-react';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
@@ -27,9 +29,13 @@ export default function SettingsPage() {
   const musicLanguages = useMusicLanguages((s) => s.languages);
   const hydrateLanguages = useMusicLanguages((s) => s.hydrate);
   const toggleLanguage = useMusicLanguages((s) => s.toggle);
+  const syncEnabled = useCrossDeviceSync((s) => s.enabled);
+  const hydrateSync = useCrossDeviceSync((s) => s.hydrate);
+  const toggleSync = useCrossDeviceSync((s) => s.toggle);
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
   useEffect(() => { hydrateAutoplay(); }, [hydrateAutoplay]);
   useEffect(() => { hydrateLanguages(); }, [hydrateLanguages]);
+  useEffect(() => { hydrateSync(); }, [hydrateSync]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -93,6 +99,36 @@ export default function SettingsPage() {
 
       <BackgroundModeToggle enabled={bgEnabled} onToggle={toggleBg} />
       <AutoplayToggle enabled={autoplayEnabled} onToggle={toggleAutoplay} />
+
+      <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/20">
+            <DevicesIcon className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold">Sync across devices</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Keep the same song &amp; position on every device signed in here.
+              Pause on your phone, open your laptop, and pick up right where you
+              left off. Turn this on for each device you want kept in sync.
+            </p>
+          </div>
+          <button
+            onClick={toggleSync}
+            role="switch"
+            aria-checked={syncEnabled}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+              syncEnabled ? 'bg-accent' : 'bg-card-hover'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+                syncEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+      </section>
 
       <section className="bg-gradient-to-br from-card to-background border border-border rounded-2xl p-5 space-y-3">
         <h2 className="text-base font-semibold">Music languages</h2>
