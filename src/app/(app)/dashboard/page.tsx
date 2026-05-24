@@ -6,9 +6,8 @@ import { Song, Playlist, Album, Artist } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Search as SearchIcon, Play } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Play } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importPopularAlbumsBulk, POPULAR_ALBUMS, PopularAlbumResult } from '@/lib/popularAlbums';
@@ -17,6 +16,7 @@ import { usePlayerStore } from '@/store/player';
 import { useMusicLanguages } from '@/store/musicLanguages';
 import { LanguageMusicRow } from '@/components/ui/LanguageMusicRow';
 import { ChartsRow } from '@/components/ui/ChartsRow';
+import { LiveSearchBox } from '@/components/ui/LiveSearchBox';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
 
@@ -35,8 +35,6 @@ export default function DashboardPage() {
   const [showInstallHint, setShowInstallHint] = useState(false);
   const [importingAlbums, setImportingAlbums] = useState(false);
   const [albumProgress, setAlbumProgress] = useState<{ done: number; total: number; added: number; failed: number } | null>(null);
-  const [searchQ, setSearchQ] = useState('');
-  const router = useRouter();
   const play = usePlayerStore((s) => s.play);
   const musicLanguages = useMusicLanguages((s) => s.languages);
   const hydrateLanguages = useMusicLanguages((s) => s.hydrate);
@@ -63,12 +61,6 @@ export default function DashboardPage() {
     // Only depend on lengths so a new array reference with the same songs
     // doesn't trigger a reshuffle.
   }, [allPlaylistSongs.length, recentlyAdded.length]);
-
-  const goToSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = searchQ.trim();
-    router.push(q ? `/search?q=${encodeURIComponent(q)}` : '/search');
-  };
 
   const handlePullPopularAlbums = async () => {
     if (importingAlbums) return;
@@ -271,16 +263,7 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s playing in your world
           </p>
         </div>
-        <form onSubmit={goToSearch} className="relative w-full sm:w-80">
-          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
-          <input
-            type="text"
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="Search songs, albums, artists, playlists"
-            className="w-full pl-11 pr-4 py-2.5 rounded-full bg-card border border-border text-foreground placeholder:text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 text-sm"
-          />
-        </form>
+        <LiveSearchBox className="w-full sm:w-80" />
       </div>
 
       {/* Tabs */}
