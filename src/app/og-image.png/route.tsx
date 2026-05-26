@@ -9,7 +9,11 @@ import { ImageResponse } from 'next/og';
  * WhatsApp, iMessage, X, LinkedIn, Slack, Discord, Facebook, etc.
  * renders a real preview card instead of just a URL.
  */
-export const runtime = 'edge';
+// Runs on Node Serverless (default) rather than Edge. Edge has a 1 MB
+// function-size cap on the Hobby plan; next/og + the bundled font data
+// just barely tips over it. Node Serverless's 50 MB cap is plenty, and
+// next/og's ImageResponse works the same in either runtime.
+export const runtime = 'nodejs';
 
 export async function GET() {
   return new ImageResponse(
