@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withSerwistInit from "@serwist/next";
 
 const nextConfig: NextConfig = {
   images: {
@@ -17,4 +18,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Serwist generates /public/sw.js at build time from src/app/sw.ts.
+// That service worker caches the app shell so EchoNest opens & navigates
+// with NO internet after the first successful visit. Disabled in dev so
+// stale caches don't get in the way of hot reload.
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+  reloadOnOnline: true,
+});
+
+export default withSerwist(nextConfig);
