@@ -27,6 +27,7 @@ import { useSyncMode } from '@/store/syncMode';
 import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
+import { McpConnectorPanel } from '@/components/ui/McpConnectorPanel';
 import { isPublicAccountEmail } from '@/lib/publicAccount';
 
 export default function SettingsPage() {
@@ -302,6 +303,9 @@ export default function SettingsPage() {
         <YouTubeImportPanel />
         <ShareInvitePanel />
       </section>
+
+      {/* AI / MCP — only for private accounts (per-user tokens) */}
+      {!isPublic && <McpConnectorPanel />}
 
       {/* Account (private accounts only) */}
       {!isPublic && (
