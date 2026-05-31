@@ -43,7 +43,7 @@ export async function GET() {
 
   const { data } = await supa
     .from('mcp_tokens')
-    .select('id, name, token_prefix, created_at, last_used_at, revoked_at')
+    .select('id, name, token_prefix, created_at, expires_at, last_used_at, revoked_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 

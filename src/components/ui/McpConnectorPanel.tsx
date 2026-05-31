@@ -1,10 +1,9 @@
 'use client';
 
-// "Connect to AI" panel for the settings page. Users can generate per-client
-// MCP tokens, copy them, view ready-made config snippets for Claude Desktop /
-// Cursor / Zed, and revoke any token. The plaintext token is shown EXACTLY
-// once at creation time (the API only ever returns the hash after that), so
-// the UI surfaces it clearly with a Copy button and a "save this now" warning.
+// "AI Access" panel for the settings page — Wealth-Claude-inspired layout.
+// Users generate per-client tokens (Bearer auth) and copy a clean URL into
+// their AI client's MCP connector setting. Tokens auto-expire after 365
+// days and can be revoked at any time.
 
 import { useEffect, useState, useCallback } from 'react';
 import {
@@ -15,8 +14,8 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
-  ChevronDown,
-  ChevronUp,
+  BookOpen,
+  X,
 } from 'lucide-react';
 
 interface TokenRow {
@@ -24,22 +23,38 @@ interface TokenRow {
   name: string;
   token_prefix: string;
   created_at: string;
+  expires_at: string | null;
   last_used_at: string | null;
   revoked_at: string | null;
 }
 
-const MCP_BASE = (() => {
-  if (typeof window !== 'undefined') return `${window.location.origin}/api/mcp`;
-  return '/api/mcp';
+const ORIGIN = (() => {
+  if (typeof window !== 'undefined') return window.location.origin;
+  return '';
 })();
+
+const MCP_URL = `${ORIGIN}/api/mcp`;
+const REST_URL = `${ORIGIN}/api/agent/me`;
+
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '··';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function fmtDate(s: string | null): string {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString();
+}
 
 export function McpConnectorPanel() {
   const [tokens, setTokens] = useState<TokenRow[] | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
   const [revealed, setRevealed] = useState<{ token: string; name: string } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [showConfigs, setShowConfigs] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +86,7 @@ export function McpConnectorPanel() {
       if (r.ok && d.token) {
         setRevealed({ token: d.token, name: trimmed });
         setName('');
+        setShowCreate(false);
         load();
       } else {
         alert(d.error || 'Could not create token');
@@ -94,262 +110,248 @@ export function McpConnectorPanel() {
     } catch {}
   };
 
-  const fullUrl = revealed ? `${MCP_BASE}?token=${revealed.token}` : `${MCP_BASE}?token=YOUR_TOKEN`;
+  const activeTokens = (tokens || []).filter((t) => !t.revoked_at);
 
   return (
     <section className="space-y-3">
       <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">
-        Connect to AI (MCP)
+        AI Access
       </h2>
-      <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
-        {/* Header */}
+
+      <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
+        {/* Heading */}
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 shadow-lg shadow-cyan-500/20">
             <Bot className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold">AI client access</h3>
+            <h3 className="text-base font-semibold">Connect an AI agent</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Let Claude Desktop, Cursor, Zed, or any Model Context Protocol
-              client control your EchoNest by chat. Generate one token per
-              client so you can revoke them individually.
+              Generate a token so Claude, ChatGPT, Cursor, or any Model Context
+              Protocol agent can search your library, play songs, manage
+              playlists, and like tracks on your behalf. One token per client
+              — revoke anytime.
             </p>
           </div>
         </div>
 
+        {/* Warning */}
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
+          <p className="text-xs text-amber-100/90">
+            A token is like a password — anyone who has it can access your
+            EchoNest library and start music on your devices until you revoke
+            it. Only paste it into AI tools you trust.
+          </p>
+        </div>
+
         {/* Newly created token — shown ONCE */}
         {revealed && (
-          <div className="rounded-xl border border-success/40 bg-success/10 p-4 space-y-3">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 flex-shrink-0 text-success mt-0.5" />
-              <div className="text-xs">
-                <p className="font-semibold text-success">
-                  Copy this now — you won&apos;t see it again
-                </p>
-                <p className="text-success/80 mt-0.5">
-                  &ldquo;{revealed.name}&rdquo;
-                </p>
+          <div className="space-y-3 rounded-xl border border-success/40 bg-success/10 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+                <div className="text-xs">
+                  <p className="font-semibold text-success">
+                    Copy this token now — you won&apos;t see it again
+                  </p>
+                  <p className="mt-0.5 text-success/80">
+                    &ldquo;{revealed.name}&rdquo;
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => setRevealed(null)}
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-success/70 hover:bg-success/20 hover:text-success"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex items-center gap-2 rounded-lg bg-background border border-border px-3 py-2 font-mono text-xs">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs">
               <span className="flex-1 truncate text-foreground">{revealed.token}</span>
               <button
                 onClick={() => copy('revealed-token', revealed.token)}
-                className="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-card-hover hover:text-foreground"
+                className="flex flex-shrink-0 items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-card-hover hover:text-foreground"
               >
                 {copiedKey === 'revealed-token' ? (
-                  <Check className="h-4 w-4 text-success" />
+                  <>
+                    <Check className="h-3 w-3 text-success" /> Copied
+                  </>
                 ) : (
-                  <Copy className="h-4 w-4" />
+                  <>
+                    <Copy className="h-3 w-3" /> Copy
+                  </>
                 )}
               </button>
             </div>
-            <button
-              onClick={() => setRevealed(null)}
-              className="text-xs font-medium text-success underline-offset-2 hover:underline"
-            >
-              I&apos;ve saved it — dismiss
-            </button>
           </div>
         )}
 
-        {/* Create form */}
-        <form onSubmit={handleCreate} className="flex items-center gap-2">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Token name (e.g. Claude Desktop on Mac)"
-            className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30"
-          />
-          <button
-            type="submit"
-            disabled={creating}
-            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-60"
-          >
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            New token
-          </button>
-        </form>
-
-        {/* Existing tokens */}
+        {/* YOUR TOKENS */}
         <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+              Your tokens
+            </p>
+            <button
+              onClick={() => setShowCreate((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card-hover px-3 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-card"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New token
+            </button>
+          </div>
+
+          {/* Inline create form */}
+          {showCreate && (
+            <form
+              onSubmit={handleCreate}
+              className="flex items-center gap-2 rounded-xl border border-border bg-background p-2"
+            >
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                placeholder="Name (e.g. Claude Desktop on Mac)"
+                className="flex-1 rounded-md bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreate(false);
+                  setName('');
+                }}
+                className="rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-card-hover hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={creating}
+                className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+              >
+                {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Generate
+              </button>
+            </form>
+          )}
+
           {tokens === null ? (
             <p className="px-1 text-xs text-muted-foreground">Loading…</p>
-          ) : tokens.length === 0 ? (
-            <p className="px-1 text-xs text-muted-foreground">
-              No tokens yet. Create one above to connect your first AI client.
-            </p>
+          ) : activeTokens.length === 0 && !showCreate ? (
+            <div className="rounded-xl border border-dashed border-border bg-background px-4 py-6 text-center">
+              <p className="text-xs text-muted-foreground">
+                No tokens yet — click <span className="font-semibold text-foreground">+ New token</span> to connect your first AI client.
+              </p>
+            </div>
           ) : (
-            tokens.map((t) => (
+            activeTokens.map((t) => (
               <div
                 key={t.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5"
               >
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/30 to-cyan-500/30 text-xs font-bold text-foreground">
+                  {initialsFor(t.name)}
+                </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {t.name}
-                    {t.revoked_at && (
-                      <span className="ml-2 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold text-destructive">
-                        REVOKED
-                      </span>
-                    )}
+                  <p className="truncate text-sm">
+                    <span className="font-semibold">{t.name}</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">
+                      mcp_{t.token_prefix}…
+                    </span>
                   </p>
-                  <p className="truncate font-mono text-[11px] text-muted-foreground">
-                    mcp_{t.token_prefix}… · created {new Date(t.created_at).toLocaleDateString()}
+                  <p className="truncate text-[11px] text-muted-foreground">
                     {t.last_used_at
-                      ? ` · last used ${new Date(t.last_used_at).toLocaleDateString()}`
-                      : ' · never used'}
+                      ? `Last used ${fmtDate(t.last_used_at)}`
+                      : 'Never used'}
+                    {' · '}
+                    {t.expires_at ? `expires ${fmtDate(t.expires_at)}` : 'no expiry'}
                   </p>
                 </div>
-                {!t.revoked_at && (
-                  <button
-                    onClick={() => handleRevoke(t.id)}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Revoke"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
+                <button
+                  onClick={() => handleRevoke(t.id)}
+                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Revoke"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             ))
           )}
         </div>
 
-        {/* Config snippets */}
-        <button
-          type="button"
-          onClick={() => setShowConfigs((v) => !v)}
-          className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-card-hover"
-        >
-          <span>How to connect (Claude Desktop, Cursor, Zed)</span>
-          {showConfigs ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </button>
+        {/* How to connect */}
+        <div className="space-y-3 rounded-xl border border-border bg-background p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <BookOpen className="h-4 w-4 text-success" />
+            How to connect
+          </p>
 
-        {showConfigs && (
-          <div className="space-y-4 rounded-xl border border-border bg-background p-4">
-            <p className="text-xs text-muted-foreground">
-              Replace <code className="rounded bg-card px-1 py-0.5">YOUR_TOKEN</code> with the
-              token you just copied. Each client needs to be restarted after the config change.
-            </p>
+          <UrlField
+            label="MCP connector URL (Claude / ChatGPT custom connectors, Cursor, Zed):"
+            url={MCP_URL}
+            onCopy={() => copy('mcp-url', MCP_URL)}
+            copied={copiedKey === 'mcp-url'}
+          />
 
-            <ConfigBlock
-              title="Claude Desktop"
-              path="~/Library/Application Support/Claude/claude_desktop_config.json (macOS) · %APPDATA%\Claude\claude_desktop_config.json (Windows)"
-              code={JSON.stringify(
-                {
-                  mcpServers: {
-                    echonest: {
-                      url: fullUrl,
-                    },
-                  },
-                },
-                null,
-                2,
-              )}
-              onCopy={(t) => copy('claude', t)}
-              copied={copiedKey === 'claude'}
-            />
-            <ConfigBlock
-              title="Cursor"
-              path="~/.cursor/mcp.json (or Settings → Features → Model Context Protocol)"
-              code={JSON.stringify(
-                {
-                  mcpServers: {
-                    echonest: {
-                      url: fullUrl,
-                    },
-                  },
-                },
-                null,
-                2,
-              )}
-              onCopy={(t) => copy('cursor', t)}
-              copied={copiedKey === 'cursor'}
-            />
-            <ConfigBlock
-              title="Zed"
-              path="~/.config/zed/settings.json"
-              code={JSON.stringify(
-                {
-                  context_servers: {
-                    echonest: {
-                      url: fullUrl,
-                    },
-                  },
-                },
-                null,
-                2,
-              )}
-              onCopy={(t) => copy('zed', t)}
-              copied={copiedKey === 'zed'}
-            />
+          <UrlField
+            label="Or a plain read-only REST endpoint (any agent / script):"
+            url={REST_URL}
+            onCopy={() => copy('rest-url', REST_URL)}
+            copied={copiedKey === 'rest-url'}
+          />
 
-            <p className="text-[11px] text-muted-foreground">
-              Tools EchoNest exposes: <code className="rounded bg-card px-1">search_songs</code>,
-              <code className="ml-1 rounded bg-card px-1">search_youtube</code>,
-              <code className="ml-1 rounded bg-card px-1">get_now_playing</code>,
-              <code className="ml-1 rounded bg-card px-1">play_song</code>,
-              <code className="ml-1 rounded bg-card px-1">like_song</code> /{' '}
-              <code className="rounded bg-card px-1">unlike_song</code>,
-              <code className="ml-1 rounded bg-card px-1">list_playlists</code>,
-              <code className="ml-1 rounded bg-card px-1">get_playlist_songs</code>,
-              <code className="ml-1 rounded bg-card px-1">add_song_to_playlist</code>,
-              <code className="ml-1 rounded bg-card px-1">get_recent_played</code>.
-              <br />
-              <span className="mt-1 inline-block">
-                Note: <code className="rounded bg-card px-1">play_song</code> only starts audio
-                if you have an EchoNest tab open with cross-device sync turned on. Read-only
-                tools work any time.
-              </span>
-            </p>
-          </div>
-        )}
+          <p className="text-[11px] text-muted-foreground">
+            Add the connector with the URL above and set the authorization
+            header to <code className="rounded bg-card px-1 py-0.5 font-mono">Bearer &lt;your token&gt;</code>.
+            EchoNest exposes 10 tools: search, play, like/unlike, list
+            playlists, add to playlist, recent history, and now-playing.
+          </p>
+        </div>
       </div>
     </section>
   );
 }
 
-function ConfigBlock({
-  title,
-  path,
-  code,
+function UrlField({
+  label,
+  url,
   onCopy,
   copied,
 }: {
-  title: string;
-  path: string;
-  code: string;
-  onCopy: (text: string) => void;
+  label: string;
+  url: string;
+  onCopy: () => void;
   copied: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">{title}</p>
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={url}
+          readOnly
+          onClick={(e) => (e.target as HTMLInputElement).select()}
+          className="flex-1 rounded-lg border border-border bg-card px-3 py-2 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40"
+        />
         <button
-          onClick={() => onCopy(code)}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-card-hover hover:text-foreground"
+          onClick={onCopy}
+          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card-hover px-3 py-2 text-xs font-medium text-foreground hover:bg-card"
         >
           {copied ? (
             <>
-              <Check className="h-3 w-3 text-success" /> Copied
+              <Check className="h-3.5 w-3.5 text-success" /> Copied
             </>
           ) : (
             <>
-              <Copy className="h-3 w-3" /> Copy
+              <Copy className="h-3.5 w-3.5" /> Copy
             </>
           )}
         </button>
       </div>
-      <p className="text-[11px] text-muted-foreground">{path}</p>
-      <pre className="overflow-x-auto rounded-lg bg-card px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground">
-        {code}
-      </pre>
     </div>
   );
 }

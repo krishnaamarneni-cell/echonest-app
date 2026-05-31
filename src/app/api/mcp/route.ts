@@ -161,10 +161,11 @@ async function userIdFromToken(req: NextRequest): Promise<string | null> {
   const supa = admin();
   const { data } = await supa
     .from('mcp_tokens')
-    .select('user_id, revoked_at')
+    .select('user_id, revoked_at, expires_at')
     .eq('token_hash', hashToken(token))
     .maybeSingle();
   if (!data || data.revoked_at) return null;
+  if (data.expires_at && new Date(data.expires_at) <= new Date()) return null;
   // Fire-and-forget bump last_used_at — don't await.
   supa.from('mcp_tokens').update({ last_used_at: new Date().toISOString() }).eq('token_hash', hashToken(token)).then(() => {});
   return data.user_id as string;
