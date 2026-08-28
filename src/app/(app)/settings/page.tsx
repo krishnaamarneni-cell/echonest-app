@@ -16,10 +16,12 @@ import {
   Radio,
   Languages,
   MonitorSmartphone,
+  Zap,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useBackgroundMode } from '@/store/backgroundMode';
+import { useDirectMode } from '@/store/directMode';
 import { useAutoplay } from '@/store/autoplay';
 import { useMusicLanguages, ALL_LANGUAGES } from '@/store/musicLanguages';
 import { useCrossDeviceSync } from '@/store/crossDeviceSync';
@@ -39,6 +41,7 @@ export default function SettingsPage() {
 
   const { enabled: bgEnabled, hydrate: hydrateBg, toggle: toggleBg } = useBackgroundMode();
   const { enabled: autoplayEnabled, hydrate: hydrateAutoplay, toggle: toggleAutoplay } = useAutoplay();
+  const { enabled: directEnabled, hydrate: hydrateDirect, toggle: toggleDirect } = useDirectMode();
   const musicLanguages = useMusicLanguages((s) => s.languages);
   const hydrateLanguages = useMusicLanguages((s) => s.hydrate);
   const toggleLanguage = useMusicLanguages((s) => s.toggle);
@@ -52,6 +55,7 @@ export default function SettingsPage() {
   const setSpeakerNudge = useSyncMode((s) => s.setNudge);
   useEffect(() => { hydrateBg(); }, [hydrateBg]);
   useEffect(() => { hydrateAutoplay(); }, [hydrateAutoplay]);
+  useEffect(() => { hydrateDirect(); }, [hydrateDirect]);
   useEffect(() => { hydrateLanguages(); }, [hydrateLanguages]);
   useEffect(() => { hydrateSync(); }, [hydrateSync]);
   useEffect(() => { hydrateSpeakerSync(); }, [hydrateSpeakerSync]);
@@ -208,6 +212,24 @@ export default function SettingsPage() {
           footnote="Needs the proxy running — same one used for background play."
           checked={autoplayEnabled}
           onToggle={toggleAutoplay}
+        />
+        <ToggleRow
+          gradient="from-emerald-500 to-teal-600"
+          icon={<Zap className="h-5 w-5 text-white" />}
+          title="Stream directly from YouTube"
+          description={
+            <>
+              Normally audio is relayed through the laptop running the
+              extractor, so every byte has to climb its home upload
+              connection (~48 KB/s) before reaching this device. Turn this on
+              and playback jumps straight to YouTube&apos;s servers instead —
+              the laptop only looks up the track, and audio comes down over
+              this device&apos;s own connection.
+            </>
+          }
+          footnote="If songs stop playing entirely with this on, turn it back off — YouTube ties each link to the laptop's IP and some networks are refused. Downloads always use the relay and are unaffected."
+          checked={directEnabled}
+          onToggle={toggleDirect}
         />
       </SettingsGroup>
 
