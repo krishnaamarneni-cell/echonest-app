@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     url.searchParams.set('videoEmbeddable', 'true');
 
     try {
-      const upstream = await fetch(url.toString(), { cache: 'no-store' });
+      const upstream = await fetch(url.toString(), { next: { revalidate: 300 } });
       if (upstream.ok) {
         const data = (await upstream.json()) as {
           items?: Array<{
@@ -60,16 +60,30 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Path 2: ytdl-core fallback when no YouTube API key is set. Uses
-  // youtubei.js-like search via @distube/ytdl-core's getInfo on a search
-  // playlist isn't supported, so we use the YouTube Data API's first-page
-  // HTML scrape via the library's helpers. For simplicity, when no API
-  // key is set, surface a clear message rather than an opaque scraper.
+  // Path 2: fall back to the laptop proxy's yt-dlp search. Reached when
+  // there's no API key at all, or when the Data API failed above — most
+  // importantly on quota exhaustion (search.list is 100 units a call, so
+  // a busy day can burn the daily allowance). Slower, but it keeps search
+  // working instead of returning a hard 503.
+  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL?.trim();
+  const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET?.trim();
+  if (proxyUrl && proxySecret) {
+    try {
+      const r = await fetch(
+        `${proxyUrl.replace(/\/+$/, '')}/search?q=${encodeURIComponent(q)}&s=${encodeURIComponent(proxySecret)}`,
+        { cache: 'no-store' },
+      );
+      if (r.ok) {
+        const d = (await r.json()) as { videos?: unknown[] };
+        return NextResponse.json({ videos: d.videos || [] });
+      }
+    } catch {
+      // fall through to the error below
+    }
+  }
+
   return NextResponse.json(
-    {
-      error:
-        'YouTube search requires YOUTUBE_API_KEY on Vercel. Set it in your project env vars to enable search.',
-    },
+    { error: 'YouTube search is unavailable — the Data API failed and the proxy is unreachable.' },
     { status: 503 },
   );
 }

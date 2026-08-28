@@ -30,8 +30,8 @@ interface GoogleTokenResponse {
 }
 
 export async function POST(_req: NextRequest) {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) {
     return NextResponse.json(
       { error: 'GOOGLE_OAUTH_CLIENT_ID / SECRET not configured on the server' },

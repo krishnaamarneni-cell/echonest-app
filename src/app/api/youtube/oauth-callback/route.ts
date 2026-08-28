@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/settings?yt_error=no_code', req.url));
   }
 
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
       new URL('/settings?yt_error=oauth_not_configured', req.url),
