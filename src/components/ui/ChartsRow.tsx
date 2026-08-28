@@ -8,11 +8,7 @@ import { useMusicLanguages } from '@/store/musicLanguages';
 const REGIONS = [
   { region: 'IN', label: 'India', gradient: 'from-orange-500 via-rose-500 to-red-600' },
   { region: 'US', label: 'United States', gradient: 'from-rose-500 via-pink-500 to-red-500' },
-  { region: 'GB', label: 'United Kingdom', gradient: 'from-blue-500 via-indigo-500 to-purple-600' },
   { region: 'global', label: 'Global', gradient: 'from-violet-500 via-purple-500 to-fuchsia-600' },
-  { region: 'KR', label: 'South Korea', gradient: 'from-cyan-500 via-teal-500 to-emerald-600' },
-  { region: 'JP', label: 'Japan', gradient: 'from-pink-400 via-fuchsia-500 to-rose-600' },
-  { region: 'BR', label: 'Brazil', gradient: 'from-emerald-500 via-lime-500 to-yellow-500' },
 ];
 
 const LANG_GRADIENTS = [
