@@ -39,7 +39,7 @@ const REGION_LABELS: Record<string, string> = {
   KR: 'South Korea',
   BR: 'Brazil',
   MX: 'Mexico',
-  GLOBAL: 'Global',
+  global: 'Global',
 };
 
 export default function ChartsRegionPage() {

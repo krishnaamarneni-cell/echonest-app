@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { importYouTubeLibrary, ImportProgress } from '@/lib/youtubeImport';
 import { Play, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Unlink } from 'lucide-react';
 
+const YT_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly';
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 type State =
@@ -86,22 +87,67 @@ export function YouTubeImportPanel() {
   }, [loadStored]);
 
   /**
-   * Get a fresh Google access token that actually carries youtube.readonly.
-   *
-   * This deliberately does NOT use the Supabase session's provider_token.
-   * That token comes from signing in to EchoNest with Google and only ever
-   * carries basic profile scopes, so YouTube calls with it fail with 403
-   * "Request had insufficient authentication scopes". The only token that
-   * can read playlists is the one minted by /api/youtube/connect and kept
-   * in user_youtube_tokens, which /api/youtube/refresh renews.
+   * Get a fresh Google access token. First try the live Supabase session
+   * (cheap, no network), and if that token isn't there or has expired,
+   * fall back to the server-side /api/youtube/refresh endpoint which
+   * uses the stored refresh_token + client secret.
    */
   const getAccessToken = useCallback(async (): Promise<string> => {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    const tok = data.session?.provider_token;
+    if (tok) return tok;
+
     const r = await fetch('/api/youtube/refresh', { method: 'POST' });
     const body = await r.json().catch(() => ({}));
     if (!r.ok || !body?.access_token) {
       throw new Error(body?.error || `Refresh failed (${r.status})`);
     }
     return body.access_token as string;
+  }, []);
+
+  /**
+   * Persist the session's provider tokens to user_youtube_tokens so we
+   * can sync in the future without making the user reauth. Called once
+   * right after the OAuth round-trip completes.
+   */
+  const saveTokensFromSession = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!session || !user) return;
+    const accessToken = session.provider_token;
+    // Refresh token is only present on the first OAuth callback; if we
+    // already have a row from a previous flow we leave that refresh_token
+    // alone. If neither is present we can't sync later.
+    const refreshToken = session.provider_refresh_token as string | undefined;
+    if (!accessToken) return;
+    const expiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString(); // assume 1h, with safety
+    // Upsert: keep the existing refresh_token if Google didn't send a new one
+    const existing = await supabase
+      .from('user_youtube_tokens')
+      .select('refresh_token')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const finalRefresh =
+      refreshToken || (existing.data?.refresh_token as string | undefined);
+    if (!finalRefresh) {
+      console.warn(
+        'No refresh_token from Google. Background sync will need re-consent.',
+      );
+      return;
+    }
+    await supabase.from('user_youtube_tokens').upsert(
+      {
+        user_id: user.id,
+        access_token: accessToken,
+        refresh_token: finalRefresh,
+        expires_at: expiresAt,
+        scopes: YT_SCOPE,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
   }, []);
 
   /**
@@ -156,7 +202,9 @@ export function YouTubeImportPanel() {
     if (params.get('yt_import') === '1') {
       window.history.replaceState({}, '', window.location.pathname);
       (async () => {
-        // Tokens were already persisted server-side by the OAuth callback.
+        // No-op in the direct-OAuth flow (no provider_token on the session);
+        // kept for the legacy path. Tokens are already persisted server-side.
+        await saveTokensFromSession();
         await loadStored();
         run();
       })();

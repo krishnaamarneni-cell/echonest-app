@@ -127,23 +127,13 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
 
       let blob: Blob;
       if (total > 0) {
-        // Chunked download via Range. Ranges ARE worth it: googlevideo
-        // paces a single continuous stream to roughly playback rate
-        // (~22 KB/s measured), while range requests come back at full
-        // speed (~124 KB/s) — about 5x faster for the same file.
-        //
-        // But concurrency past ~3 buys nothing, because the ceiling is the
-        // laptop's upstream bandwidth, not YouTube's per-stream throttle.
-        // Measured on a 2.42 MB file through the tunnel:
-        //   concurrency 1 -> 19.8s (122 KB/s), each chunk ~7s
-        //   concurrency 3 -> 19.5s (124 KB/s), each chunk ~7s
-        //   concurrency 6 -> ~48s  (~85 KB/s), each chunk ~47s
-        // Six was actively harmful: identical total bytes, but every chunk
-        // held open ~7x longer, and Cloudflare kills a tunnel response at
-        // ~100s. On a 5-10 minute song those chunks crossed that limit and
-        // the whole download failed. Three keeps each chunk ~7s, far under.
+        // Chunked parallel download via Range. YouTube throttles each
+        // stream individually, so concurrent ranges roughly multiply
+        // throughput AND each chunk fits comfortably within Cloudflare's
+        // ~100s tunnel response timeout. Bigger chunks = less HTTP overhead
+        // per byte but slower progress updates.
         const CHUNK = 1024 * 1024; // 1 MB
-        const CONCURRENCY = 3;
+        const CONCURRENCY = 6;
         const total_ = total;
         const ranges: { start: number; end: number; idx: number }[] = [];
         for (let off = 0, idx = 0; off < total_; off += CHUNK, idx++) {

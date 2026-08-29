@@ -27,7 +27,6 @@ import { createClient } from '@/lib/supabase/client';
 import { useLikesStore } from '@/store/likes';
 import { useListenAlong } from '@/store/listenAlong';
 import { useSyncMode } from '@/store/syncMode';
-import { useDirectMode } from '@/store/directMode';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useOfflineStore } from '@/store/offline';
@@ -343,11 +342,8 @@ export function AudioPlayer() {
   // <audio> element and the YouTube iframe so there's no double audio.
   const roomCode = useListenAlong((s) => s.roomCode);
   const syncEnabled = useSyncMode((s) => s.enabled);
-  const directMode = useDirectMode((s) => s.enabled);
-  const hydrateDirect = useDirectMode((s) => s.hydrate);
   const hydrateSync = useSyncMode((s) => s.hydrate);
   useEffect(() => { hydrateSync(); }, [hydrateSync]);
-  useEffect(() => { hydrateDirect(); }, [hydrateDirect]);
   const syncedRoomActive =
     isYouTube && !isYouTubePlaylist && !!roomCode && syncEnabled && !!currentSong?.youtube_id;
 
@@ -368,12 +364,8 @@ export function AudioPlayer() {
   // and nothing plays. Streaming through the proxy means the laptop (whose
   // IP matches the resolved URL) fetches the bytes and pipes them over the
   // tunnel, which is slower but actually plays.
-  // Direct mode (opt-in, Settings -> Playback) makes the proxy 302 us to
-  // googlevideo so bytes arrive over THIS device's connection instead of
-  // the laptop's ~48 KB/s uplink. Off by default: the resolved URL is
-  // IP-bound and some devices get a 403 instead of an ipbypass redirect.
   const proxyAudioUrl = useHybrid
-    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}${directMode ? '&direct=1' : ''}`
+    ? `${proxyUrl!.replace(/\/+$/, '')}/audio/${currentSong!.youtube_id}?s=${encodeURIComponent(proxySecret!)}`
     : null;
   // When proxy/hybrid mode is on OR an offline blob is loaded, the iframe
   // is NOT mounted at all. Reason: iOS allows only one active audio

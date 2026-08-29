@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * added to the Google Cloud OAuth client's "Authorized redirect URIs".
  */
 export async function GET(req: NextRequest) {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   if (!clientId) {
     return NextResponse.redirect(
       new URL('/settings?yt_error=GOOGLE_OAUTH_CLIENT_ID%20not%20configured', req.url),

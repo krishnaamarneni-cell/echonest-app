@@ -7,20 +7,16 @@ export interface YtVideo {
   thumbnail: string;
 }
 
-// Search YouTube via our own /api/youtube-search, which tries the YouTube
-// Data API first (~0.5s) and falls back to the laptop proxy's yt-dlp search
-// (~8s) only if that fails or is out of quota.
-//
-// This used to call the proxy directly from the browser, which meant every
-// search waited on a yt-dlp process spawn even though the fast path was
-// sitting right there. It also made search depend on the laptop being
-// awake; now it doesn't.
+// Search YouTube through the personal proxy (yt-dlp). No API key needed.
 export async function proxySearch(query: string, signal?: AbortSignal): Promise<YtVideo[]> {
+  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
+  const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
+  if (!proxyUrl || !proxySecret) return [];
   try {
-    const r = await fetch(`/api/youtube-search?q=${encodeURIComponent(query)}`, {
-      cache: 'no-store',
-      signal,
-    });
+    const r = await fetch(
+      `${proxyUrl.replace(/\/+$/, '')}/search?q=${encodeURIComponent(query)}&s=${encodeURIComponent(proxySecret)}`,
+      { cache: 'no-store', signal },
+    );
     if (!r.ok) return [];
     const d = (await r.json()) as { videos?: YtVideo[] };
     return (d.videos || []).filter((v) => v.videoId);
