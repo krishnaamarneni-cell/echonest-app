@@ -453,6 +453,25 @@ export function AudioPlayer() {
     window.onYouTubeIframeAPIReady = () => setYtReady(true);
   }, []);
 
+  // Stop the YT iframe whenever playback moves off it.
+  //
+  // The iframe is deliberately always mounted (see the render below) so it
+  // survives view changes — which means flipping useIframePlayer to false
+  // only HIDES it. The player keeps running and keeps producing sound, so
+  // when playback switches to the <audio> element (a downloaded blob, or
+  // proxy/hybrid mode) you hear BOTH tracks at once. The <audio> side
+  // already tears itself down in the opposite direction via
+  // removeAttribute('src'); this is the missing matching teardown.
+  useEffect(() => {
+    if (useIframePlayer) return;
+    const p = ytPlayerRef.current as unknown as {
+      pauseVideo?: () => void;
+      stopVideo?: () => void;
+    } | null;
+    try { p?.pauseVideo?.(); } catch {}
+    try { p?.stopVideo?.(); } catch {}
+  }, [useIframePlayer]);
+
   // Manage YouTube player
   useEffect(() => {
     if (!ytReady || !useIframePlayer || !currentSong?.youtube_id || !ytContainerRef.current) return;
