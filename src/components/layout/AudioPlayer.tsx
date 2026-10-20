@@ -200,6 +200,15 @@ export function AudioPlayer() {
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<InstanceType<typeof window.YT.Player> | null>(null);
   const ytIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Where playback had reached, per song. iOS tears down a streamed media
+  // element when a phone call takes over the audio session, so when the
+  // user resumes afterwards the element is back at 0 even though they were
+  // minutes in. Keyed by song id so a genuine track change can never
+  // restore the previous song's position.
+  const resumePointRef = useRef<{ songId: string | null; time: number }>({
+    songId: null,
+    time: 0,
+  });
   const [ytReady, setYtReady] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytView, setYtView] = useState<'hidden' | 'mini' | 'full'>('hidden');
@@ -771,6 +780,12 @@ export function AudioPlayer() {
     const audio = audioRef.current;
     if (!audio) return;
     setProgress(audio.currentTime);
+    if (audio.currentTime > 0) {
+      resumePointRef.current = {
+        songId: usePlayerStore.getState().currentSong?.id || null,
+        time: audio.currentTime,
+      };
+    }
 
     // The streamed m4a from the proxy is sometimes longer than the actual
     // YouTube song (extra padding bytes / Safari's flaky duration estimate).
@@ -801,6 +816,28 @@ export function AudioPlayer() {
   // Forward-declared ref so handleTimeUpdate can call handleEnded without
   // creating a circular useCallback dep
   const handleEndedRef = useRef<(() => void) | null>(null);
+
+  // Restore position when playback resumes after an interruption.
+  //
+  // After a phone call iOS hands the audio session back with the element
+  // reloaded from scratch, so pressing play restarted the track from the
+  // beginning. If we're starting at ~0 but this same song had progress,
+  // seek back to it. When metadata isn't loaded yet, setting currentTime
+  // silently does nothing, so hand it to pendingSeek instead —
+  // handleLoadedMetadata applies that once the element is ready.
+  const handleAudioPlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const songId = usePlayerStore.getState().currentSong?.id || null;
+    const point = resumePointRef.current;
+    if (point.songId !== songId || point.time <= 2) return;
+    if (audio.currentTime >= 1) return; // already where it should be
+    if (audio.readyState >= 1) {
+      try { audio.currentTime = point.time; } catch {}
+    } else {
+      usePlayerStore.getState().seekTo(point.time);
+    }
+  }, []);
 
   const handleLoadedMetadata = useCallback(() => {
     const audio = audioRef.current;
@@ -1012,6 +1049,7 @@ export function AudioPlayer() {
       <audio
         ref={audioRef}
         onTimeUpdate={handleTimeUpdate}
+        onPlay={handleAudioPlay}
         onLoadedMetadata={handleLoadedMetadata}
         onDurationChange={handleLoadedMetadata}
         onEnded={handleEnded}
