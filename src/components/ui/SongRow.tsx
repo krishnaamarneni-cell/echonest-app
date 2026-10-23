@@ -5,12 +5,13 @@ import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { useOfflineStore, isDownloadable } from '@/store/offline';
 import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Check, Loader2, RotateCcw, HardDriveDownload } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Check, Loader2, RotateCcw, HardDriveDownload, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import { coverFor } from '@/lib/coverFor';
+import { createClient } from '@/lib/supabase/client';
 
 interface SongRowProps {
   song: Song;
@@ -21,6 +22,10 @@ interface SongRowProps {
   // Retained for caller compatibility; the read-only library has no delete.
   onDeleted?: (songId: string) => void;
   source?: 'playlist' | 'album' | 'library';
+  /** Required for "Remove from playlist" — which playlist this row is in. */
+  playlistId?: string;
+  /** Called after a successful removal so the caller can drop the row. */
+  onRemoved?: (songId: string) => void;
 }
 
 export function SongRow({
@@ -29,6 +34,8 @@ export function SongRow({
   showIndex,
   songs,
   source = 'library',
+  playlistId,
+  onRemoved,
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
@@ -45,6 +52,21 @@ export function SongRow({
   const removeOffline = useOfflineStore((s) => s.remove);
 
   const isDownloadEligible = isDownloadable(song);
+
+  // Remove this song from the playlist it's being shown in. RLS scopes the
+  // delete to playlists the caller owns, so no extra ownership check is
+  // needed here. Only the join row goes — the song itself stays in the
+  // library and in any other playlist.
+  const removeFromPlaylist = async () => {
+    if (!playlistId) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('playlist_songs')
+      .delete()
+      .eq('playlist_id', playlistId)
+      .eq('song_id', song.id);
+    if (!error) onRemoved?.(song.id);
+  };
 
   const requestDownload = async () => {
     try {
@@ -208,6 +230,25 @@ export function SongRow({
                         icon: Download,
                         onClick: requestDownload,
                       },
+                ]
+              : []),
+            ...(isLiked
+              ? [
+                  {
+                    label: 'Remove from Liked Songs',
+                    icon: Heart,
+                    onClick: () => toggleLike(song.id),
+                  },
+                ]
+              : []),
+            ...(source === 'playlist' && playlistId
+              ? [
+                  {
+                    label: 'Remove from playlist',
+                    icon: Trash2,
+                    variant: 'danger' as const,
+                    onClick: removeFromPlaylist,
+                  },
                 ]
               : []),
           ]}

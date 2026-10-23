@@ -310,6 +310,10 @@ export default function PlaylistDetailPage() {
                   showIndex
                   songs={crossQueue.length > 0 ? crossQueue : songs}
                   source="playlist"
+                  playlistId={id}
+                  onRemoved={(songId) =>
+                    setSongs((prev) => prev.filter((s) => s.id !== songId))
+                  }
                 />
               ))}
             </div>
