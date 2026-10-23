@@ -3,27 +3,53 @@
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
-import { Play, Music, MoreVertical, Heart, ListPlus } from 'lucide-react';
+import { Play, Music, MoreVertical, Heart, ListPlus, Trash2 } from 'lucide-react';
 import { usePlaylistDialog } from '@/store/playlistDialog';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Menu } from './Menu';
+import { createClient } from '@/lib/supabase/client';
 
 interface SongCardProps {
   song: Song;
   songs?: Song[];
   // Retained for caller compatibility; the read-only library has no delete.
   onDeleted?: (songId: string) => void;
+  source?: 'playlist' | 'album' | 'library';
+  /** Required for "Remove from playlist" — which playlist this card is in. */
+  playlistId?: string;
+  /** Called after a successful removal so the caller can drop the card. */
+  onRemoved?: (songId: string) => void;
 }
 
-export function SongCard({ song, songs }: SongCardProps) {
+export function SongCard({
+  song,
+  songs,
+  source = 'library',
+  playlistId,
+  onRemoved,
+}: SongCardProps) {
   const { play } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
   const openPlaylistDialog = usePlaylistDialog((s) => s.open);
   const isPlaylist = song.youtube_kind === 'playlist';
   const isLiked = likedIds.has(song.id);
   const canLike = song.source !== 'youtube_embed' || song.youtube_kind === 'video';
+
+  // Drop only the playlist_songs join row — the song stays in the library
+  // and in any other playlist. RLS scopes the delete to playlists the
+  // caller owns. Mirrors SongRow so list and grid behave identically.
+  const removeFromPlaylist = async () => {
+    if (!playlistId) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('playlist_songs')
+      .delete()
+      .eq('playlist_id', playlistId)
+      .eq('song_id', song.id);
+    if (!error) onRemoved?.(song.id);
+  };
 
   const ytFallback = song.youtube_id
     ? `https://i.ytimg.com/vi/${song.youtube_id}/hqdefault.jpg`
@@ -113,6 +139,25 @@ export function SongCard({ song, songs }: SongCardProps) {
                         }),
                     },
                   ]),
+              ...(isLiked
+                ? [
+                    {
+                      label: 'Remove from Liked Songs',
+                      icon: Heart,
+                      onClick: () => toggleLike(song.id),
+                    },
+                  ]
+                : []),
+              ...(source === 'playlist' && playlistId
+                ? [
+                    {
+                      label: 'Remove from playlist',
+                      icon: Trash2,
+                      variant: 'danger' as const,
+                      onClick: removeFromPlaylist,
+                    },
+                  ]
+                : []),
             ]}
           />
         </div>
