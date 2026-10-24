@@ -9,7 +9,7 @@
  * right where people look for them.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Mic, Newspaper, ChevronRight } from 'lucide-react';
@@ -23,8 +23,14 @@ export function FollowedChannelsRow({ category }: { category: ChannelCategory })
     load();
   }, [load]);
 
-  const channels = useFollowedChannels((s) =>
-    s.channels.filter((c) => c.category === category),
+  // Select the raw array and filter OUTSIDE the selector. Filtering inside
+  // returns a fresh array on every call, and zustand compares with Object.is
+  // — so the store looks changed on every render, which re-renders, which
+  // re-runs the selector: an infinite loop that crashes the tab.
+  const all = useFollowedChannels((s) => s.channels);
+  const channels = useMemo(
+    () => all.filter((c) => c.category === category),
+    [all, category],
   );
 
   const base = category === 'news' ? '/news' : '/podcasts';
