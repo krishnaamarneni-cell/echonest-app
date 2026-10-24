@@ -15,10 +15,11 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ArrowLeft, Mic, Newspaper, Play, Plus, Check } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ViewToggle } from '@/components/ui/ViewToggle';
+import { VideoList } from '@/components/ui/VideoList';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { usePlayerStore } from '@/store/player';
-import { formatDuration } from '@/lib/utils';
-import { PodcastEpisode, episodeToSong, timeAgo } from '@/lib/podcasts';
+import { PodcastEpisode, episodeToSong } from '@/lib/podcasts';
 import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
 
 export function ChannelEpisodes({
@@ -39,6 +40,7 @@ export function ChannelEpisodes({
   const [uploads, setUploads] = useState('');
   const [loadedHandle, setLoadedHandle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'grid'>('list');
 
   // Derived rather than stored: we're loading until the fetch for THIS
   // handle has settled, so switching channels shows a skeleton again with
@@ -55,6 +57,18 @@ export function ChannelEpisodes({
   useEffect(() => {
     loadFollowed();
   }, [loadFollowed]);
+
+  // Shares the key with the News/Podcasts feeds so the choice carries across.
+  useEffect(() => {
+    const saved =
+      typeof window !== 'undefined' ? localStorage.getItem('echonest-channel-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-channel-view', v);
+  };
 
   useEffect(() => {
     if (!handle) return;
@@ -164,7 +178,10 @@ export function ChannelEpisodes({
         </div>
       </div>
 
-      <h2 className="text-xl font-bold">{listHeading}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-bold">{listHeading}</h2>
+        {episodes.length > 0 ? <ViewToggle view={view} onChange={setViewMode} /> : null}
+      </div>
 
       {loading ? (
         <div className="space-y-1">
@@ -177,39 +194,13 @@ export function ChannelEpisodes({
           {error}
         </div>
       ) : episodes.length > 0 ? (
-        <div className="space-y-0.5">
-          {episodes.map((ep, i) => {
-            const isCurrent = currentSong?.youtube_id === ep.videoId;
-            return (
-              <button
-                key={ep.videoId}
-                onClick={() => playFrom(i)}
-                className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-card-hover"
-              >
-                <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-card">
-                  {ep.thumbnail ? (
-                    <Image
-                      src={ep.thumbnail}
-                      alt={ep.title}
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm font-medium ${isCurrent ? 'text-accent' : ''}`}>
-                    {ep.title}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {timeAgo(ep.publishedAt)}
-                    {ep.duration > 0 ? ` · ${formatDuration(ep.duration)}` : ''}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <VideoList
+          items={episodes}
+          view={view}
+          onPlay={playFrom}
+          currentVideoId={currentSong?.youtube_id}
+          showChannel={false}
+        />
       ) : (
         <EmptyState
           icon={Icon}
