@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Play, Music, ChevronRight } from 'lucide-react';
 import { usePlayerStore } from '@/store/player';
-import { proxySearch, ytVideoToSong, YtVideo } from '@/lib/ytSearch';
+import { proxySearch, ytVideoToSong, isCompilation, YtVideo } from '@/lib/ytSearch';
 
 // A Home row of the latest songs for one language, pulled live from the
 // proxy's yt-dlp search. Tapping a card plays it ad-hoc (streamed via the
@@ -20,7 +20,12 @@ export function LanguageMusicRow({ language }: { language: string }) {
     let cancelled = false;
     setLoading(true);
     proxySearch(`latest ${language} songs ${new Date().getFullYear()}`, AbortSignal.timeout(25000))
-      .then((vids) => { if (!cancelled) setVideos(vids.slice(0, 12)); })
+      .then((vids) => {
+        if (cancelled) return;
+        // Drop hour-long jukebox/mix uploads — this row is for individual
+        // songs, and the query invites compilations.
+        setVideos(vids.filter((v) => !isCompilation(v.title)).slice(0, 12));
+      })
       .catch(() => { if (!cancelled) setVideos([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

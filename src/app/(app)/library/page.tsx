@@ -6,7 +6,7 @@ import { Song, Album, Artist, Playlist } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
 import { SongCard } from '@/components/ui/SongCard';
 import { MediaCard } from '@/components/ui/MediaCard';
-import { FollowedChannelsRow } from '@/components/ui/FollowedChannelsRow';
+import { ChannelFeed } from '@/components/ui/ChannelFeed';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List, Sparkles, Loader2, Newspaper } from 'lucide-react';
@@ -388,11 +388,11 @@ export default function LibraryPage() {
             )
           )}
 
-          {tab === 'news' && <FollowedChannelsRow category="news" />}
+          {tab === 'news' && <ChannelFeed category="news" showBrowseLink />}
 
           {tab === 'podcasts' && (
             <div className="mb-6">
-              <FollowedChannelsRow category="podcast" />
+              <ChannelFeed category="podcast" showBrowseLink />
             </div>
           )}
 

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Song, Playlist, Album, Artist } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
-import { FollowedChannelsRow } from '@/components/ui/FollowedChannelsRow';
+import { ChannelFeed } from '@/components/ui/ChannelFeed';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Play, Newspaper } from 'lucide-react';
 import Link from 'next/link';
@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/Button';
 import { usePlayerStore } from '@/store/player';
 import { useMusicLanguages } from '@/store/musicLanguages';
 import { LanguageMusicRow } from '@/components/ui/LanguageMusicRow';
-import { ChartsRow } from '@/components/ui/ChartsRow';
 import { LiveSearchBox } from '@/components/ui/LiveSearchBox';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'news' | 'albums' | 'artists' | 'playlists';
@@ -351,9 +350,6 @@ export default function DashboardPage() {
             <LanguageMusicRow key={lang} language={lang} />
           ))}
 
-          {/* Charts — Top 50 cards by the user's languages + by country.
-              Each card links to a chart page that fetches the list. */}
-          <ChartsRow />
 
           {/* Quick picks — YouTube-Music-style 3-column compact list of
               shuffled songs from your library. New tap target on every
@@ -531,7 +527,7 @@ export default function DashboardPage() {
       {/* === PODCASTS tab: podcast playlists + standalone episodes === */}
       {tab === 'podcasts' && (
         <>
-          <FollowedChannelsRow category="podcast" />
+          <ChannelFeed category="podcast" showBrowseLink />
           {podcastPlaylists.length > 0 && (
             <Section title="Podcast Playlists" icon={Mic} seeAllHref="/library">
               {podcastPlaylists.map((playlist) => (
@@ -567,7 +563,7 @@ export default function DashboardPage() {
       )}
 
       {/* === NEWS tab: followed channels + a way to find more === */}
-      {tab === 'news' && <FollowedChannelsRow category="news" />}
+      {tab === 'news' && <ChannelFeed category="news" showBrowseLink />}
 
       {/* === PLAYLISTS tab: every music playlist === */}
       {tab === 'playlists' && (

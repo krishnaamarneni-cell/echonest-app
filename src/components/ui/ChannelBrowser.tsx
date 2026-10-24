@@ -1,15 +1,12 @@
 'use client';
 
 /**
- * News / Podcasts landing page — shared by both.
+ * News / Podcasts page — shared by both.
  *
- * Leads with VIDEOS rather than channel logos: a merged Latest feed across
- * everything you follow, a Top row ranked by views, then the channels
- * themselves as a compact strip underneath, then discovery. The point of
- * opening News is to watch something, not to admire a grid of logos.
- *
- * Adding channels is behind a "+" in the header so the search box isn't
- * occupying the top of the page every visit.
+ * Leads with the videos from everything you follow (ChannelFeed), with the
+ * channel strip at the bottom of that. Adding channels is behind a "+"
+ * in the header so the search box isn't occupying the top of the page on
+ * every visit, and discovery sits last.
  */
 
 import { useEffect, useState } from 'react';
@@ -17,16 +14,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Mic, Newspaper, Search as SearchIcon, X, Plus, Check } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { CardSkeleton, SongRowSkeleton } from '@/components/ui/Skeleton';
-import { ViewToggle } from '@/components/ui/ViewToggle';
-import { VideoList, VideoItem } from '@/components/ui/VideoList';
-import { PodcastChannel, formatSubscribers, episodeToSong } from '@/lib/podcasts';
-import { usePlayerStore } from '@/store/player';
-import {
-  useFollowedChannels,
-  ChannelCategory,
-  FollowedChannel,
-} from '@/store/followedChannels';
+import { CardSkeleton } from '@/components/ui/Skeleton';
+import { ChannelFeed } from '@/components/ui/ChannelFeed';
+import { PodcastChannel, formatSubscribers } from '@/lib/podcasts';
+import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
 
 /** Add / remove toggle shown on each channel avatar. */
 function FollowButton({
@@ -63,7 +54,6 @@ function FollowButton({
   );
 }
 
-/** Compact circular channel chip for the strips under the video rows. */
 function ChannelChip({
   href,
   title,
@@ -118,41 +108,6 @@ export function ChannelBrowser({
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [feed, setFeed] = useState<VideoItem[]>([]);
-  const [feedKey, setFeedKey] = useState('');
-  const [view, setView] = useState<'list' | 'grid'>('list');
-
-  const play = usePlayerStore((s) => s.play);
-  const currentSong = usePlayerStore((s) => s.currentSong);
-
-  const followedAll = useFollowedChannels((s) => s.channels);
-  const loadFollowed = useFollowedChannels((s) => s.load);
-  const followed: FollowedChannel[] = followedAll.filter((c) => c.category === category);
-
-  const uploadsKey = followed
-    .map((c) => c.uploads_playlist_id)
-    .filter(Boolean)
-    .join(',');
-
-  // Loading the feed is "we haven't fetched for this exact set of channels
-  // yet" — derived so following a channel refreshes it with no extra state.
-  const feedLoading = uploadsKey.length > 0 && feedKey !== uploadsKey;
-
-  useEffect(() => {
-    loadFollowed();
-  }, [loadFollowed]);
-
-  useEffect(() => {
-    const saved =
-      typeof window !== 'undefined' ? localStorage.getItem('echonest-channel-view') : null;
-    if (saved === 'grid' || saved === 'list') setView(saved);
-  }, []);
-
-  const setViewMode = (v: 'list' | 'grid') => {
-    setView(v);
-    if (typeof window !== 'undefined') localStorage.setItem('echonest-channel-view', v);
-  };
-
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/podcasts/channels?category=${category}`)
@@ -173,24 +128,6 @@ export function ChannelBrowser({
     };
   }, [category]);
 
-  useEffect(() => {
-    if (!uploadsKey) return;
-    let cancelled = false;
-    fetch(`/api/podcasts/feed?uploads=${encodeURIComponent(uploadsKey)}`)
-      .then(async (r) => {
-        const body = await r.json().catch(() => null);
-        if (cancelled) return;
-        setFeed(r.ok && Array.isArray(body?.items) ? body.items : []);
-      })
-      .catch(() => !cancelled && setFeed([]))
-      .finally(() => {
-        if (!cancelled) setFeedKey(uploadsKey);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [uploadsKey]);
-
   const runSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const q = query.trim();
@@ -209,34 +146,6 @@ export function ChannelBrowser({
 
   const base = category === 'news' ? '/news' : '/podcasts';
   const Icon = category === 'news' ? Newspaper : Mic;
-  const plural = category === 'news' ? 'news channels' : 'podcasts';
-
-  const latest = feed.slice(0, 24);
-  const top = [...feed].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0)).slice(0, 12);
-
-  const playFrom = (list: VideoItem[]) => (index: number) => {
-    const songs = list.map((v) =>
-      episodeToSong({
-        videoId: v.videoId,
-        title: v.title,
-        channel: v.channel,
-        thumbnail: v.thumbnail,
-        publishedAt: v.publishedAt,
-        duration: v.duration,
-      }),
-    );
-    play(songs[index], songs, 'library');
-  };
-
-  const toChannelShape = (c: FollowedChannel): PodcastChannel => ({
-    handle: c.handle,
-    channelId: c.channel_id,
-    title: c.title,
-    description: '',
-    thumbnail: c.thumbnail || '',
-    subscriberCount: 0,
-    uploadsPlaylistId: c.uploads_playlist_id,
-  });
 
   return (
     <div className="space-y-8 p-6 animate-fade-in lg:p-8">
@@ -315,68 +224,12 @@ export function ChannelBrowser({
         </section>
       ) : null}
 
-      {/* Latest across everything you follow — the reason to open this page. */}
-      {followed.length > 0 ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold">Latest</h2>
-            <ViewToggle view={view} onChange={setViewMode} />
-          </div>
-          {feedLoading ? (
-            <div className="space-y-1">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SongRowSkeleton key={i} />
-              ))}
-            </div>
-          ) : latest.length > 0 ? (
-            <VideoList
-              items={latest}
-              view={view}
-              onPlay={playFrom(latest)}
-              currentVideoId={currentSong?.youtube_id}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Nothing new from your {plural} yet.
-            </p>
-          )}
-        </section>
-      ) : null}
-
-      {!feedLoading && top.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-xl font-bold">Top right now</h2>
-          <VideoList
-            items={top}
-            view={view}
-            onPlay={playFrom(top)}
-            currentVideoId={currentSong?.youtube_id}
-            showViews
-          />
-        </section>
-      ) : null}
-
-      {followed.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold">Your {plural}</h2>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {followed.map((c) => (
-              <ChannelChip
-                key={c.id}
-                href={`${base}/${encodeURIComponent(c.handle)}`}
-                title={c.title}
-                thumbnail={c.thumbnail}
-                icon={Icon}
-                action={<FollowButton channel={toChannelShape(c)} category={category} />}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {/* Videos first, with your channels at the bottom of this block. */}
+      <ChannelFeed category={category} />
 
       <section className="space-y-3">
         <h2 className="text-lg font-bold">
-          {category === 'news' ? 'Top news channels' : 'Top podcasts'}
+          {category === 'news' ? 'Discover news channels' : 'Discover podcasts'}
         </h2>
         {loadingFeatured ? (
           <div className="flex gap-4">

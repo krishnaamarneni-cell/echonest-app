@@ -188,10 +188,11 @@ export function NowPlayingScreen() {
     const frame = inlineVideoRef.current;
     if (!frame?.contentWindow) return;
     try {
-      frame.contentWindow.postMessage(
-        JSON.stringify({ event: 'command', func, args }),
-        'https://www.youtube.com',
-      );
+      const payload =
+        func === '__listening__'
+          ? { event: 'listening', id: 1, channel: 'widget' }
+          : { event: 'command', func, args };
+      frame.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
     } catch {
       // Player not ready yet; a later command will land.
     }
@@ -213,6 +214,48 @@ export function NowPlayingScreen() {
     return () => clearTimeout(timer);
     // Re-syncs when the video is switched on or the track changes — NOT on
     // every progress tick, which would seek continuously.
+  }, [showInlineVideo, currentSong?.youtube_id, postToVideo]);
+
+  // Listen for the player's OWN state changes so tapping pause on the video
+  // pauses the audio too — previously sync only ran transport -> video, so
+  // the two could end up in opposite states.
+  //
+  // YouTube only emits events to frames that have registered, hence the
+  // "listening" handshake; it's retried briefly because the embed ignores
+  // messages sent before it finishes loading.
+  useEffect(() => {
+    if (!showInlineVideo) return;
+
+    const hello = () => postToVideo('__listening__');
+    hello();
+    const retry = setInterval(hello, 1000);
+    const stopRetry = setTimeout(() => clearInterval(retry), 6000);
+
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== 'https://www.youtube.com') return;
+      let data: { event?: string; info?: unknown } | null = null;
+      try {
+        data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      } catch {
+        return;
+      }
+      if (data?.event !== 'onStateChange') return;
+      const info = data.info;
+      const state =
+        typeof info === 'number' ? info : (info as { playerState?: number })?.playerState;
+      // 1 = playing, 2 = paused. Buffering/unstarted are transient and
+      // would otherwise fight the audio element during a seek.
+      const store = usePlayerStore.getState();
+      if (state === 2 && store.isPlaying) store.pause();
+      else if (state === 1 && !store.isPlaying) store.resume();
+    };
+
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      clearInterval(retry);
+      clearTimeout(stopRetry);
+    };
   }, [showInlineVideo, currentSong?.youtube_id, postToVideo]);
 
   // Keep play/pause in step after that initial sync.

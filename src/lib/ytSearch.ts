@@ -64,3 +64,34 @@ export function ytVideoToSong(v: YtVideo): Song {
     created_at: new Date().toISOString(),
   };
 }
+
+/**
+ * Does this look like a compilation rather than a single song?
+ *
+ * A query like "latest english songs 2026" is catnip for hour-long
+ * jukebox/mix uploads that pack 30-40 tracks into one video. They're
+ * useless in a "latest songs" row — you can't tell what you're getting and
+ * you can't skip within it — so they're filtered out by title, which is all
+ * yt-dlp's search returns (no duration field to threshold on).
+ *
+ * Deliberately conservative: it matches compilation *markers*, not merely
+ * long titles, so a normal track called "Songs of Freedom" still passes.
+ */
+export function isCompilation(title: string): boolean {
+  const t = title.toLowerCase();
+  return [
+    /\btop\s*\d+/, // "Top 50", "Top 100"
+    /\bjukebox\b/,
+    /\bnon[\s-]?stop\b/,
+    /\bback\s*to\s*back\b/,
+    /\bmashup\b/,
+    /\bmegamix\b/,
+    /\b(audio|video|song|hit)s?\s*(mix|playlist)\b/,
+    /\bfull\s*(album|movie)\b/,
+    /\ball\s*songs\b/,
+    /\bhits?\s*(of\s*)?\d{4}\b/, // "Hits 2026"
+    /\b\d{2,}\s*songs?\b/, // "40 songs"
+    /\bcollection\b/,
+    /\bcompilation\b/,
+  ].some((re) => re.test(t));
+}
