@@ -239,15 +239,30 @@ export function NowPlayingScreen() {
       } catch {
         return;
       }
+      const store = usePlayerStore.getState();
+
+      // The player reports its position continuously once we're listening.
+      // Two independent players drift, so nudge the video back whenever it
+      // wanders more than a second and a half from the audio. A tighter
+      // threshold would seek constantly and stutter the picture.
+      if (data?.event === 'infoDelivery') {
+        const at = (data.info as { currentTime?: number })?.currentTime;
+        if (typeof at === 'number' && store.isPlaying) {
+          const drift = Math.abs(at - store.progress);
+          if (drift > 1.5) postToVideo('seekTo', [store.progress, true]);
+        }
+        return;
+      }
+
       if (data?.event !== 'onStateChange') return;
       const info = data.info;
       const state =
         typeof info === 'number' ? info : (info as { playerState?: number })?.playerState;
       // 1 = playing, 2 = paused. Buffering/unstarted are transient and
       // would otherwise fight the audio element during a seek.
-      const store = usePlayerStore.getState();
       if (state === 2 && store.isPlaying) store.pause();
       else if (state === 1 && !store.isPlaying) store.resume();
+
     };
 
     window.addEventListener('message', onMessage);
@@ -581,7 +596,7 @@ export function NowPlayingScreen() {
                   <iframe
                     key={currentSong.youtube_id}
                     ref={inlineVideoRef}
-                    src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1&enablejsapi=1`}
+                    src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : ''}`}
                     title={currentSong.title}
                     className="w-full h-full"
                     allow="autoplay; encrypted-media; picture-in-picture"
