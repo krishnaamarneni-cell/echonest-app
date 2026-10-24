@@ -160,7 +160,14 @@ async function resolveAudioUrl(videoId) {
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
   const { stdout } = await exec(YTDLP_PATH, [
-    '-f', '140',           // m4a / AAC 128kbps — Safari plays natively
+    // Format selection with fallbacks. Plain 140 (m4a/AAC 128k) is what
+    // most videos have and what Safari plays natively, but multi-language
+    // videos publish per-track ids instead (140-20, 139-7, ...) and a bare
+    // 140 then fails outright with "Requested format is not available" —
+    // which is why News replays had no audio at all. bestaudio[ext=m4a]
+    // picks the original-language m4a in that case; bare bestaudio is the
+    // last resort.
+    '-f', '140/bestaudio[ext=m4a]/bestaudio',
     '--no-playlist',
     '--no-warnings',
     '-g',                   // print the direct URL, don't download

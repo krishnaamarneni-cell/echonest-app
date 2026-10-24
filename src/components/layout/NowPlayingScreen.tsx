@@ -176,6 +176,26 @@ export function NowPlayingScreen() {
     }
   });
 
+  // The inline "Watch video" iframe is muted on purpose — sound comes from
+  // the proxy <audio> element, not from YouTube. But a plain iframe has no
+  // control channel, so hitting pause left the picture running. enablejsapi
+  // lets us post play/pause commands to it, which keeps the video in step
+  // with the transport without it restarting from 0 like an unmount would.
+  const inlineVideoRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const frame = inlineVideoRef.current;
+    if (!frame?.contentWindow) return;
+    const func = isPlaying ? 'playVideo' : 'pauseVideo';
+    try {
+      frame.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func, args: [] }),
+        'https://www.youtube.com',
+      );
+    } catch {
+      // Player not ready yet; the next toggle will land.
+    }
+  }, [isPlaying, showInlineVideo, currentSong?.youtube_id]);
+
   if (!isNowPlayingOpen || !currentSong) return null;
 
   const isYTPlaylist = currentSong.source === 'youtube_embed' && currentSong.youtube_kind === 'playlist';
@@ -485,7 +505,8 @@ export function NowPlayingScreen() {
                 ) : showInlineVideo && currentSong.youtube_id ? (
                   <iframe
                     key={currentSong.youtube_id}
-                    src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1`}
+                    ref={inlineVideoRef}
+                    src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1&enablejsapi=1`}
                     title={currentSong.title}
                     className="w-full h-full"
                     allow="autoplay; encrypted-media; picture-in-picture"
