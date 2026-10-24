@@ -16,7 +16,13 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 
 const MAX_CHANNELS = 20;
-const PER_CHANNEL = 10;
+const PER_CHANNEL = 20;
+
+// YouTube caps Shorts at 3 minutes, so anything at or under that is almost
+// always one. They dominate a channel's uploads by count while being the
+// least of what you'd actually sit and watch, so the feed drops them and
+// keeps the long-form uploads. ?shorts=1 opts back in.
+const MIN_DURATION_SECONDS = 181;
 
 interface FeedItem {
   videoId: string;
@@ -134,8 +140,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  merged.sort(
+  const keepShorts = new URL(req.url).searchParams.get('shorts') === '1';
+  // duration 0 means videos.list didn't answer for that id — keep it rather
+  // than silently dropping something we simply failed to measure.
+  const filtered = keepShorts
+    ? merged
+    : merged.filter((v) => v.duration === 0 || v.duration >= MIN_DURATION_SECONDS);
+
+  filtered.sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
   );
-  return NextResponse.json({ items: merged });
+  return NextResponse.json({ items: filtered });
 }

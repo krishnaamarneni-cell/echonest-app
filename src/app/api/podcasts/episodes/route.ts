@@ -32,7 +32,11 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const handle = url.searchParams.get('handle')?.trim().replace(/^@/, '');
   let uploads = url.searchParams.get('uploads')?.trim();
-  const maxResults = Math.min(Number(url.searchParams.get('max') || '25'), 50);
+  // Over-fetch because Shorts are filtered out below and they can be most
+  // of a channel's recent uploads by count.
+  const requested = Math.min(Number(url.searchParams.get('max') || '25'), 50);
+  const maxResults = 50;
+  const keepShorts = url.searchParams.get('shorts') === '1';
 
   if (!uploads && !handle) {
     return NextResponse.json({ error: 'handle or uploads required' }, { status: 400 });
@@ -135,10 +139,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const episodes: PodcastEpisode[] = raw.map((v) => ({
-      ...v,
-      duration: durations.get(v.videoId) || 0,
-    }));
+    // YouTube caps Shorts at 3 minutes, so anything at or under that is
+    // almost always one. duration 0 means videos.list didn't answer for that
+    // id — kept rather than dropped for something we failed to measure.
+    const MIN_DURATION_SECONDS = 181;
+    const episodes: PodcastEpisode[] = raw
+      .map((v) => ({ ...v, duration: durations.get(v.videoId) || 0 }))
+      .filter(
+        (v) => keepShorts || v.duration === 0 || v.duration >= MIN_DURATION_SECONDS,
+      )
+      .slice(0, requested);
 
     return NextResponse.json({
       channelTitle,
