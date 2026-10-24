@@ -32,6 +32,7 @@ import { Menu } from '@/components/ui/Menu';
 import { QueueSheet } from './QueueSheet';
 import { Gauge } from 'lucide-react';
 import { LyricsPanel } from '@/components/ui/LyricsPanel';
+import { CoverArt } from '@/components/ui/CoverArt';
 import { coverFor } from '@/lib/coverFor';
 
 export function NowPlayingScreen() {
@@ -490,11 +491,11 @@ export function NowPlayingScreen() {
                     allow="autoplay; encrypted-media; picture-in-picture"
                   />
                 ) : coverFor(currentSong) ? (
-                  <Image
+                  <CoverArt
                     src={coverFor(currentSong)!}
                     alt={currentSong.title}
-                    width={400}
-                    height={400}
+                    width={800}
+                    height={800}
                     className="w-full h-full object-cover pointer-events-none"
                     priority
                     draggable={false}
