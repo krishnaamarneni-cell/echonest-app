@@ -17,6 +17,7 @@ import {
   BarChart3,
   Repeat,
   Sparkles,
+  Mic,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
@@ -35,6 +36,7 @@ const libraryNav = [
   { label: 'Recently Played', href: '/recent', icon: Music },
   { label: 'On Repeat', href: '/on-repeat', icon: Repeat },
   { label: 'For You', href: '/for-you', icon: Sparkles },
+  { label: 'Podcasts', href: '/podcasts', icon: Mic },
   { label: 'Stats', href: '/stats', icon: BarChart3 },
   { label: 'YouTube Import', href: '/import', icon: ExternalLink },
 ];
