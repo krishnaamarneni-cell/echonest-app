@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { Song, Playlist, Album, Artist } from '@/types';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongCard } from '@/components/ui/SongCard';
+import { FollowedChannelsRow } from '@/components/ui/FollowedChannelsRow';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Play } from 'lucide-react';
+import { Clock, TrendingUp, ListMusic, Music, ExternalLink, Smartphone, Disc, Mic, Mic2, Sparkles, Loader2, Play, Newspaper } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
@@ -18,7 +19,7 @@ import { LanguageMusicRow } from '@/components/ui/LanguageMusicRow';
 import { ChartsRow } from '@/components/ui/ChartsRow';
 import { LiveSearchBox } from '@/components/ui/LiveSearchBox';
 
-type HomeTab = 'all' | 'songs' | 'podcasts' | 'albums' | 'artists' | 'playlists';
+type HomeTab = 'all' | 'songs' | 'podcasts' | 'news' | 'albums' | 'artists' | 'playlists';
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<HomeTab>('all');
@@ -249,6 +250,7 @@ export default function DashboardPage() {
     { id: 'all', label: 'All', icon: TrendingUp },
     { id: 'songs', label: 'Songs', icon: Music },
     { id: 'podcasts', label: 'Podcasts', icon: Mic },
+    { id: 'news', label: 'News', icon: Newspaper },
     { id: 'albums', label: 'Albums', icon: Disc },
     { id: 'artists', label: 'Artists', icon: Mic2 },
     { id: 'playlists', label: 'Playlists', icon: ListMusic },
@@ -529,6 +531,7 @@ export default function DashboardPage() {
       {/* === PODCASTS tab: podcast playlists + standalone episodes === */}
       {tab === 'podcasts' && (
         <>
+          <FollowedChannelsRow category="podcast" />
           {podcastPlaylists.length > 0 && (
             <Section title="Podcast Playlists" icon={Mic} seeAllHref="/library">
               {podcastPlaylists.map((playlist) => (
@@ -556,11 +559,15 @@ export default function DashboardPage() {
           )}
           {podcastPlaylists.length === 0 && podcasts.length === 0 && (
             <p className="text-center text-muted-foreground py-12">
-              No podcasts yet. Add a podcast playlist URL from the Upload page (pick 🎙️ Podcast).
+              Nothing imported yet — browse above, or add a podcast playlist URL
+              from the Upload page (pick 🎙️ Podcast).
             </p>
           )}
         </>
       )}
+
+      {/* === NEWS tab: followed channels + a way to find more === */}
+      {tab === 'news' && <FollowedChannelsRow category="news" />}
 
       {/* === PLAYLISTS tab: every music playlist === */}
       {tab === 'playlists' && (

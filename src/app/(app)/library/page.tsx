@@ -6,9 +6,10 @@ import { Song, Album, Artist, Playlist } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
 import { SongCard } from '@/components/ui/SongCard';
 import { MediaCard } from '@/components/ui/MediaCard';
+import { FollowedChannelsRow } from '@/components/ui/FollowedChannelsRow';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List, Sparkles, Loader2 } from 'lucide-react';
+import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List, Sparkles, Loader2, Newspaper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } from '@/lib/importArtistSongs';
@@ -18,7 +19,7 @@ import { sortSongs, SortKey } from '@/lib/songSort';
 
 const SONGS_PER_PAGE = 8;
 
-type Tab = 'songs' | 'albums' | 'artists' | 'playlists' | 'podcasts';
+type Tab = 'songs' | 'albums' | 'artists' | 'playlists' | 'podcasts' | 'news';
 
 export default function LibraryPage() {
   const [tab, setTab] = useState<Tab>('songs');
@@ -238,6 +239,7 @@ export default function LibraryPage() {
     { id: 'songs', label: 'Songs', icon: Music },
     { id: 'playlists', label: 'Playlists', icon: ListMusic },
     { id: 'podcasts', label: 'Podcasts', icon: Mic },
+    { id: 'news', label: 'News', icon: Newspaper },
     { id: 'albums', label: 'Albums', icon: Disc3 },
     { id: 'artists', label: 'Artists', icon: Mic2 },
   ];
@@ -384,6 +386,14 @@ export default function LibraryPage() {
             ) : (
               <EmptyState icon={Music} title="No songs yet" description="Upload your music to get started" />
             )
+          )}
+
+          {tab === 'news' && <FollowedChannelsRow category="news" />}
+
+          {tab === 'podcasts' && (
+            <div className="mb-6">
+              <FollowedChannelsRow category="podcast" />
+            </div>
           )}
 
           {tab === 'podcasts' && (
