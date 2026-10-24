@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FEATURED_PODCASTS, PodcastChannel } from '@/lib/podcasts';
+import { FEATURED_PODCASTS, FEATURED_NEWS, PodcastChannel } from '@/lib/podcasts';
 
 /**
  * Resolve podcast channels for the featured row, or search for new ones.
@@ -123,10 +123,13 @@ export async function GET(req: NextRequest) {
   }
 
   // --- featured / explicit handles ---------------------------------------
+  // category picks which curated list to resolve; 'handles' overrides both.
+  const category = url.searchParams.get('category') === 'news' ? 'news' : 'podcast';
+  const seed = category === 'news' ? FEATURED_NEWS : FEATURED_PODCASTS;
   const handlesParam = url.searchParams.get('handles');
   const handles = handlesParam
     ? handlesParam.split(',').map((h) => h.trim()).filter(Boolean).slice(0, 20)
-    : FEATURED_PODCASTS;
+    : seed;
 
   const resolved = await Promise.all(handles.map((h) => resolveHandle(apiKey, h)));
   const channels = resolved.filter((c): c is PodcastChannel => c !== null);

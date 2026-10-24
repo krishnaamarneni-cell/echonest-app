@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
 
   let channelTitle = '';
   let channelThumb = '';
+  let channelId = '';
 
   try {
     if (!uploads && handle) {
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest) {
       }
       const cdata = (await cr.json()) as {
         items?: {
+          id?: string;
           snippet?: { title?: string; thumbnails?: { high?: { url?: string } } };
           contentDetails?: { relatedPlaylists?: { uploads?: string } };
         }[];
@@ -65,6 +67,7 @@ export async function GET(req: NextRequest) {
       uploads = item?.contentDetails?.relatedPlaylists?.uploads;
       channelTitle = item?.snippet?.title || '';
       channelThumb = item?.snippet?.thumbnails?.high?.url || '';
+      channelId = item?.id || '';
       if (!uploads) {
         return NextResponse.json({ error: 'Podcast not found' }, { status: 404 });
       }
@@ -140,6 +143,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       channelTitle,
       channelThumb,
+      channelId,
       uploadsPlaylistId: uploads,
       episodes,
     });

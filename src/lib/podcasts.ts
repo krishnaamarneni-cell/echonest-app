@@ -54,6 +54,31 @@ export const FEATURED_PODCASTS: string[] = [
   'WVFRM',              // Waveform
 ];
 
+/**
+ * Seed list for the News page. Every handle here was verified against the
+ * Data API — a wrong handle silently resolves to something unrelated rather
+ * than failing (@BloombergTelevision, for instance, is a Korean diary
+ * channel), so these are checked rather than guessed.
+ *
+ * Mix of global wires and Indian/Telugu outlets. Like the podcast list this
+ * is just a starting point — anything else is reachable through search and
+ * "Add to News".
+ */
+export const FEATURED_NEWS: string[] = [
+  'CNN',               // CNN
+  'BBCNews',           // BBC News
+  'CNBC',              // CNBC
+  'Reuters',           // Reuters
+  'aljazeeraenglish',  // Al Jazeera English
+  'markets',           // Bloomberg Television
+  'AajTak',            // Aaj Tak
+  'ABPNEWS',           // ABP NEWS
+  'NDTV',              // NDTV
+  'IndiaToday',        // India Today
+  'WION',              // WION
+  'tv9telugulive',     // TV9 Telugu Live
+];
+
 /** Compact subscriber counts for display: 18200000 -> "18.2M subscribers". */
 export function formatSubscribers(n: number): string {
   if (!n) return '';

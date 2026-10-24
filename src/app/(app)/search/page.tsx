@@ -8,11 +8,14 @@ import { SongRow } from '@/components/ui/SongRow';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { BrowseTile, pickGradient } from '@/components/ui/BrowseTile';
 import { usePlayerStore } from '@/store/player';
+import { PodcastChannel, formatSubscribers } from '@/lib/podcasts';
 import { Search as SearchIcon, X, Music, Play, TrendingUp, Loader2 } from 'lucide-react';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue, fillPlaylistCovers } from '@/lib/playlistQueue';
 import { ChartsRow } from '@/components/ui/ChartsRow';
 import { proxySearch } from '@/lib/ytSearch';
 import Image from 'next/image';
+import Link from 'next/link';
+import { AddChannelButton } from '@/components/ui/AddChannelButton';
 
 interface TrendingItem {
   videoId: string;
@@ -73,6 +76,11 @@ function SearchPageInner() {
   const [trendingLoading, setTrendingLoading] = useState(true);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [trendingExpanded, setTrendingExpanded] = useState(false);
+  const [channelHits, setChannelHits] = useState<{ q: string; items: PodcastChannel[] }>({
+    q: '',
+    items: [],
+  });
+  const [channelsLoading, setChannelsLoading] = useState(false);
 
   const play = usePlayerStore((s) => s.play);
 
@@ -235,6 +243,43 @@ function SearchPageInner() {
     const timer = setTimeout(() => search(query), 250);
     return () => clearTimeout(timer);
   }, [query, search]);
+
+  // Channels matching the query.
+  //
+  // Debounced harder than the song search (900ms vs 250ms) and gated on 3+
+  // characters on purpose: this is the only call in the app that hits
+  // YouTube's search.list, which costs 100 quota units against a 10k/day
+  // budget — a per-keystroke channel search would drain a day's allowance in
+  // a couple of minutes. Responses are cached server-side for an hour, so
+  // retyping the same query is free.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setChannelsLoading(true);
+      fetch(`/api/podcasts/channels?q=${encodeURIComponent(q)}`)
+        .then(async (r) => {
+          const body = await r.json().catch(() => null);
+          if (cancelled) return;
+          setChannelHits({
+            q,
+            items: r.ok && Array.isArray(body?.channels) ? body.channels.slice(0, 6) : [],
+          });
+        })
+        .catch(() => !cancelled && setChannelHits({ q, items: [] }))
+        .finally(() => !cancelled && setChannelsLoading(false));
+    }, 900);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  // Only show hits that belong to the query currently typed — avoids a
+  // flash of the previous channel's results while the 900ms debounce is
+  // still pending.
+  const channels = channelHits.q === query.trim() ? channelHits.items : [];
 
   // Browse tiles for the empty state — special tiles first, then user playlists
   const browseItems = useMemo<BrowseItem[]>(() => {
@@ -515,6 +560,44 @@ function SearchPageInner() {
         <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
           From YouTube: {ytError}
         </div>
+      )}
+
+      {/* Channels — news / podcast shows, not songs */}
+      {query.trim().length >= 3 && (channelsLoading || channels.length > 0) && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3">Channels</h2>
+          {channelsLoading && channels.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Looking for channels...</p>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {channels.map((c) => (
+                <div key={c.channelId} className="w-28 shrink-0 text-center">
+                  <Link href={`/podcasts/${encodeURIComponent(c.handle)}`}>
+                    <div className="relative mx-auto h-24 w-24 overflow-hidden rounded-full bg-card shadow-lg transition-transform hover:scale-105">
+                      {c.thumbnail ? (
+                        <Image
+                          src={c.thumbnail}
+                          alt={c.title}
+                          fill
+                          sizes="96px"
+                          className="object-cover"
+                        />
+                      ) : null}
+                    </div>
+                    <p className="mt-2 truncate text-xs font-semibold">{c.title}</p>
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {formatSubscribers(c.subscriberCount)}
+                    </p>
+                  </Link>
+                  <div className="mt-1 flex justify-center gap-1">
+                    <AddChannelButton channel={c} category="news" />
+                    <AddChannelButton channel={c} category="podcast" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/* From YouTube — tap to add + play */}
