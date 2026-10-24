@@ -126,7 +126,7 @@ export function EditPlaylistDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
       <div
         onClick={onClose}
         className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in"
