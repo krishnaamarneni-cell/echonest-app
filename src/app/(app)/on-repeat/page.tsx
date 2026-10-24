@@ -12,8 +12,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { SongRow } from '@/components/ui/SongRow';
-import { SongRowSkeleton } from '@/components/ui/Skeleton';
+import { SongCard } from '@/components/ui/SongCard';
+import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ViewToggle } from '@/components/ui/ViewToggle';
 import { Repeat, Play } from 'lucide-react';
 import { usePlayerStore } from '@/store/player';
 import {
@@ -30,6 +32,7 @@ const WINDOW_DAYS = 30;
 export default function OnRepeatPage() {
   const [plays, setPlays] = useState<PlayEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'grid'>('list');
   const play = usePlayerStore((s) => s.play);
 
   useEffect(() => {
@@ -44,6 +47,17 @@ export default function OnRepeatPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const saved =
+      typeof window !== 'undefined' ? localStorage.getItem('echonest-repeat-view') : null;
+    if (saved === 'grid' || saved === 'list') setView(saved);
+  }, []);
+
+  const setViewMode = (v: 'list' | 'grid') => {
+    setView(v);
+    if (typeof window !== 'undefined') localStorage.setItem('echonest-repeat-view', v);
+  };
+
   const ranked = useMemo(
     () => rankSongsByPlays(withinDays(plays, WINDOW_DAYS)).slice(0, 50),
     [plays],
@@ -51,44 +65,68 @@ export default function OnRepeatPage() {
   const songs = useMemo(() => ranked.map((r) => r.song), [ranked]);
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+    <div className="space-y-6 p-6 animate-fade-in lg:p-8">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold">On Repeat</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="mt-1 text-sm text-muted-foreground">
             What you&apos;ve played most in the last {WINDOW_DAYS} days — updates itself.
           </p>
         </div>
-        {songs.length > 0 && (
+        {songs.length > 0 ? (
           <button
             onClick={() => play(songs[0], songs, 'library')}
-            className="flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-semibold text-white shadow-lg transition-transform hover:scale-105"
+            className="flex shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-semibold text-white shadow-lg transition-transform hover:scale-105"
           >
             <Play className="h-4 w-4 fill-current" />
             Play
           </button>
-        )}
+        ) : null}
       </div>
 
+      {ranked.length > 0 ? (
+        <div className="flex justify-end">
+          <ViewToggle view={view} onChange={setViewMode} />
+        </div>
+      ) : null}
+
       {loading ? (
-        <div className="space-y-1">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <SongRowSkeleton key={i} />
-          ))}
-        </div>
+        view === 'grid' ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SongRowSkeleton key={i} />
+            ))}
+          </div>
+        )
       ) : ranked.length > 0 ? (
-        <div className="space-y-0.5">
-          {ranked.map((entry, i) => (
-            <div key={entry.song.id} className="flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <SongRow song={entry.song} index={i} showIndex songs={songs} />
-              </div>
-              <span className="w-16 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                {entry.count} plays
-              </span>
-            </div>
-          ))}
-        </div>
+        view === 'grid' ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
+            {ranked.map((entry) => (
+              <SongCard key={entry.song.id} song={entry.song} songs={songs} />
+            ))}
+          </div>
+        ) : (
+          /* Duration is hidden and the play count rides in the row's own
+             trailing slot — previously it sat in an extra column outside the
+             row, which squeezed the title down to a few characters. */
+          <div className="space-y-0.5">
+            {ranked.map((entry) => (
+              <SongRow
+                key={entry.song.id}
+                song={entry.song}
+                songs={songs}
+
+                trailing={`${entry.count} plays`}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <EmptyState
           icon={Repeat}

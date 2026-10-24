@@ -4,8 +4,8 @@ import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { useOfflineStore, isDownloadable } from '@/store/offline';
-import { formatDuration } from '@/lib/utils';
-import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Check, Loader2, RotateCcw, HardDriveDownload, Trash2 } from 'lucide-react';
+
+import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Loader2, RotateCcw, HardDriveDownload, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
@@ -26,16 +26,18 @@ interface SongRowProps {
   playlistId?: string;
   /** Called after a successful removal so the caller can drop the row. */
   onRemoved?: (songId: string) => void;
+  /** Hide the duration cell — it costs width the title needs more. */
+  /** Small badge rendered where the duration would be (e.g. "18 plays"). */
+  trailing?: React.ReactNode;
 }
 
 export function SongRow({
   song,
-  index,
-  showIndex,
   songs,
   source = 'library',
   playlistId,
   onRemoved,
+  trailing,
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
@@ -99,36 +101,32 @@ export function SongRow({
       onMouseLeave={() => setIsHovered(false)}
       onClick={handlePlay}
     >
-      <div className="w-10 flex-shrink-0 flex items-center justify-center">
-        {isHovered || (isCurrentSong && isPlaying) ? (
-          <button className="text-accent">
-            {isCurrentSong && isPlaying ? (
-              <Pause className="w-4 h-4 fill-current" />
-            ) : (
-              <Play className="w-4 h-4 fill-current" />
-            )}
-          </button>
-        ) : showIndex && index !== undefined ? (
-          <span className={`text-sm ${isCurrentSong ? 'text-accent' : 'text-muted'}`}>
-            {index + 1}
-          </span>
+      {/* Artwork always, with play/pause layered over it on hover. The old
+          layout swapped artwork OUT for a track number, which cost a visual
+          anchor and gave nothing back. */}
+      <div className="relative w-10 h-10 flex-shrink-0 rounded-md bg-card overflow-hidden">
+        {coverFor(song) ? (
+          <Image
+            src={coverFor(song)!}
+            alt={song.title}
+            width={40}
+            height={40}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <div className="w-10 h-10 rounded-md bg-card overflow-hidden flex-shrink-0">
-            {coverFor(song) ? (
-              <Image
-                src={coverFor(song)!}
-                alt={song.title}
-                width={40}
-                height={40}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Music className="w-4 h-4 text-muted" />
-              </div>
-            )}
+          <div className="w-full h-full flex items-center justify-center">
+            <Music className="w-4 h-4 text-muted" />
           </div>
         )}
+        {isHovered || (isCurrentSong && isPlaying) ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+            {isCurrentSong && isPlaying ? (
+              <Pause className="w-4 h-4 fill-current text-white" />
+            ) : (
+              <Play className="w-4 h-4 fill-current text-white" />
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -153,14 +151,10 @@ export function SongRow({
             <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
           </button>
         ) : null}
-        {isOffline ? (
-          <span
-            title="Downloaded to device"
-            className="text-emerald-500 inline-flex items-center"
-          >
-            <Check className="w-3.5 h-3.5" />
-          </span>
-        ) : downloadProgress !== undefined ? (
+        {/* Download state lives in the 22EF menu now 2014 a tick on every row was
+            noise once most of a library is downloaded. An in-progress spinner
+            still shows, since that one is transient and worth seeing. */}
+        {downloadProgress !== undefined ? (
           <span
             title={`Downloading ${downloadProgress}%`}
             className="text-accent inline-flex items-center"
@@ -168,9 +162,9 @@ export function SongRow({
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           </span>
         ) : null}
-        <span className="text-xs text-muted tabular-nums w-10 text-right">
-          {formatDuration(song.duration)}
-        </span>
+        {trailing ? (
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{trailing}</span>
+        ) : null}
         <Menu
           trigger={
             <button className="text-muted-foreground hover:text-foreground transition-colors p-1">

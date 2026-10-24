@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Menu } from './Menu';
 import { createClient } from '@/lib/supabase/client';
+import { hiResCover } from '@/lib/coverFor';
 
 interface SongCardProps {
   song: Song;
@@ -54,9 +55,16 @@ export function SongCard({
   const ytFallback = song.youtube_id
     ? `https://i.ytimg.com/vi/${song.youtube_id}/hqdefault.jpg`
     : null;
-  const initialCover = song.cover_url || ytFallback;
+  // Start at YouTube's largest thumbnail. Cards render around 200-400px
+  // wide, so hqdefault (480x360, barely 360 square after the crop) is
+  // visibly soft on a retina screen. maxresdefault is 1280x720. YouTube
+  // doesn't generate it for every video, but the onError chain below
+  // already falls back, so a miss just lands on the original URL.
+  const initialCover = hiResCover(song.cover_url || ytFallback);
   const [coverSrc, setCoverSrc] = useState<string | null>(initialCover);
-  useEffect(() => { setCoverSrc(song.cover_url || ytFallback); }, [song.cover_url, ytFallback]);
+  useEffect(() => {
+    setCoverSrc(hiResCover(song.cover_url || ytFallback));
+  }, [song.cover_url, ytFallback]);
 
   useEffect(() => { loadLikes(); }, [loadLikes]);
 
@@ -77,7 +85,10 @@ export function SongCard({
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 200px"
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             onError={() => {
-              if (coverSrc !== ytFallback && ytFallback) {
+              const original = song.cover_url || ytFallback;
+              if (coverSrc !== original && original) {
+                setCoverSrc(original);
+              } else if (coverSrc !== ytFallback && ytFallback) {
                 setCoverSrc(ytFallback);
               } else {
                 setCoverSrc(null);

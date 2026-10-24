@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { usePlaylistDialog } from '@/store/playlistDialog';
@@ -181,20 +181,52 @@ export function NowPlayingScreen() {
   // control channel, so hitting pause left the picture running. enablejsapi
   // lets us post play/pause commands to it, which keeps the video in step
   // with the transport without it restarting from 0 like an unmount would.
+  const pendingSeek = usePlayerStore((s) => s.pendingSeek);
   const inlineVideoRef = useRef<HTMLIFrameElement>(null);
-  useEffect(() => {
+
+  const postToVideo = useCallback((func: string, args: unknown[] = []) => {
     const frame = inlineVideoRef.current;
     if (!frame?.contentWindow) return;
-    const func = isPlaying ? 'playVideo' : 'pauseVideo';
     try {
       frame.contentWindow.postMessage(
-        JSON.stringify({ event: 'command', func, args: [] }),
+        JSON.stringify({ event: 'command', func, args }),
         'https://www.youtube.com',
       );
     } catch {
-      // Player not ready yet; the next toggle will land.
+      // Player not ready yet; a later command will land.
     }
-  }, [isPlaying, showInlineVideo, currentSong?.youtube_id]);
+  }, []);
+
+  // Jump the video to wherever the audio already is.
+  //
+  // The iframe always loads at 0, so turning on "Watch video" a minute into
+  // a track used to start the picture from the beginning against audio that
+  // was already playing. The player needs a moment to accept commands after
+  // the embed loads, hence the short delay before seeking.
+  useEffect(() => {
+    if (!showInlineVideo || !currentSong?.youtube_id) return;
+    const at = usePlayerStore.getState().progress;
+    const timer = setTimeout(() => {
+      postToVideo('seekTo', [at, true]);
+      postToVideo(usePlayerStore.getState().isPlaying ? 'playVideo' : 'pauseVideo');
+    }, 900);
+    return () => clearTimeout(timer);
+    // Re-syncs when the video is switched on or the track changes — NOT on
+    // every progress tick, which would seek continuously.
+  }, [showInlineVideo, currentSong?.youtube_id, postToVideo]);
+
+  // Keep play/pause in step after that initial sync.
+  useEffect(() => {
+    if (!showInlineVideo) return;
+    postToVideo(isPlaying ? 'playVideo' : 'pauseVideo');
+  }, [isPlaying, showInlineVideo, postToVideo]);
+
+  // A manual seek in the transport should move the video too.
+  useEffect(() => {
+    if (!showInlineVideo || pendingSeek == null) return;
+    postToVideo('seekTo', [pendingSeek, true]);
+  }, [pendingSeek, showInlineVideo, postToVideo]);
+
 
   if (!isNowPlayingOpen || !currentSong) return null;
 
