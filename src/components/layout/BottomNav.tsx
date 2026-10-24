@@ -14,6 +14,10 @@ import {
   Settings,
   X,
   Download,
+  Newspaper,
+  Mic,
+  Repeat,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -93,7 +97,7 @@ export function BottomNav() {
               <div className="w-10 h-1 rounded-full bg-border" />
             </div>
             <div className="px-4 pb-2 flex items-center justify-between">
-              <h2 className="text-base font-semibold">Quick actions</h2>
+              <h2 className="text-base font-semibold">Browse &amp; more</h2>
               <button
                 onClick={() => setSheetOpen(false)}
                 className="w-8 h-8 rounded-full hover:bg-card-hover flex items-center justify-center text-muted-foreground"
@@ -104,6 +108,39 @@ export function BottomNav() {
             </div>
 
             <div className="px-3 pb-3 space-y-1">
+              {/* Browse — the sidebar is hidden below lg, so without these
+                  News, Podcasts, On Repeat and For You are unreachable on a
+                  phone even though the pages exist. */}
+              <p className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Browse
+              </p>
+              <SheetItem
+                icon={Newspaper}
+                title="News"
+                subtitle="CNN, CNBC, NDTV and more — add your own"
+                onClick={() => go('/news')}
+              />
+              <SheetItem
+                icon={Mic}
+                title="Podcasts"
+                subtitle="Joe Rogan, Huberman and more — add your own"
+                onClick={() => go('/podcasts')}
+              />
+              <SheetItem
+                icon={Repeat}
+                title="On Repeat"
+                subtitle="What you've played most this month"
+                onClick={() => go('/on-repeat')}
+              />
+              <SheetItem
+                icon={Sparkles}
+                title="For You"
+                subtitle="New songs picked from your listening"
+                onClick={() => go('/for-you')}
+              />
+              <p className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Quick actions
+              </p>
               <SheetItem
                 icon={Upload}
                 title="Upload music"
