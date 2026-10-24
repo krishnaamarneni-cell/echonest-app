@@ -42,15 +42,15 @@ export interface PodcastEpisode {
  * channels, and subscriber count alone ranks talk shows oddly.
  */
 export const FEATURED_PODCASTS: string[] = [
-  'PowerfulJRE',        // The Joe Rogan Experience
+  'joerogan',           // The Joe Rogan Experience (PowerfulJRE)
   'lexfridman',         // Lex Fridman Podcast
   'hubermanlab',        // Huberman Lab
   'TheDiaryOfACEO',     // The Diary Of A CEO
   'BeerBiceps',         // The Ranveer Show
-  'ThisPastWeekend',    // This Past Weekend w/ Theo Von
+  'TheoVon',            // This Past Weekend w/ Theo Von
   'aliabdaal',          // Deep Dive
   'ColinandSamir',      // The Colin and Samir Show
-  'TEDTalksDaily',      // TED Talks Daily
+  'TED',                // TED
   'WVFRM',              // Waveform
 ];
 
