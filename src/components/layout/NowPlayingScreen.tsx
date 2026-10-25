@@ -669,6 +669,29 @@ export function NowPlayingScreen() {
                       )}
                     </button>
                   )}
+
+                  {/* Straight to YouTube — the in-app player streams audio
+                      with a muted video alongside it, which is the right
+                      default, but sometimes you just want the real thing
+                      (comments, quality picker, chapters, casting). */}
+                  {currentSong.youtube_id && !isYTPlaylist && !showLyrics && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(
+                          `https://www.youtube.com/watch?v=${currentSong.youtube_id}`,
+                          '_blank',
+                          'noopener,noreferrer',
+                        );
+                      }}
+                      className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-medium inline-flex items-center gap-1.5 hover:bg-black/80 transition-colors"
+                      aria-label="Open on YouTube"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      YouTube
+                    </button>
+                  )}
                 </div>
               </div>
 
