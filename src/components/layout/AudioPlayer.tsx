@@ -492,6 +492,13 @@ export function AudioPlayer() {
     } | null;
     try { p?.pauseVideo?.(); } catch {}
     try { p?.stopVideo?.(); } catch {}
+    // pauseVideo/stopVideo can silently no-op when the player is in a bad
+    // state — the container moves between the mini and full layouts, and a
+    // moved player stops answering its API while its iframe keeps playing.
+    // Destroying it removes the iframe outright, which is the only way to
+    // guarantee silence. It's recreated on demand by the effect below.
+    try { (p as unknown as { destroy?: () => void })?.destroy?.(); } catch {}
+    ytPlayerRef.current = null;
     // Deps include the track: going podcast -> music left the podcast
     // audible underneath, so treat "not using the iframe" as a continuous
     // invariant re-asserted on every change, not a one-off transition.
