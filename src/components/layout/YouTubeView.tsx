@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Song, QueueItem } from '@/types';
-import { ChevronDown, Maximize2, Minimize2, Music, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Maximize2, Minimize2, Music, GripVertical } from 'lucide-react';
 
 const POS_KEY = 'echonest-yt-mini-pos';
 
@@ -137,6 +137,9 @@ export function YouTubeView({
                 // sits at bottom-0 in this view) so the video + queue sit above
                 // it instead of being cut off behind it.
                 paddingBottom: 'calc(var(--player-height) + 1rem)',
+                // ...and clear of the status bar at the top, since this is
+                // inset-0 on phones and the embed draws its own title row.
+                paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)',
               }
             : {
                 position: 'fixed',
@@ -161,6 +164,17 @@ export function YouTubeView({
               }
         }
       >
+        {isFull && (
+          <button
+            onClick={onMini}
+            aria-label="Back"
+            title="Back — keeps playing in a corner"
+            className="absolute left-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-md transition-transform hover:bg-black/85 active:scale-95 sm:left-5 sm:top-5"
+            style={{ top: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
         <div
           className={
             isFull
