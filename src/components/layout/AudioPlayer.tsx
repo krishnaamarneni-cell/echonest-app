@@ -358,20 +358,27 @@ export function AudioPlayer() {
 
   // If the song is downloaded, treat it like an offline-eligible playback
   // (audio element path, no iframe) regardless of background-play mode.
-  // News and podcast episodes are watched, not just heard: they play in
-  // YouTube's own player with YouTube's own audio. That makes picture and
-  // sound sync by construction (one player, not two being nudged into
-  // step), gives real YouTube controls, and takes the laptop proxy out of
-  // the path entirely. The trade-off is YouTube's: it stops when the phone
-  // locks, which is why music still uses the proxy for background play.
+  // News and podcast episodes split by what you're doing with them.
+  //
+  // Full screen means WATCHING: YouTube's player owns playback, so picture
+  // and sound are in sync by construction and the laptop isn't involved.
+  // Anything else means LISTENING, which goes through the <audio> element
+  // — the only path iOS keeps alive with the app backgrounded or the phone
+  // locked. So collapsing the video and carrying on listening with the
+  // screen off are the same gesture.
+  //
+  // Listening deliberately does NOT require the Background-play setting:
+  // that toggle is about music, and an episode you've collapsed to listen
+  // to has no other way to play at all.
   const isWatchContent = currentSong?.content_type === 'podcast';
+  const watchingVideo = isWatchContent && ytView === 'full';
 
   const useHybrid =
     !syncedRoomActive &&
     !offlineAudioUrl && // downloaded songs supersede streaming
-    !isWatchContent &&
+    !watchingVideo &&
     proxyConfigured &&
-    bgMode &&
+    (bgMode || isWatchContent) &&
     isYouTube &&
     !isYouTubePlaylist &&
     !!currentSong?.youtube_id;
@@ -490,6 +497,12 @@ export function AudioPlayer() {
       pauseVideo?: () => void;
       stopVideo?: () => void;
     } | null;
+    // Carry the position across so collapsing the video resumes the audio
+    // where you were rather than restarting the episode.
+    try {
+      const at = (p as unknown as { getCurrentTime?: () => number })?.getCurrentTime?.();
+      if (typeof at === 'number' && at > 1) usePlayerStore.getState().seekTo(at);
+    } catch {}
     try { p?.pauseVideo?.(); } catch {}
     try { p?.stopVideo?.(); } catch {}
     // pauseVideo/stopVideo can silently no-op when the player is in a bad
@@ -512,7 +525,13 @@ export function AudioPlayer() {
       if (isYouTubePlaylist) {
         ytPlayerRef.current.loadPlaylist({ list: currentSong.youtube_id, listType: 'playlist' });
       } else {
-        ytPlayerRef.current.loadVideoById(currentSong.youtube_id);
+        // Opening the video mid-listen picks up where the audio reached.
+        const at = usePlayerStore.getState().progress;
+        ytPlayerRef.current.loadVideoById(
+          at > 1
+            ? ({ videoId: currentSong.youtube_id, startSeconds: at } as unknown as string)
+            : currentSong.youtube_id,
+        );
       }
       return;
     }
