@@ -92,14 +92,17 @@ export function ChannelFeed({
 
   const playFrom = (list: VideoItem[]) => (index: number) => {
     const songs = list.map((v) =>
-      episodeToSong({
-        videoId: v.videoId,
-        title: v.title,
-        channel: v.channel,
-        thumbnail: v.thumbnail,
-        publishedAt: v.publishedAt,
-        duration: v.duration,
-      }),
+      episodeToSong(
+        {
+          videoId: v.videoId,
+          title: v.title,
+          channel: v.channel,
+          thumbnail: v.thumbnail,
+          publishedAt: v.publishedAt,
+          duration: v.duration,
+        },
+        category,
+      ),
     );
     play(songs[index], songs, 'library');
   };

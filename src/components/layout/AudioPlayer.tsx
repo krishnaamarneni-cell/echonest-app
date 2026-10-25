@@ -370,7 +370,8 @@ export function AudioPlayer() {
   // Listening deliberately does NOT require the Background-play setting:
   // that toggle is about music, and an episode you've collapsed to listen
   // to has no other way to play at all.
-  const isWatchContent = currentSong?.content_type === 'podcast';
+  const isWatchContent =
+    currentSong?.content_type === 'podcast' || currentSong?.content_type === 'news';
   const watchingVideo = isWatchContent && ytView === 'full';
 
   const useHybrid =

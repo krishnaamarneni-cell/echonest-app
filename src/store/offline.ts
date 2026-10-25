@@ -43,6 +43,7 @@ export function isDownloadable(song: Song): boolean {
     !!song.youtube_id &&
     song.youtube_kind === 'video' &&
     song.content_type !== 'podcast' &&
+    song.content_type !== 'news' &&
     song.source === 'youtube_embed'
   );
 }

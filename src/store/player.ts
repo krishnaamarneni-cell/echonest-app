@@ -45,22 +45,36 @@ async function logRecentlyPlayed(song: Song) {
       if (existing) {
         songId = existing.id as string;
       } else {
-        const { data: created } = await supabase
+        const row = {
+          user_id: user.id,
+          title: song.title,
+          artist_name: song.artist_name,
+          duration: song.duration || 0,
+          file_url: '',
+          cover_url: song.cover_url,
+          source: 'youtube_embed',
+          youtube_id: song.youtube_id,
+          youtube_kind: 'video',
+          content_type: song.content_type || 'music',
+        };
+        let { data: created } = await supabase
           .from('songs')
-          .insert({
-            user_id: user.id,
-            title: song.title,
-            artist_name: song.artist_name,
-            duration: song.duration || 0,
-            file_url: '',
-            cover_url: song.cover_url,
-            source: 'youtube_embed',
-            youtube_id: song.youtube_id,
-            youtube_kind: 'video',
-            content_type: song.content_type || 'music',
-          })
+          .insert(row)
           .select('id')
           .single();
+        // 'news' is newer than songs_content_type_check. On a database
+        // where supabase-migration-news-content-type.sql hasn't been run
+        // the insert is rejected outright, so fall back to the value that
+        // has always been allowed. Losing the news/podcast distinction on
+        // one row beats dropping the play from Recently Played, On Repeat
+        // and Stats — and it means the app can ship before the migration.
+        if (!created && row.content_type === 'news') {
+          ({ data: created } = await supabase
+            .from('songs')
+            .insert({ ...row, content_type: 'podcast' })
+            .select('id')
+            .single());
+        }
         if (!created) return;
         songId = created.id as string;
       }

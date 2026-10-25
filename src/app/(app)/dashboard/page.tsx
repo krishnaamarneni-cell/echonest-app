@@ -50,7 +50,8 @@ export default function DashboardPage() {
     const pool = [...allPlaylistSongs, ...recentlyAdded].filter(
       (s, i, arr) =>
         arr.findIndex((x) => x.id === s.id) === i &&
-        s.content_type !== 'podcast',
+        s.content_type !== 'podcast' &&
+        s.content_type !== 'news',
     );
     const a = pool.slice();
     for (let i = a.length - 1; i > 0; i--) {

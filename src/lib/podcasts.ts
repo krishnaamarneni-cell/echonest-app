@@ -109,10 +109,17 @@ export function timeAgo(iso: string): string {
 /**
  * Turn an episode into a playable Song. The `yt-` id prefix is the existing
  * sentinel telling the rest of the player this is ad-hoc and must not be
- * looked up in Supabase, and content_type 'podcast' keeps episodes out of
- * the music rows on Home and in Library.
+ * looked up in Supabase, and the content_type keeps episodes out of the
+ * music rows on Home and in Library.
+ *
+ * The category must be passed in: a news clip and a podcast episode are
+ * the same shape coming back from YouTube, and only the caller knows
+ * which list it came from.
  */
-export function episodeToSong(ep: PodcastEpisode): Song {
+export function episodeToSong(
+  ep: PodcastEpisode,
+  contentType: 'podcast' | 'news' = 'podcast',
+): Song {
   return {
     id: `yt-${ep.videoId}`,
     user_id: '',
@@ -129,7 +136,7 @@ export function episodeToSong(ep: PodcastEpisode): Song {
     source: 'youtube_embed',
     youtube_id: ep.videoId,
     youtube_kind: 'video',
-    content_type: 'podcast',
+    content_type: contentType,
     created_at: ep.publishedAt || new Date().toISOString(),
   };
 }

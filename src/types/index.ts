@@ -22,7 +22,7 @@ export interface Song {
   source: 'upload' | 'youtube_embed';
   youtube_id: string | null;
   youtube_kind: 'video' | 'playlist';
-  content_type: 'music' | 'podcast' | 'artist' | 'album';
+  content_type: 'music' | 'podcast' | 'news' | 'artist' | 'album';
   download_status?: 'queued' | 'downloading' | 'done' | 'error' | null;
   download_error?: string | null;
   created_at: string;
@@ -61,7 +61,7 @@ export interface Playlist {
   updated_at: string;
   source_youtube_id?: string | null;
   last_synced_at?: string | null;
-  content_type?: 'music' | 'podcast' | 'artist' | 'album';
+  content_type?: 'music' | 'podcast' | 'news' | 'artist' | 'album';
   song_count?: number;
   songs?: PlaylistSong[];
 }

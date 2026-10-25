@@ -98,7 +98,9 @@ export function ChannelEpisodes({
   }, [handle]);
 
   const playFrom = (index: number) => {
-    const songs = episodes.map(episodeToSong);
+    // Deliberately not `.map(episodeToSong)`: map passes (value, index,
+    // array), so the array index would land in the category argument.
+    const songs = episodes.map((e) => episodeToSong(e, category));
     play(songs[index], songs, 'library');
   };
 
