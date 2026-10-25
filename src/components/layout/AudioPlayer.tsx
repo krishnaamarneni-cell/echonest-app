@@ -632,7 +632,11 @@ export function AudioPlayer() {
     return () => {
       if (ytIntervalRef.current) clearInterval(ytIntervalRef.current);
     };
-  }, [ytReady, isYouTube, currentSong?.youtube_id]);
+    // useIframePlayer MUST be here: the teardown destroys the player when
+    // playback moves to the <audio> element, so expanding the video again
+    // has to recreate it. Without this dep the effect never re-ran on that
+    // flip and the video area stayed black with no sound.
+  }, [ytReady, isYouTube, useIframePlayer, currentSong?.youtube_id]);
 
   // YouTube progress polling.
   // Note: we intentionally DON'T early-return when ytPlayerRef.current is
