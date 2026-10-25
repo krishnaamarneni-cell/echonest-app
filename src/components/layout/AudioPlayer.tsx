@@ -358,9 +358,18 @@ export function AudioPlayer() {
 
   // If the song is downloaded, treat it like an offline-eligible playback
   // (audio element path, no iframe) regardless of background-play mode.
+  // News and podcast episodes are watched, not just heard: they play in
+  // YouTube's own player with YouTube's own audio. That makes picture and
+  // sound sync by construction (one player, not two being nudged into
+  // step), gives real YouTube controls, and takes the laptop proxy out of
+  // the path entirely. The trade-off is YouTube's: it stops when the phone
+  // locks, which is why music still uses the proxy for background play.
+  const isWatchContent = currentSong?.content_type === 'podcast';
+
   const useHybrid =
     !syncedRoomActive &&
     !offlineAudioUrl && // downloaded songs supersede streaming
+    !isWatchContent &&
     proxyConfigured &&
     bgMode &&
     isYouTube &&
@@ -439,16 +448,20 @@ export function AudioPlayer() {
   // it on the same track.
   const lastBgVideoIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!bgMode || !useIframePlayer) {
+    // Watch content surfaces even with background mode off — the whole
+    // point of tapping a news clip or episode is to see it.
+    if (!useIframePlayer || (!bgMode && !isWatchContent)) {
       lastBgVideoIdRef.current = null;
       return;
     }
     const vid = currentSong?.youtube_id || null;
     if (vid && vid !== lastBgVideoIdRef.current) {
       lastBgVideoIdRef.current = vid;
-      setYtView('mini');
+      // Video opens full; music only peeks as a thumbnail so the cover-art
+      // player stays the main surface for listening.
+      setYtView(isWatchContent ? 'full' : 'mini');
     }
-  }, [bgMode, useIframePlayer, currentSong?.youtube_id]);
+  }, [bgMode, useIframePlayer, isWatchContent, currentSong?.youtube_id]);
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -1152,7 +1165,12 @@ export function AudioPlayer() {
           <div className="flex items-center gap-3 flex-1 min-w-0 lg:w-1/4">
             <button
               type="button"
-              onClick={openNowPlaying}
+              onClick={() => {
+                // Video content expands into the player that can actually
+                // show it, rather than a screen built around cover art.
+                if (isWatchContent) setYtView('full');
+                else openNowPlaying();
+              }}
               className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition-opacity cursor-pointer"
               aria-label="Open now playing"
             >
