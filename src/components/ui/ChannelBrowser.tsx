@@ -12,12 +12,27 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Mic, Newspaper, Search as SearchIcon, X, Plus, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowLeft,
+  Mic,
+  Newspaper,
+  Search as SearchIcon,
+  X,
+  Plus,
+  Check,
+} from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ChannelFeed } from '@/components/ui/ChannelFeed';
 import { PodcastChannel, formatSubscribers } from '@/lib/podcasts';
 import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
+
+// Channels wrap top-to-bottom rather than scrolling sideways. A single
+// horizontal row fitted four of them and left the whole lower half of the
+// page empty, and everything past the fourth was invisible unless you
+// happened to know it was there to swipe for.
+const CHANNEL_GRID = 'grid grid-cols-4 gap-x-3 gap-y-5 sm:grid-cols-6 lg:grid-cols-8';
 
 /** Add / remove toggle shown on each channel avatar. */
 function FollowButton({
@@ -70,7 +85,7 @@ function ChannelChip({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="group relative w-20 shrink-0 text-center sm:w-24">
+    <div className="group relative text-center">
       <Link href={href}>
         <div className="relative mx-auto aspect-square w-full overflow-hidden rounded-full bg-card shadow-lg transition-transform group-hover:scale-105">
           {thumbnail ? (
@@ -100,6 +115,7 @@ export function ChannelBrowser({
   heading: string;
   blurb: string;
 }) {
+  const router = useRouter();
   const [featured, setFeatured] = useState<PodcastChannel[]>([]);
   const [results, setResults] = useState<PodcastChannel[] | null>(null);
   const [query, setQuery] = useState('');
@@ -151,6 +167,13 @@ export function ChannelBrowser({
     <div className="space-y-8 p-6 animate-fade-in lg:p-8">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
+          <button
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="mb-3 inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <h1 className="text-3xl font-bold">{heading}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
         </div>
@@ -197,13 +220,13 @@ export function ChannelBrowser({
         <section className="space-y-3">
           <h2 className="text-xl font-bold">Search results</h2>
           {searching ? (
-            <div className="flex gap-4">
-              {Array.from({ length: 5 }).map((_, i) => (
+            <div className={CHANNEL_GRID}>
+              {Array.from({ length: 8 }).map((_, i) => (
                 <CardSkeleton key={i} />
               ))}
             </div>
           ) : results.length > 0 ? (
-            <div className="flex gap-4 overflow-x-auto pb-2">
+            <div className={CHANNEL_GRID}>
               {results.map((c) => (
                 <ChannelChip
                   key={c.channelId}
@@ -232,8 +255,8 @@ export function ChannelBrowser({
           {category === 'news' ? 'Discover news channels' : 'Discover podcasts'}
         </h2>
         {loadingFeatured ? (
-          <div className="flex gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className={CHANNEL_GRID}>
+            {Array.from({ length: 12 }).map((_, i) => (
               <CardSkeleton key={i} />
             ))}
           </div>
@@ -242,7 +265,7 @@ export function ChannelBrowser({
             {error}
           </div>
         ) : featured.length > 0 ? (
-          <div className="flex gap-4 overflow-x-auto pb-2">
+          <div className={CHANNEL_GRID}>
             {featured.map((c) => (
               <ChannelChip
                 key={c.channelId}
