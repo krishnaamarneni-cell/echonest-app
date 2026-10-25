@@ -492,7 +492,10 @@ export function AudioPlayer() {
     } | null;
     try { p?.pauseVideo?.(); } catch {}
     try { p?.stopVideo?.(); } catch {}
-  }, [useIframePlayer]);
+    // Deps include the track: going podcast -> music left the podcast
+    // audible underneath, so treat "not using the iframe" as a continuous
+    // invariant re-asserted on every change, not a one-off transition.
+  }, [useIframePlayer, currentSong?.youtube_id, currentSong?.id]);
 
   // Manage YouTube player
   useEffect(() => {
