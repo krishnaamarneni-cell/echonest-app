@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/Button';
 import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
-import { Heart, Play, Shuffle, LayoutGrid, List } from 'lucide-react';
+import { Heart, Play, Shuffle, LayoutGrid, List, Share2 } from 'lucide-react';
+import { ShareDialog } from '@/components/ui/ShareDialog';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
 
@@ -20,6 +21,7 @@ export default function LikedSongsPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [sortKey, setSortKey] = useState<SortKey>('date_added_desc');
+  const [shareOpen, setShareOpen] = useState(false);
   const play = usePlayerStore((s) => s.play);
   const likedIds = useLikesStore((s) => s.likedIds);
 
@@ -109,6 +111,13 @@ export default function LikedSongsPage() {
                 <Shuffle className="w-4 h-4" /> Shuffle
               </Button>
               <BulkDownloadButton songs={visibleSongs} />
+              <Button
+                variant="secondary"
+                onClick={() => setShareOpen(true)}
+                title="Let another EchoNest user follow what you like"
+              >
+                <Share2 className="w-4 h-4" /> Share
+              </Button>
             </div>
           </div>
         </div>
@@ -183,6 +192,14 @@ export default function LikedSongsPage() {
           </div>
         )}
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        kind="likes"
+        playlistId={null}
+        title="Liked Songs"
+      />
     </div>
   );
 }

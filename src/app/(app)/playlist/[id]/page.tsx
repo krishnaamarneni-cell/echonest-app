@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/Button';
 import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { Input } from '@/components/ui/Input';
 import { usePlayerStore } from '@/store/player';
-import { Play, Shuffle, ListMusic, Music, ArrowLeft, RefreshCw, CheckCircle2, LayoutGrid, List, Trash2 } from 'lucide-react';
+import { Play, Shuffle, ListMusic, Music, ArrowLeft, RefreshCw, CheckCircle2, LayoutGrid, List, Trash2, Share2 } from 'lucide-react';
+import { ShareDialog } from '@/components/ui/ShareDialog';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 import { syncYouTubePlaylist } from '@/lib/syncYouTubePlaylist';
@@ -27,6 +28,7 @@ export default function PlaylistDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'grid'>('list');
+  const [shareOpen, setShareOpen] = useState(false);
   const play = usePlayerStore((s) => s.play);
 
   useEffect(() => {
@@ -214,6 +216,14 @@ export default function PlaylistDetailPage() {
               )}
               <BulkDownloadButton songs={songs} />
               <Button
+                variant="secondary"
+                onClick={() => setShareOpen(true)}
+                title="Share this playlist with another EchoNest user"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </Button>
+              <Button
                 variant="danger"
                 onClick={async () => {
                   if (!confirm(`Delete playlist "${playlist?.title}"? The playlist is removed (songs stay in the library). This cannot be undone.`)) return;
@@ -331,6 +341,14 @@ export default function PlaylistDetailPage() {
           />
         )}
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        kind="playlist"
+        playlistId={id}
+        title={playlist?.title || 'Playlist'}
+      />
     </div>
   );
 }

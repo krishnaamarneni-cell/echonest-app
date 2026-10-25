@@ -16,6 +16,7 @@ import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } 
 import { Button } from '@/components/ui/Button';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
+import { listSharedWithMe } from '@/lib/shares';
 
 const SONGS_PER_PAGE = 8;
 
@@ -28,6 +29,11 @@ export default function LibraryPage() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  // Playlists other people shared with me. Separate from `playlists`
+  // because they are not mine to rename or delete — only to leave.
+  const [sharedWithMe, setSharedWithMe] = useState<
+    { share: { id: string; kind: string }; playlist: Record<string, unknown> | null; ownerName: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   // Delete a playlist from the grid (e.g. an imported/synced YouTube playlist).
@@ -119,6 +125,19 @@ export default function LibraryPage() {
   useEffect(() => {
     setSongsPage(0);
   }, [tab]);
+
+  // Playlists shared with me. Loaded once rather than per tab: it is one
+  // small query, and having it ready means the Playlists tab doesn't pop
+  // a second section in a beat after it renders.
+  useEffect(() => {
+    let cancelled = false;
+    listSharedWithMe()
+      .then((rows) => !cancelled && setSharedWithMe(rows))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const sortedSongs = useMemo(() => sortSongs(songs, sortKey), [songs, sortKey]);
   const songsTotalPages = Math.max(1, Math.ceil(sortedSongs.length / SONGS_PER_PAGE));
@@ -510,6 +529,25 @@ export default function LibraryPage() {
             ) : (
               <EmptyState icon={Mic2} title="No artists" description="Artists appear when you upload music" />
             )
+          )}
+
+          {tab === 'playlists' && sharedWithMe.length > 0 && (
+            <section className="mb-8 space-y-3">
+              <h2 className="text-lg font-bold">Shared with you</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {sharedWithMe
+                  .filter((s) => s.playlist)
+                  .map((s) => (
+                    <MediaCard
+                      key={s.share.id}
+                      title={String(s.playlist!.title || 'Playlist')}
+                      subtitle={`From ${s.ownerName}`}
+                      imageUrl={(s.playlist!.cover_url as string) || null}
+                      href={`/playlist/${s.playlist!.id}`}
+                    />
+                  ))}
+              </div>
+            </section>
           )}
 
           {tab === 'playlists' && (
