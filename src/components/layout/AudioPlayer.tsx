@@ -539,7 +539,13 @@ export function AudioPlayer() {
     setYtError(null);
     // In background mode, surface the mini-player so the user can reach
     // the native iOS PiP button on the video itself.
-    setYtView(bgMode ? 'mini' : 'hidden');
+    //
+    // Never clobber 'full'. useIframePlayer is DERIVED from this view, so
+    // for news and podcasts the player only exists because the user just
+    // expanded to full. Overwriting the view here flipped useIframePlayer
+    // back off, which tore the new player straight back down — tapping the
+    // mini-player looked like it did nothing at all.
+    setYtView((v) => (v === 'full' ? v : bgMode ? 'mini' : 'hidden'));
 
     // Create a YT-owned child element so React doesn't try to manage what YT replaces
     const wrapper = ytContainerRef.current;
