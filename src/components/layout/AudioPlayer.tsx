@@ -534,6 +534,11 @@ export function AudioPlayer() {
       videoId: isYouTubePlaylist ? undefined : currentSong.youtube_id,
       playerVars: {
         autoplay: 1,
+        // Same handover on a freshly created player: start where the
+        // audio had got to rather than at the beginning.
+        ...(usePlayerStore.getState().progress > 1
+          ? { start: Math.floor(usePlayerStore.getState().progress) }
+          : {}),
         // Background mode: show native YT controls so iOS Safari exposes
         // the Picture-in-Picture button on the video (only way to keep
         // YouTube audio playing when the screen is locked on iPhone).
