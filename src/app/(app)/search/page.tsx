@@ -16,6 +16,7 @@ import { proxySearch } from '@/lib/ytSearch';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AddChannelButton } from '@/components/ui/AddChannelButton';
+import { PublicProfile, searchPeople } from '@/lib/profile';
 
 interface TrendingItem {
   videoId: string;
@@ -81,6 +82,10 @@ function SearchPageInner() {
     items: [],
   });
   const [channelsLoading, setChannelsLoading] = useState(false);
+  const [peopleHits, setPeopleHits] = useState<{ q: string; items: PublicProfile[] }>({
+    q: '',
+    items: [],
+  });
 
   const play = usePlayerStore((s) => s.play);
 
@@ -276,10 +281,29 @@ function SearchPageInner() {
     };
   }, [query]);
 
+  // People matching the query. Debounced at 250ms rather than the
+  // channels' 900ms because this one hits our own Postgres, not YouTube's
+  // 100-unit search.list — there is no quota to protect.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchPeople(q)
+        .then((items) => !cancelled && setPeopleHits({ q, items }))
+        .catch(() => !cancelled && setPeopleHits({ q, items: [] }));
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
   // Only show hits that belong to the query currently typed — avoids a
   // flash of the previous channel's results while the 900ms debounce is
   // still pending.
   const channels = channelHits.q === query.trim() ? channelHits.items : [];
+  const people = peopleHits.q === query.trim() ? peopleHits.items : [];
 
   // Browse tiles for the empty state — special tiles first, then user playlists
   const browseItems = useMemo<BrowseItem[]>(() => {
@@ -560,6 +584,36 @@ function SearchPageInner() {
         <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
           From YouTube: {ytError}
         </div>
+      )}
+
+      {/* People — EchoNest users with a public profile */}
+      {query.trim().length >= 2 && people.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3">People</h2>
+          <div className="grid grid-cols-4 gap-x-3 gap-y-5 sm:grid-cols-6 lg:grid-cols-8">
+            {people.map((p) => (
+              <Link
+                key={p.id}
+                href={`/u/${p.username}`}
+                className="group text-center"
+              >
+                <div className="relative mx-auto aspect-square w-full overflow-hidden rounded-full bg-card shadow-lg transition-transform group-hover:scale-105">
+                  {p.avatar_url ? (
+                    <Image src={p.avatar_url} alt={p.username || ''} fill sizes="96px" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent/30 to-purple-600/30 text-lg font-bold">
+                      {(p.display_name || p.username || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-2 truncate text-xs font-semibold">
+                  {p.display_name || p.username}
+                </p>
+                <p className="truncate text-[10px] text-muted-foreground">@{p.username}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Channels — news / podcast shows, not songs */}

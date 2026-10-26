@@ -17,6 +17,10 @@ import {
   Languages,
   MonitorSmartphone,
   Settings as SettingsIcon,
+  AtSign,
+  Globe,
+  Lock,
+  Loader2,
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { useBackgroundMode } from '@/store/backgroundMode';
@@ -28,6 +32,7 @@ import { YouTubeImportPanel } from '@/components/ui/YouTubeImportPanel';
 import { ShareInvitePanel } from '@/components/ui/ShareInvitePanel';
 import { AccountDangerZone } from '@/components/ui/AccountDangerZone';
 import { isPublicAccountEmail } from '@/lib/publicAccount';
+import { claimUsername, getMyProfile, setProfilePublic, validateUsername } from '@/lib/profile';
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState('');
@@ -35,6 +40,14 @@ export default function SettingsPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Public profile. `isPublic` above already means "this is the shared
+  // public account", which is a different thing entirely, hence the name.
+  const [username, setUsername] = useState('');
+  const [savedUsername, setSavedUsername] = useState<string | null>(null);
+  const [profilePublic, setProfilePublicState] = useState(false);
+  const [usernameBusy, setUsernameBusy] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
 
   const { enabled: bgEnabled, hydrate: hydrateBg, toggle: toggleBg } = useBackgroundMode();
   const { enabled: autoplayEnabled, hydrate: hydrateAutoplay, toggle: toggleAutoplay } = useAutoplay();
@@ -72,6 +85,46 @@ export default function SettingsPage() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyProfile().then((p) => {
+      if (cancelled || !p) return;
+      setUsername(p.username || '');
+      setSavedUsername(p.username);
+      setProfilePublicState(!!p.is_public);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleClaimUsername = async () => {
+    const localError = validateUsername(username);
+    if (localError) {
+      setUsernameError(localError);
+      return;
+    }
+    setUsernameBusy(true);
+    setUsernameError('');
+    const result = await claimUsername(username);
+    if (result.ok) {
+      setUsername(result.username);
+      setSavedUsername(result.username);
+    } else {
+      setUsernameError(result.error);
+    }
+    setUsernameBusy(false);
+  };
+
+  // Going public without a username would mean being exposed with no way
+  // to be found, so the switch stays disabled until one is claimed.
+  const handleTogglePublic = async () => {
+    if (!savedUsername) return;
+    const next = !profilePublic;
+    setProfilePublicState(next);
+    if (!(await setProfilePublic(next))) setProfilePublicState(!next);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -327,6 +380,100 @@ export default function SettingsPage() {
               </Button>
             </div>
           </div>
+
+          {/* Public profile */}
+          <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <AtSign className="h-4 w-4 text-accent" />
+              Public profile
+            </h3>
+
+            <div className="space-y-2">
+              <Input
+                label="Username"
+                placeholder="krishna_a"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value.toLowerCase());
+                  setUsernameError('');
+                }}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                3&ndash;20 characters: letters, numbers and underscore. This is how
+                other people find you.
+              </p>
+              {usernameError && (
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {usernameError}
+                </p>
+              )}
+              <Button
+                variant="secondary"
+                onClick={handleClaimUsername}
+                disabled={usernameBusy || !username.trim() || username.trim() === savedUsername}
+              >
+                {usernameBusy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    {savedUsername ? 'Change username' : 'Claim username'}
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <button
+              onClick={handleTogglePublic}
+              disabled={!savedUsername}
+              className="flex w-full items-center gap-3 rounded-xl border border-border bg-background p-3 text-left transition-colors hover:bg-card-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                  profilePublic ? 'bg-accent/15 text-accent' : 'bg-card text-muted-foreground'
+                }`}
+              >
+                {profilePublic ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {profilePublic ? 'Anyone can find you' : 'Your profile is private'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {!savedUsername
+                    ? 'Claim a username first.'
+                    : profilePublic
+                      ? 'Your playlists and liked songs are visible to anyone who searches your username.'
+                      : 'Nobody can see your playlists or likes unless you share them directly.'}
+                </p>
+              </div>
+              <div
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  profilePublic ? 'bg-accent' : 'bg-border'
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
+                    profilePublic ? 'left-[22px]' : 'left-0.5'
+                  }`}
+                />
+              </div>
+            </button>
+
+            {profilePublic && savedUsername && (
+              <Link
+                href={`/u/${savedUsername}`}
+                className="block text-sm text-accent hover:underline"
+              >
+                View your profile &rarr;
+              </Link>
+            )}
+          </div>
+
           <AccountDangerZone />
         </section>
       )}
