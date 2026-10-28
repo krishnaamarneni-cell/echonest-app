@@ -15,6 +15,7 @@ import { Heart, Play, Shuffle, LayoutGrid, List, Share2 } from 'lucide-react';
 import { ShareDialog } from '@/components/ui/ShareDialog';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
+import { moveItem, persistLikedOrder, LikeRow } from '@/lib/reorder';
 
 export default function LikedSongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -22,6 +23,9 @@ export default function LikedSongsPage() {
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [sortKey, setSortKey] = useState<SortKey>('date_added_desc');
   const [shareOpen, setShareOpen] = useState(false);
+  // The like rows behind `songs`, same order. Needed to write positions
+  // back; the Song objects don't carry the like row's id.
+  const [rows, setRows] = useState<LikeRow[]>([]);
   const play = usePlayerStore((s) => s.play);
   const likedIds = useLikesStore((s) => s.likedIds);
 
@@ -59,14 +63,26 @@ export default function LikedSongsPage() {
   useEffect(() => {
     const supabase = createClient();
     async function load() {
+      // nullsFirst because a like made before the position column
+      // existed, or by any code path that doesn't set it, has none — and
+      // a song you just liked belongs at the top, where you'd look for it.
+      // created_at breaks ties so the unplaced ones aren't in random order.
       const { data } = await supabase
         .from('likes')
-        .select('song:songs(*)')
+        .select('id, user_id, song_id, song:songs(*)')
+        .order('position', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: false });
 
       if (data) {
-        const s = data.map((d: Record<string, unknown>) => d.song as Song).filter(Boolean);
-        setSongs(s);
+        const withSong = data.filter((d: Record<string, unknown>) => d.song);
+        setSongs(withSong.map((d: Record<string, unknown>) => d.song as Song));
+        setRows(
+          withSong.map((d: Record<string, unknown>) => ({
+            id: d.id as string,
+            user_id: d.user_id as string,
+            song_id: d.song_id as string,
+          })),
+        );
       }
       setLoading(false);
     }
@@ -79,6 +95,33 @@ export default function LikedSongsPage() {
     songs.filter((s) => likedIds.has(s.id)),
     sortKey,
   );
+
+  // Reordering only makes sense against the stored order. Under any other
+  // sort the list is a computed view, so moving a row would either snap
+  // straight back or silently rewrite an order you can't see.
+  const canReorder = sortKey === 'custom';
+
+  // Addressed by song id, not by index. `visibleSongs` is a FILTERED
+  // view of `songs` — un-liking a song elsewhere drops it from the view
+  // while it stays in state — so the two lists drift apart and a visible
+  // index would move the wrong row. Swapping with the visible neighbour
+  // also means a hidden row in between is stepped over correctly.
+  const moveSong = async (songId: string, neighbourId: string) => {
+    const from = songs.findIndex((s) => s.id === songId);
+    const to = songs.findIndex((s) => s.id === neighbourId);
+    if (from < 0 || to < 0 || from === to) return;
+
+    const prevSongs = songs;
+    const prevRows = rows;
+    const nextSongs = moveItem(songs, from, to);
+    const nextRows = moveItem(rows, from, to);
+    setSongs(nextSongs);
+    setRows(nextRows);
+    if (!(await persistLikedOrder(nextRows))) {
+      setSongs(prevSongs);
+      setRows(prevRows);
+    }
+  };
 
   return (
     <div className="animate-fade-in">
@@ -187,6 +230,16 @@ export default function LikedSongsPage() {
                 showIndex
                 songs={visibleSongs}
                 onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
+                onMoveUp={
+                  canReorder && i > 0
+                    ? () => moveSong(song.id, visibleSongs[i - 1].id)
+                    : undefined
+                }
+                onMoveDown={
+                  canReorder && i < visibleSongs.length - 1
+                    ? () => moveSong(song.id, visibleSongs[i + 1].id)
+                    : undefined
+                }
               />
             ))}
           </div>

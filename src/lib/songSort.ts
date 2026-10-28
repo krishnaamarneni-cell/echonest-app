@@ -1,6 +1,7 @@
 import { Song } from '@/types';
 
 export type SortKey =
+  | 'custom'
   | 'date_added_desc'
   | 'date_added_asc'
   | 'title_asc'
@@ -11,6 +12,7 @@ export type SortKey =
   | 'duration_desc';
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'custom', label: 'My order' },
   { key: 'date_added_desc', label: 'Recently added' },
   { key: 'date_added_asc', label: 'Oldest first' },
   { key: 'title_asc', label: 'Title (A→Z)' },
@@ -22,6 +24,9 @@ export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 
 export function sortSongs(songs: Song[], key: SortKey): Song[] {
+  // 'custom' is the order the rows arrived in, which is the order stored
+  // in the table. Anything else would overwrite what the user arranged.
+  if (key === 'custom') return songs.slice();
   const arr = songs.slice();
   switch (key) {
     case 'date_added_desc':

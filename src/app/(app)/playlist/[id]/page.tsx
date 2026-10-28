@@ -17,6 +17,7 @@ import { ShareDialog } from '@/components/ui/ShareDialog';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 import { syncYouTubePlaylist } from '@/lib/syncYouTubePlaylist';
+import { moveItem, persistPlaylistOrder, PlaylistSongRow } from '@/lib/reorder';
 
 export default function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +30,10 @@ export default function PlaylistDetailPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [shareOpen, setShareOpen] = useState(false);
+  // The junction rows behind `songs`, kept in the same order. Reordering
+  // writes positions back to playlist_songs, which needs those row ids —
+  // the Song objects alone don't carry them.
+  const [rows, setRows] = useState<PlaylistSongRow[]>([]);
   const play = usePlayerStore((s) => s.play);
 
   useEffect(() => {
@@ -57,7 +62,15 @@ export default function PlaylistDetailPage() {
       .eq('playlist_id', id)
       .order('position');
     if (ps) {
-      setSongs(ps.map((p: Record<string, unknown>) => p.song as Song).filter(Boolean));
+      const withSong = ps.filter((p: Record<string, unknown>) => p.song);
+      setSongs(withSong.map((p: Record<string, unknown>) => p.song as Song));
+      setRows(
+        withSong.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          playlist_id: p.playlist_id as string,
+          song_id: p.song_id as string,
+        })),
+      );
     }
 
     const playlistsWithSongs = await fetchAllPlaylistsWithSongs();
@@ -129,6 +142,23 @@ export default function PlaylistDetailPage() {
     }
     setSyncing(false);
     setTimeout(() => setSyncMessage(null), 4000);
+  };
+
+  // Optimistic: the list reorders immediately and only reverts if the
+  // write fails. Waiting for a round trip before moving the row makes
+  // repeated taps feel broken on a slow connection.
+  const moveSong = async (from: number, to: number) => {
+    if (to < 0 || to >= songs.length) return;
+    const prevSongs = songs;
+    const prevRows = rows;
+    const nextSongs = moveItem(songs, from, to);
+    const nextRows = moveItem(rows, from, to);
+    setSongs(nextSongs);
+    setRows(nextRows);
+    if (!(await persistPlaylistOrder(nextRows))) {
+      setSongs(prevSongs);
+      setRows(prevRows);
+    }
   };
 
   if (id === 'new') {
@@ -326,8 +356,15 @@ export default function PlaylistDetailPage() {
                   songs={crossQueue.length > 0 ? crossQueue : songs}
                   source="playlist"
                   playlistId={id}
-                  onRemoved={(songId) =>
-                    setSongs((prev) => prev.filter((s) => s.id !== songId))
+                  onRemoved={(songId) => {
+                    setSongs((prev) => prev.filter((s) => s.id !== songId));
+                    setRows((prev) =>
+                      prev.filter((r) => r.song_id !== songId),
+                    );
+                  }}
+                  onMoveUp={i > 0 ? () => moveSong(i, i - 1) : undefined}
+                  onMoveDown={
+                    i < songs.length - 1 ? () => moveSong(i, i + 1) : undefined
                   }
                 />
               ))}
