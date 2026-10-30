@@ -26,6 +26,10 @@ export default function LikedSongsPage() {
   // The like rows behind `songs`, same order. Needed to write positions
   // back; the Song objects don't carry the like row's id.
   const [rows, setRows] = useState<LikeRow[]>([]);
+  // Whether likes.position exists yet. Reordering is hidden until the
+  // migration that adds it has been run, rather than offering arrows that
+  // would silently fail.
+  const [orderColumn, setOrderColumn] = useState(true);
   const play = usePlayerStore((s) => s.play);
   const likedIds = useLikesStore((s) => s.likedIds);
 
@@ -62,16 +66,34 @@ export default function LikedSongsPage() {
 
   useEffect(() => {
     const supabase = createClient();
+    const COLUMNS = 'id, user_id, song_id, song:songs(*)';
+
     async function load() {
-      // nullsFirst because a like made before the position column
-      // existed, or by any code path that doesn't set it, has none — and
-      // a song you just liked belongs at the top, where you'd look for it.
-      // created_at breaks ties so the unplaced ones aren't in random order.
-      const { data } = await supabase
+      // likes.position only exists once supabase-migration-liked-order.sql
+      // has been run, and asking PostgREST to order by a column it doesn't
+      // know is a 400 for the WHOLE query — not a column it quietly skips.
+      // Swallowing that error is what made this page claim you had no
+      // liked songs at all, so fall back to the pre-migration ordering
+      // instead and just turn reordering off.
+      //
+      // nullsFirst: a like with no position yet belongs at the top, where
+      // you'd look for something you just liked. created_at breaks ties so
+      // the unplaced ones aren't in arbitrary order among themselves.
+      const ordered = await supabase
         .from('likes')
-        .select('id, user_id, song_id, song:songs(*)')
+        .select(COLUMNS)
         .order('position', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: false });
+
+      let data = ordered.data;
+      if (ordered.error) {
+        setOrderColumn(false);
+        const fallback = await supabase
+          .from('likes')
+          .select(COLUMNS)
+          .order('created_at', { ascending: false });
+        data = fallback.data;
+      }
 
       if (data) {
         const withSong = data.filter((d: Record<string, unknown>) => d.song);
@@ -99,7 +121,7 @@ export default function LikedSongsPage() {
   // Reordering only makes sense against the stored order. Under any other
   // sort the list is a computed view, so moving a row would either snap
   // straight back or silently rewrite an order you can't see.
-  const canReorder = sortKey === 'custom';
+  const canReorder = sortKey === 'custom' && orderColumn;
 
   // Addressed by song id, not by index. `visibleSongs` is a FILTERED
   // view of `songs` — un-liking a song elsewhere drops it from the view
@@ -167,6 +189,15 @@ export default function LikedSongsPage() {
       </div>
 
       <div className="p-6 lg:p-8 pt-4 space-y-4">
+        {/* Picking "My order" with no position column would just show the
+            default order and no arrows, with nothing explaining why. */}
+        {!loading && sortKey === 'custom' && !orderColumn && (
+          <p className="rounded-lg bg-card px-3 py-2 text-xs text-muted-foreground">
+            Rearranging needs one more database change. Run
+            <span className="font-mono"> supabase-migration-liked-order.sql</span> and
+            reload.
+          </p>
+        )}
         {!loading && visibleSongs.length > 0 && (
           <div className="flex items-center justify-end gap-2">
             <SortMenu value={sortKey} onChange={setSortKeyPersisted} />
