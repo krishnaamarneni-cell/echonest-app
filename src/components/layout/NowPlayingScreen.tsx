@@ -24,6 +24,8 @@ import {
   Image as ImageIcon,
   Users,
   MicVocal,
+  Maximize2,
+  X,
 } from 'lucide-react';
 import { useBackgroundMode } from '@/store/backgroundMode';
 import { useListenAlong } from '@/store/listenAlong';
@@ -97,6 +99,7 @@ export function NowPlayingScreen() {
   const bgMode = useBackgroundMode((s) => s.enabled);
   const [showInlineVideo, setShowInlineVideo] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [videoFullscreen, setVideoFullscreen] = useState(false);
   const joinRoom = useListenAlong((s) => s.joinRoom);
   const leaveRoom = useListenAlong((s) => s.leaveRoom);
   const activeRoomCode = useListenAlong((s) => s.roomCode);
@@ -198,6 +201,67 @@ export function NowPlayingScreen() {
     }
   }, []);
 
+  // Full screen.
+  //
+  // The overlay does the real work, NOT the Fullscreen API: iOS Safari only
+  // grants fullscreen to a <video> element, never to an iframe or a div, so
+  // on the iPhone there is no API to call. A fixed overlay covers the PWA
+  // viewport, which has no browser chrome to hide anyway.
+  //
+  // requestFullscreen is still attempted on top, because where it IS
+  // supported (Android, desktop) it also hides the browser's own chrome and
+  // allows an orientation lock. Failure is expected and ignored.
+  const fullscreenRef = useRef<HTMLDivElement>(null);
+
+  const enterVideoFullscreen = useCallback(() => {
+    setVideoFullscreen(true);
+  }, []);
+
+  const exitVideoFullscreen = useCallback(() => {
+    setVideoFullscreen(false);
+    try {
+      if (document.fullscreenElement) void document.exitFullscreen();
+    } catch {
+      // Already out, or never in.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!videoFullscreen) {
+      // Also covers the overlay going away by some other route — native
+      // fullscreen would otherwise outlive the overlay that asked for it.
+      try {
+        if (document.fullscreenElement) void document.exitFullscreen();
+      } catch {
+        // Nothing was fullscreen, or the browser refused. Either is fine.
+      }
+      return;
+    }
+    const el = fullscreenRef.current as
+      | (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> })
+      | null;
+    try {
+      void (el?.requestFullscreen?.() ?? el?.webkitRequestFullscreen?.());
+    } catch {
+      // No element fullscreen here (iOS); the overlay alone is the fallback.
+    }
+
+    // Leaving via the browser's own control must put the overlay away too,
+    // otherwise the page is left in a state the user can't get out of.
+    const onChange = () => {
+      if (!document.fullscreenElement) setVideoFullscreen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitVideoFullscreen();
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [videoFullscreen, exitVideoFullscreen]);
+
   // Jump the video to wherever the audio already is.
   //
   // The iframe always loads at 0, so turning on "Watch video" a minute into
@@ -214,7 +278,11 @@ export function NowPlayingScreen() {
     return () => clearTimeout(timer);
     // Re-syncs when the video is switched on or the track changes — NOT on
     // every progress tick, which would seek continuously.
-  }, [showInlineVideo, currentSong?.youtube_id, postToVideo]);
+    //
+    // videoFullscreen is in here because going full screen MOVES the iframe
+    // out of the carousel and therefore remounts it, which reloads the embed
+    // at 0. Without this the picture would restart every time you expanded.
+  }, [showInlineVideo, videoFullscreen, currentSong?.youtube_id, postToVideo]);
 
   // Listen for the player's OWN state changes so tapping pause on the video
   // pauses the audio too — previously sync only ran transport -> video, so
@@ -225,7 +293,6 @@ export function NowPlayingScreen() {
   // messages sent before it finishes loading.
   useEffect(() => {
     if (!showInlineVideo) return;
-
     const hello = () => postToVideo('__listening__');
     hello();
     const retry = setInterval(hello, 1000);
@@ -271,7 +338,10 @@ export function NowPlayingScreen() {
       clearInterval(retry);
       clearTimeout(stopRetry);
     };
-  }, [showInlineVideo, currentSong?.youtube_id, postToVideo]);
+    // videoFullscreen: expanding remounts the iframe, so the handshake has
+    // to be redone against the new frame — YouTube only posts events to
+    // frames that have registered, and the old one is gone.
+  }, [showInlineVideo, videoFullscreen, currentSong?.youtube_id, postToVideo]);
 
   // Keep play/pause in step after that initial sync.
   useEffect(() => {
@@ -429,11 +499,21 @@ export function NowPlayingScreen() {
     touchStart.current = null;
   };
 
+  // Turning the video off, or closing the screen, must not strand the
+  // overlay over the whole app. Adjusted during render rather than in an
+  // effect because it follows straight from these two values — an effect
+  // would paint one frame with the overlay still covering everything.
+  // The `videoFullscreen &&` guard is what stops this looping.
+  if (videoFullscreen && (!showInlineVideo || !isNowPlayingOpen)) {
+    setVideoFullscreen(false);
+  }
+
   // Adjacent songs for the carousel ghosts
   const prevSongInQueue = queueIndex > 0 ? queue[queueIndex - 1].song : null;
   const nextSongInQueue = queueIndex < queue.length - 1 ? queue[queueIndex + 1].song : null;
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[80] bg-background overflow-y-auto overflow-x-hidden"
       role="dialog"
@@ -592,7 +672,7 @@ export function NowPlayingScreen() {
               <div className="relative w-full aspect-square rounded-2xl bg-black overflow-hidden shadow-2xl">
                 {showLyrics ? (
                   <LyricsPanel />
-                ) : showInlineVideo && currentSong.youtube_id ? (
+                ) : showInlineVideo && !videoFullscreen && currentSong.youtube_id ? (
                   <iframe
                     key={currentSong.youtube_id}
                     ref={inlineVideoRef}
@@ -667,6 +747,21 @@ export function NowPlayingScreen() {
                           Watch video
                         </>
                       )}
+                    </button>
+                  )}
+
+                  {showInlineVideo && !showLyrics && currentSong.youtube_id && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        enterVideoFullscreen();
+                      }}
+                      className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-medium inline-flex items-center gap-1.5 hover:bg-black/80 transition-colors"
+                      aria-label="Full screen"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      Full screen
                     </button>
                   )}
 
@@ -910,5 +1005,51 @@ export function NowPlayingScreen() {
 
       <QueueSheet open={queueOpen} onClose={() => setQueueOpen(false)} />
     </div>
+
+    {/* Full-screen video.
+        A SIBLING of the sheet, not a child: the sheet carries a translateY
+        for the swipe-to-dismiss gesture, and a transformed ancestor becomes
+        the containing block for `fixed` descendants — so nested here it
+        would be positioned against the sheet and clipped by the carousel's
+        overflow-hidden rather than filling the screen. */}
+    {videoFullscreen && currentSong.youtube_id && (
+      <div
+        ref={fullscreenRef}
+        className="fixed inset-0 z-[95] flex items-center justify-center bg-black"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Full screen video"
+      >
+        <iframe
+          key={`fs-${currentSong.youtube_id}`}
+          ref={inlineVideoRef}
+          src={`https://www.youtube.com/embed/${currentSong.youtube_id}?autoplay=1&mute=1&playsinline=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : ''}`}
+          title={currentSong.title}
+          className="h-full w-full"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+        />
+
+        {/* Inset for the notch and the home indicator — in landscape the
+            close button would otherwise sit under one of them. */}
+        <div
+          className="pointer-events-none absolute inset-0 flex items-start justify-end p-3"
+          style={{
+            paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+          }}
+        >
+          <button
+            type="button"
+            onClick={exitVideoFullscreen}
+            aria-label="Exit full screen"
+            className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-colors hover:bg-black/80"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
