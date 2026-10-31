@@ -18,17 +18,17 @@
  */
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Mic, X, Volume2, VolumeX, Loader2, Square, ArrowUp } from 'lucide-react';
 import { usePlayerStore } from '@/store/player';
 import { useVoiceAssistant } from '@/store/voiceAssistant';
 import { useSpeechInput } from '@/lib/useSpeechInput';
 import { loadVoiceLibrary } from '@/lib/voiceExecute';
 import { primeAudioPlayback } from '@/lib/audioUnlock';
+import { FloatingOrb } from './FloatingOrb';
+import { VoiceOrb } from '@/components/ui/VoiceOrb';
 
 export function VoiceBubble() {
   const isNowPlayingOpen = usePlayerStore((s) => s.isNowPlayingOpen);
-  const isPlayerVisible = usePlayerStore((s) => s.isPlayerVisible);
 
   const open = useVoiceAssistant((s) => s.open);
   const phase = useVoiceAssistant((s) => s.phase);
@@ -128,41 +128,21 @@ export function VoiceBubble() {
       {/* The bubble. Hidden while Now Playing is open: that sheet owns the
           whole screen and the bubble would sit on top of its controls. */}
       {!open && !isNowPlayingOpen && (
-        <button
-          onClick={openAndListen}
-          aria-label="Ask EchoNest"
-          className="fixed right-3 z-[70] transition-transform active:scale-95"
-          style={{
-            bottom: isPlayerVisible
-              ? 'calc(var(--floating-bottom) + 48px)'
-              : 'calc(var(--total-bottom-nav) + 16px)',
-          }}
-        >
-          {/* No background circle: the orb carries its own glow, and a
-              plate behind it would clip that halo into a hard edge. */}
-          <Image
-            src="/voice-orb.png"
-            alt=""
-            width={64}
-            height={64}
-            priority
-            className="h-16 w-16 drop-shadow-[0_6px_18px_rgba(99,70,220,0.55)]"
-          />
-        </button>
+        <FloatingOrb active={listening} busy={busy} onTap={openAndListen} />
       )}
 
       {open && (
         <>
           <div
             className="fixed inset-0 z-[85] bg-black/60 backdrop-blur-sm"
-            onClick={closePanel}
+            onClick={() => closePanel()}
           />
           <div
             className="fixed inset-x-0 bottom-0 z-[86] mx-auto flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t border-border bg-card shadow-2xl sm:right-4 sm:left-auto sm:bottom-4 sm:max-w-[400px] sm:rounded-2xl sm:border"
             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
             <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-              <Image src="/voice-orb.png" alt="" width={24} height={24} className="h-6 w-6" />
+              <VoiceOrb size={26} active={listening} busy={busy} />
               <p className="flex-1 text-sm font-semibold">Ask EchoNest</p>
               <button
                 onClick={toggleSpeak}
@@ -177,7 +157,7 @@ export function VoiceBubble() {
                 )}
               </button>
               <button
-                onClick={closePanel}
+                onClick={() => closePanel()}
                 aria-label="Close"
                 className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-card-hover hover:text-foreground"
               >

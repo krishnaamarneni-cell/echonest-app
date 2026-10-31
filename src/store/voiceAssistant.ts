@@ -17,6 +17,7 @@
 import { create } from 'zustand';
 import { parseLocally, validateCommand, VoiceCommand } from '@/lib/voiceIntent';
 import { buildVoiceContext, runVoiceAction, Choice, invalidateVoiceLibrary } from '@/lib/voiceExecute';
+import { nudgeAudioPlayback } from '@/lib/audioUnlock';
 
 export type Phase = 'idle' | 'listening' | 'thinking' | 'done';
 
@@ -37,7 +38,12 @@ interface VoiceState {
   speakReplies: boolean;
 
   openPanel: () => void;
-  closePanel: () => void;
+  /**
+   * `stopSpeech` is false for the automatic close that follows a completed
+   * command — cancelling synthesis there would cut off the very reply the
+   * delay exists to let you hear.
+   */
+  closePanel: (stopSpeech?: boolean) => void;
   setPhase: (p: Phase) => void;
   setHeard: (s: string) => void;
   toggleSpeak: () => void;
@@ -58,6 +64,35 @@ let turnId = 0;
  * unparseable sentence would pay for a round trip to learn the same thing.
  */
 let modelAvailable: boolean | null = null;
+
+/**
+ * Pending auto-close. Held at module scope so any new activity — another
+ * command, reopening the panel, closing it by hand — cancels a close that
+ * is already counting down.
+ */
+let autoCloseTimer: number | null = null;
+
+function cancelAutoClose() {
+  if (autoCloseTimer !== null && typeof window !== 'undefined') {
+    window.clearTimeout(autoCloseTimer);
+  }
+  autoCloseTimer = null;
+}
+
+/**
+ * Long enough to read the reply and hear it start, short enough that you
+ * are not left dismissing a panel at the wheel.
+ */
+const AUTO_CLOSE_MS = 1600;
+
+function scheduleAutoClose(close: () => void) {
+  if (typeof window === 'undefined') return;
+  cancelAutoClose();
+  autoCloseTimer = window.setTimeout(() => {
+    autoCloseTimer = null;
+    close();
+  }, AUTO_CLOSE_MS);
+}
 
 function speak(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -111,12 +146,14 @@ export const useVoiceAssistant = create<VoiceState>((set, get) => ({
       : localStorage.getItem('echonest-voice-speak') !== '0',
 
   openPanel: () => {
+    cancelAutoClose();
     // A playlist created since the last command should be findable.
     invalidateVoiceLibrary();
     set({ open: true });
   },
-  closePanel: () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  closePanel: (stopSpeech = true) => {
+    cancelAutoClose();
+    if (stopSpeech && typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     set({ open: false, phase: 'idle', heard: '' });
@@ -145,6 +182,7 @@ export const useVoiceAssistant = create<VoiceState>((set, get) => ({
     const text = transcript.trim();
     if (!text) return;
 
+    cancelAutoClose();
     set((s) => ({
       turns: [...s.turns, { id: ++turnId, from: 'you', text }],
       heard: '',
@@ -171,6 +209,17 @@ export const useVoiceAssistant = create<VoiceState>((set, get) => ({
       // search results.
       set({ choices: outcome.choices ?? [], phase: 'done' });
       get().say(outcome.say);
+
+      // Repair a play() the browser refused. AudioPlayer swallows that
+      // rejection, so without this the track sits loaded at 0:00.
+      nudgeAudioPlayback();
+
+      // Done talking: get out of the way. Held open only when there is
+      // still something to do — a list to pick from, or a reply that
+      // failed and is worth reading.
+      if (!outcome.choices?.length && command.action.kind !== 'unknown') {
+        scheduleAutoClose(() => get().closePanel(false));
+      }
     } catch {
       set({ phase: 'done' });
       get().say('Something went wrong there. Try again?');
@@ -178,6 +227,7 @@ export const useVoiceAssistant = create<VoiceState>((set, get) => ({
   },
 
   pickChoice: async (index) => {
+    cancelAutoClose();
     const choices = get().choices;
     const choice = choices[index - 1];
     if (!choice) return;
@@ -188,5 +238,7 @@ export const useVoiceAssistant = create<VoiceState>((set, get) => ({
     const outcome = await runVoiceAction({ kind: 'choose', index }, '', choices);
     set({ choices: [], phase: 'done' });
     get().say(outcome.say);
+    nudgeAudioPlayback();
+    scheduleAutoClose(() => get().closePanel(false));
   },
 }));

@@ -183,6 +183,21 @@ export function useSpeechInput({ onFinal, onPartial, onError }: Options) {
           const text = r[0]?.transcript || '';
           if (r.isFinal) {
             const finalText = text.trim();
+            // Release the mic BEFORE running the command, not after.
+            //
+            // On iOS a live recogniser holds the audio session in record
+            // mode, and nothing can play out of the <audio> element while
+            // it does — the track loads, the store says playing, and the
+            // position sits at 0:00. `continuous = false` is not enough on
+            // its own: Safari frequently never fires onend, so the session
+            // stays open until it is stopped by hand.
+            try {
+              rec.stop();
+              rec.abort();
+            } catch {
+              // Already finished; the mic is free either way.
+            }
+            setState('idle');
             if (finalText) cb.current.onFinal(finalText);
             return;
           }

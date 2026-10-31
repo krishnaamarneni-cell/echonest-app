@@ -30,6 +30,8 @@
  * non-unlocking) muted-autoplay case. Silence here comes from the content
  * having no samples, not from the volume.
  */
+import { usePlayerStore } from '@/store/player';
+
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
@@ -89,4 +91,45 @@ export function primeAudioPlayback(): void {
   } catch {
     // Some browsers throw synchronously on an unsupported src.
   }
+}
+
+/**
+ * Make the element agree with the store after a voice command.
+ *
+ * AudioPlayer starts playback with `audio.play().catch(() => {})`, so a
+ * refusal leaves the store saying "playing" and the element paused, with
+ * nothing anywhere that retries. Two things cause that refusal on the
+ * voice path, and both clear on their own within a second or two:
+ *
+ *  - iOS keeps the audio session in record mode for a moment after the
+ *    recogniser lets go of the microphone.
+ *  - The source may not have finished resolving when play() first ran.
+ *
+ * So this re-asks a few times over about three seconds and stops the
+ * instant the element is actually playing, the store no longer wants to,
+ * or the track changes under it.
+ */
+export function nudgeAudioPlayback(): void {
+  if (typeof document === 'undefined') return;
+
+  let tries = 0;
+  const started = usePlayerStore.getState().currentSong?.id;
+
+  const tick = () => {
+    const state = usePlayerStore.getState();
+    // Something else took over — a skip, a pause, a new command. Leave it.
+    if (!state.isPlaying || state.currentSong?.id !== started) return;
+
+    const audio = document.querySelector('audio');
+    if (!audio) return;
+    if (!audio.paused) return; // Playing: nothing to repair.
+
+    // No source yet; the React effect has not pointed it anywhere. Waiting
+    // is right — calling play() on an empty element only fails again.
+    if (audio.getAttribute('src')) audio.play().catch(() => {});
+
+    if (++tries < 9) window.setTimeout(tick, 320);
+  };
+
+  window.setTimeout(tick, 160);
 }

@@ -138,6 +138,54 @@ input[type="range"]:hover::-moz-range-thumb {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* ---- Voice orb -------------------------------------------------------
+   The orb's motif is an echo: rings leaving a bright core. The rings only
+   travel while the mic is open, and the equaliser only dances then too, so
+   the icon itself reports whether it is listening. */
+
+@keyframes orb-ripple {
+  0%   { transform: scale(0.74); opacity: 0.55; }
+  70%  { opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.orb-ripple {
+  transform-origin: 32px 32px;
+  animation: orb-ripple 2.1s ease-out infinite;
+}
+/* Offset by half the cycle so one ring is always mid-flight. */
+.orb-ripple-late { animation-delay: 1.05s; }
+
+@keyframes orb-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1.3); }
+}
+
+/* fill-box keeps each bar scaling about its own centre; without it the
+   transform would be measured from the SVG's origin and they would slide
+   instead of grow. */
+.orb-bar { transform-box: fill-box; transform-origin: center; }
+.orb-bar-live { animation: orb-bar 0.85s ease-in-out infinite; }
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.035); }
+}
+
+.orb-breathe {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: orb-breathe 3.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-ripple,
+  .orb-bar-live,
+  .orb-breathe {
+    animation: none;
+  }
+}
+
 .skeleton {
   background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
   background-size: 200% 100%;
