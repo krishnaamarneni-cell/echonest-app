@@ -15,7 +15,8 @@ import { Heart, Play, Shuffle, LayoutGrid, List, Share2 } from 'lucide-react';
 import { ShareDialog } from '@/components/ui/ShareDialog';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
-import { moveItem, persistLikedOrder, LikeRow } from '@/lib/reorder';
+import { persistLikedOrder, LikeRow } from '@/lib/reorder';
+import { SortableSongList } from '@/components/ui/SortableSongList';
 
 export default function LikedSongsPage() {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -129,17 +130,13 @@ export default function LikedSongsPage() {
   // while it stays in state — so the two lists drift apart and a visible
   // index would move the wrong row. Swapping with the visible neighbour
   // also means a hidden row in between is stepped over correctly.
-  const moveSong = async (songId: string, neighbourId: string) => {
-    // Operates on the VISIBLE list, because that is the sequence being
-    // rearranged. Under a sort it differs from the stored order, and
-    // under any sort it excludes songs un-liked elsewhere whose like
-    // rows no longer exist — so rebuilding from it also drops the stale
-    // ones rather than writing positions for rows that are gone.
-    const from = visibleSongs.findIndex((s) => s.id === songId);
-    const to = visibleSongs.findIndex((s) => s.id === neighbourId);
-    if (from < 0 || to < 0 || from === to) return;
-
-    const nextSongs = moveItem(visibleSongs, from, to);
+  // Receives the whole new order from the drag, which is already built
+  // from the VISIBLE list — the sequence actually being rearranged. Under
+  // a sort that differs from the stored order, and in every case it
+  // excludes songs un-liked elsewhere whose like rows are already gone,
+  // so rebuilding from it drops the stale ones rather than writing
+  // positions for rows that no longer exist.
+  const reorder = async (nextSongs: Song[]) => {
     const rowBySongId = new Map(rows.map((r) => [r.song_id, r]));
     const nextRows = nextSongs
       .map((song) => rowBySongId.get(song.id))
@@ -207,11 +204,12 @@ export default function LikedSongsPage() {
       </div>
 
       <div className="p-6 lg:p-8 pt-4 space-y-4">
-        {/* Picking "My order" with no position column would just show the
-            default order and no arrows, with nothing explaining why. */}
+        {/* Without the position column there is nowhere to store an order,
+            so dragging is off and this says why rather than leaving a
+            handle that does nothing. */}
         {!loading && !orderColumn && visibleSongs.length > 0 && (
           <p className="rounded-lg bg-card px-3 py-2 text-xs text-muted-foreground">
-            Rearranging needs one more database change. Run
+            Drag-to-rearrange needs one more database change. Run
             <span className="font-mono"> supabase-migration-liked-order.sql</span> and
             reload.
           </p>
@@ -271,26 +269,27 @@ export default function LikedSongsPage() {
           </div>
         ) : (
           <div className="space-y-0.5">
-            {visibleSongs.map((song, i) => (
-              <SongRow
-                key={song.id}
-                song={song}
-                index={i}
-                showIndex
-                songs={visibleSongs}
-                onDeleted={(id) => setSongs((prev) => prev.filter((s) => s.id !== id))}
-                onMoveUp={
-                  canReorder && i > 0
-                    ? () => moveSong(song.id, visibleSongs[i - 1].id)
-                    : undefined
-                }
-                onMoveDown={
-                  canReorder && i < visibleSongs.length - 1
-                    ? () => moveSong(song.id, visibleSongs[i + 1].id)
-                    : undefined
-                }
-              />
-            ))}
+            <SortableSongList
+              items={visibleSongs}
+              onReorder={reorder}
+              touchDelay={400}
+              renderItem={(song, i, { handle, listeners }) => (
+                // listeners on the wrapper rather than the handle alone is
+                // what makes a long-press anywhere on the row start a drag.
+                <div {...(canReorder ? listeners : {})}>
+                  <SongRow
+                    song={song}
+                    index={i}
+                    showIndex
+                    songs={visibleSongs}
+                    onDeleted={(id) =>
+                      setSongs((prev) => prev.filter((s) => s.id !== id))
+                    }
+                    dragHandle={canReorder ? handle : undefined}
+                  />
+                </div>
+              )}
+            />
           </div>
         )}
       </div>

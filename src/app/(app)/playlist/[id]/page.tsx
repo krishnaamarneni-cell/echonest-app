@@ -17,7 +17,8 @@ import { ShareDialog } from '@/components/ui/ShareDialog';
 import Image from 'next/image';
 import { fetchAllPlaylistsWithSongs, buildCrossPlaylistQueue } from '@/lib/playlistQueue';
 import { syncYouTubePlaylist } from '@/lib/syncYouTubePlaylist';
-import { moveItem, persistPlaylistOrder, PlaylistSongRow } from '@/lib/reorder';
+import { persistPlaylistOrder, PlaylistSongRow } from '@/lib/reorder';
+import { SortableSongList } from '@/components/ui/SortableSongList';
 
 export default function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -144,15 +145,17 @@ export default function PlaylistDetailPage() {
     setTimeout(() => setSyncMessage(null), 4000);
   };
 
-  // Optimistic: the list reorders immediately and only reverts if the
-  // write fails. Waiting for a round trip before moving the row makes
-  // repeated taps feel broken on a slow connection.
-  const moveSong = async (from: number, to: number) => {
-    if (to < 0 || to >= songs.length) return;
+  // Optimistic: the list settles into its new order on drop and only
+  // reverts if the write fails. Waiting for a round trip before the row
+  // lands makes the drag feel like it didn't take.
+  const reorder = async (nextSongs: Song[]) => {
+    const rowBySongId = new Map(rows.map((r) => [r.song_id, r]));
+    const nextRows = nextSongs
+      .map((song) => rowBySongId.get(song.id))
+      .filter((r): r is PlaylistSongRow => !!r);
+
     const prevSongs = songs;
     const prevRows = rows;
-    const nextSongs = moveItem(songs, from, to);
-    const nextRows = moveItem(rows, from, to);
     setSongs(nextSongs);
     setRows(nextRows);
     if (!(await persistPlaylistOrder(nextRows))) {
@@ -347,27 +350,34 @@ export default function PlaylistDetailPage() {
             </div>
           ) : (
             <div className="space-y-0.5">
-              {songs.map((song, i) => (
-                <SongRow
-                  key={song.id}
-                  song={song}
-                  index={i}
-                  showIndex
-                  songs={crossQueue.length > 0 ? crossQueue : songs}
-                  source="playlist"
-                  playlistId={id}
-                  onRemoved={(songId) => {
-                    setSongs((prev) => prev.filter((s) => s.id !== songId));
-                    setRows((prev) =>
-                      prev.filter((r) => r.song_id !== songId),
-                    );
-                  }}
-                  onMoveUp={i > 0 ? () => moveSong(i, i - 1) : undefined}
-                  onMoveDown={
-                    i < songs.length - 1 ? () => moveSong(i, i + 1) : undefined
-                  }
-                />
-              ))}
+              <SortableSongList
+                items={songs}
+                onReorder={reorder}
+                touchDelay={400}
+                renderItem={(song, i, { handle, listeners }) => (
+                  // listeners on the wrapper, not the handle alone: that is
+                  // what makes a long-press anywhere on the row start the
+                  // drag. attributes stay on the handle, since they carry
+                  // role/tabIndex that do not belong on a container.
+                  <div {...listeners}>
+                    <SongRow
+                      song={song}
+                      index={i}
+                      showIndex
+                      songs={crossQueue.length > 0 ? crossQueue : songs}
+                      source="playlist"
+                      playlistId={id}
+                      onRemoved={(songId) => {
+                        setSongs((prev) => prev.filter((s) => s.id !== songId));
+                        setRows((prev) =>
+                          prev.filter((r) => r.song_id !== songId),
+                        );
+                      }}
+                      dragHandle={handle}
+                    />
+                  </div>
+                )}
+              />
             </div>
           )
         ) : (

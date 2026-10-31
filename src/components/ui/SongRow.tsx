@@ -5,7 +5,7 @@ import { usePlayerStore } from '@/store/player';
 import { useLikesStore } from '@/store/likes';
 import { useOfflineStore, isDownloadable } from '@/store/offline';
 
-import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Loader2, RotateCcw, HardDriveDownload, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Music, ListPlus, Download, Loader2, RotateCcw, HardDriveDownload, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Menu } from './Menu';
@@ -30,13 +30,11 @@ interface SongRowProps {
   /** Small badge rendered where the duration would be (e.g. "18 plays"). */
   trailing?: React.ReactNode;
   /**
-   * Reordering. Pass both to show the up/down controls; pass undefined for
-   * the end of the list the row cannot move towards, and that arrow is
-   * disabled rather than hidden, so the controls don't jump around as you
-   * move a song towards an edge.
+   * Drag handle from SortableSongList, shown at the end of the row. It is
+   * the mouse and keyboard affordance; on touch the parent makes the whole
+   * row draggable with a long-press, so the handle is not the only way in.
    */
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  dragHandle?: React.ReactNode;
 }
 
 export function SongRow({
@@ -46,8 +44,7 @@ export function SongRow({
   playlistId,
   onRemoved,
   trailing,
-  onMoveUp,
-  onMoveDown,
+  dragHandle,
 }: SongRowProps) {
   const { currentSong, isPlaying, play, togglePlay } = usePlayerStore();
   const { likedIds, toggleLike, loadLikes } = useLikesStore();
@@ -175,37 +172,8 @@ export function SongRow({
         {trailing ? (
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{trailing}</span>
         ) : null}
-        {onMoveUp || onMoveDown ? (
-          /* stopPropagation is not optional here: the whole row is a play
-             button, so without it every tap on an arrow also starts the
-             track. The move still happened, but the song launching over
-             the top of it made reordering look broken. */
-          <span className="flex shrink-0 items-center">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveUp?.();
-              }}
-              disabled={!onMoveUp}
-              aria-label="Move up"
-              title="Move up"
-              className="p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-muted-foreground"
-            >
-              <ChevronUp className="h-4 w-4" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveDown?.();
-              }}
-              disabled={!onMoveDown}
-              aria-label="Move down"
-              title="Move down"
-              className="p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-muted-foreground"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          </span>
+        {dragHandle ? (
+          <span className="flex shrink-0 items-center">{dragHandle}</span>
         ) : null}
         <Menu
           trigger={
