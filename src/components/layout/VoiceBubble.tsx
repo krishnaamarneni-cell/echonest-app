@@ -18,11 +18,13 @@
  */
 
 import { useState } from 'react';
-import { Mic, X, Volume2, VolumeX, Loader2, Square, ArrowUp, Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import { Mic, X, Volume2, VolumeX, Loader2, Square, ArrowUp } from 'lucide-react';
 import { usePlayerStore } from '@/store/player';
 import { useVoiceAssistant } from '@/store/voiceAssistant';
 import { useSpeechInput } from '@/lib/useSpeechInput';
 import { loadVoiceLibrary } from '@/lib/voiceExecute';
+import { primeAudioPlayback } from '@/lib/audioUnlock';
 
 export function VoiceBubble() {
   const isNowPlayingOpen = usePlayerStore((s) => s.isNowPlayingOpen);
@@ -80,7 +82,15 @@ export function VoiceBubble() {
       .catch(() => setExamples([]));
   };
 
+  /**
+   * Every entry point primes the audio element FIRST, before anything
+   * async. These handlers are the only real user gestures in the whole
+   * flow — by the time a command finishes being spoken, interpreted and
+   * searched, the gesture has expired and the browser will refuse to start
+   * audio. See audioUnlock.ts.
+   */
   const openAndListen = () => {
+    primeAudioPlayback();
     setError('');
     openPanel();
     loadExamples();
@@ -88,6 +98,7 @@ export function VoiceBubble() {
   };
 
   const toggleMic = () => {
+    primeAudioPlayback();
     setError('');
     if (listening) mic.stop();
     else mic.start();
@@ -96,8 +107,19 @@ export function VoiceBubble() {
   const sendTyped = () => {
     const text = typed.trim();
     if (!text) return;
+    primeAudioPlayback();
     setTyped('');
     setError('');
+    submit(text);
+  };
+
+  const choose = (n: number) => {
+    primeAudioPlayback();
+    pickChoice(n);
+  };
+
+  const runExample = (text: string) => {
+    primeAudioPlayback();
     submit(text);
   };
 
@@ -109,14 +131,23 @@ export function VoiceBubble() {
         <button
           onClick={openAndListen}
           aria-label="Ask EchoNest"
-          className="fixed right-3 z-[70] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-xl shadow-accent/30 transition-transform active:scale-95"
+          className="fixed right-3 z-[70] transition-transform active:scale-95"
           style={{
             bottom: isPlayerVisible
               ? 'calc(var(--floating-bottom) + 48px)'
               : 'calc(var(--total-bottom-nav) + 16px)',
           }}
         >
-          <Mic className="h-6 w-6" />
+          {/* No background circle: the orb carries its own glow, and a
+              plate behind it would clip that halo into a hard edge. */}
+          <Image
+            src="/voice-orb.png"
+            alt=""
+            width={64}
+            height={64}
+            priority
+            className="h-16 w-16 drop-shadow-[0_6px_18px_rgba(99,70,220,0.55)]"
+          />
         </button>
       )}
 
@@ -131,7 +162,7 @@ export function VoiceBubble() {
             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
             <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-              <Sparkles className="h-4 w-4 text-accent" />
+              <Image src="/voice-orb.png" alt="" width={24} height={24} className="h-6 w-6" />
               <p className="flex-1 text-sm font-semibold">Ask EchoNest</p>
               <button
                 onClick={toggleSpeak}
@@ -163,7 +194,7 @@ export function VoiceBubble() {
                   {examples.map((e) => (
                     <button
                       key={e}
-                      onClick={() => submit(e)}
+                      onClick={() => runExample(e)}
                       className="block w-full rounded-lg bg-background px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
                     >
                       “{e}”
@@ -202,7 +233,7 @@ export function VoiceBubble() {
                   {choices.map((c, i) => (
                     <button
                       key={`${c.song.id}-${i}`}
-                      onClick={() => pickChoice(i + 1)}
+                      onClick={() => choose(i + 1)}
                       className="flex w-full items-center gap-3 rounded-xl bg-background px-3 py-3 text-left transition-colors hover:bg-card-hover"
                     >
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
