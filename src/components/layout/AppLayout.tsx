@@ -11,6 +11,7 @@ import { SyncedRoomPlayer } from './SyncedRoomPlayer';
 import { PlaybackSync } from './PlaybackSync';
 import { RoomIndicator } from './RoomIndicator';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
+import { VoiceBubble } from './VoiceBubble';
 import { AddToPlaylistDialog } from '@/components/ui/AddToPlaylistDialog';
 import { usePlayerStore } from '@/store/player';
 import { useOfflineStore } from '@/store/offline';
@@ -98,6 +99,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <PlaybackSync />
       <RoomIndicator />
       <KeyboardShortcuts />
+      <VoiceBubble />
     </div>
   );
 }

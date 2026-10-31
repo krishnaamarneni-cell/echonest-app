@@ -63,6 +63,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 # Optional — only needed for full YouTube playlist track-list import
 YOUTUBE_API_KEY=your-google-cloud-youtube-data-api-key
+
+# Optional — the voice bubble works WITHOUT this. It parses commands with
+# local rules, so "play my sleep playlist" / "shuffle my liked songs" /
+# "play songs from <film>" all work with no key. A key only adds a fallback
+# for phrasing the rules can't place ("play something upbeat"), and
+# server-side transcription on browsers with no speech recognition of their
+# own (Firefox; Chrome, Android and iOS 14.5+ transcribe on the device).
+GROQ_API_KEY=your-groq-api-key
 ```
 
 Find the URL and anon key in **Supabase Dashboard → Settings → API**.
@@ -199,6 +207,7 @@ echonest/
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `YOUTUBE_API_KEY` (optional)
+   - `GROQ_API_KEY` (optional — voice bubble works without it)
 4. Deploy
 
 After the first deploy, in **Supabase → Authentication → URL Configuration**, add your Vercel URL (e.g. `https://echonest.vercel.app`) to **Site URL** and **Redirect URLs**, otherwise sign-in won't redirect correctly on the live site.
