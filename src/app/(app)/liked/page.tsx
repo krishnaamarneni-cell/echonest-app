@@ -118,10 +118,11 @@ export default function LikedSongsPage() {
     sortKey,
   );
 
-  // Reordering only makes sense against the stored order. Under any other
-  // sort the list is a computed view, so moving a row would either snap
-  // straight back or silently rewrite an order you can't see.
-  const canReorder = sortKey === 'custom' && orderColumn;
+  // Available under ANY sort, not just "My order". Hiding the arrows
+  // behind a mode nobody thinks to select is the same as not having
+  // them — the first move simply adopts what you're looking at as your
+  // order, which is what rearranging a sorted list means anyway.
+  const canReorder = orderColumn;
 
   // Addressed by song id, not by index. `visibleSongs` is a FILTERED
   // view of `songs` — un-liking a song elsewhere drops it from the view
@@ -129,19 +130,36 @@ export default function LikedSongsPage() {
   // index would move the wrong row. Swapping with the visible neighbour
   // also means a hidden row in between is stepped over correctly.
   const moveSong = async (songId: string, neighbourId: string) => {
-    const from = songs.findIndex((s) => s.id === songId);
-    const to = songs.findIndex((s) => s.id === neighbourId);
+    // Operates on the VISIBLE list, because that is the sequence being
+    // rearranged. Under a sort it differs from the stored order, and
+    // under any sort it excludes songs un-liked elsewhere whose like
+    // rows no longer exist — so rebuilding from it also drops the stale
+    // ones rather than writing positions for rows that are gone.
+    const from = visibleSongs.findIndex((s) => s.id === songId);
+    const to = visibleSongs.findIndex((s) => s.id === neighbourId);
     if (from < 0 || to < 0 || from === to) return;
+
+    const nextSongs = moveItem(visibleSongs, from, to);
+    const rowBySongId = new Map(rows.map((r) => [r.song_id, r]));
+    const nextRows = nextSongs
+      .map((song) => rowBySongId.get(song.id))
+      .filter((r): r is LikeRow => !!r);
 
     const prevSongs = songs;
     const prevRows = rows;
-    const nextSongs = moveItem(songs, from, to);
-    const nextRows = moveItem(rows, from, to);
+    const prevSort = sortKey;
+
     setSongs(nextSongs);
     setRows(nextRows);
+    // The arrangement you just made IS your order. Staying on, say,
+    // "Title A→Z" would re-sort on the next render and snap the row
+    // straight back, which reads as the move having failed.
+    if (sortKey !== 'custom') setSortKeyPersisted('custom');
+
     if (!(await persistLikedOrder(nextRows))) {
       setSongs(prevSongs);
       setRows(prevRows);
+      if (prevSort !== 'custom') setSortKeyPersisted(prevSort);
     }
   };
 
@@ -191,7 +209,7 @@ export default function LikedSongsPage() {
       <div className="p-6 lg:p-8 pt-4 space-y-4">
         {/* Picking "My order" with no position column would just show the
             default order and no arrows, with nothing explaining why. */}
-        {!loading && sortKey === 'custom' && !orderColumn && (
+        {!loading && !orderColumn && visibleSongs.length > 0 && (
           <p className="rounded-lg bg-card px-3 py-2 text-xs text-muted-foreground">
             Rearranging needs one more database change. Run
             <span className="font-mono"> supabase-migration-liked-order.sql</span> and

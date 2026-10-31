@@ -176,22 +176,32 @@ export function SongRow({
           <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{trailing}</span>
         ) : null}
         {onMoveUp || onMoveDown ? (
+          /* stopPropagation is not optional here: the whole row is a play
+             button, so without it every tap on an arrow also starts the
+             track. The move still happened, but the song launching over
+             the top of it made reordering look broken. */
           <span className="flex shrink-0 items-center">
             <button
-              onClick={onMoveUp}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp?.();
+              }}
               disabled={!onMoveUp}
               aria-label="Move up"
               title="Move up"
-              className="p-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-muted-foreground"
+              className="p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-muted-foreground"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
             <button
-              onClick={onMoveDown}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown?.();
+              }}
               disabled={!onMoveDown}
               aria-label="Move down"
               title="Move down"
-              className="p-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-muted-foreground"
+              className="p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25 disabled:hover:text-muted-foreground"
             >
               <ChevronDown className="h-4 w-4" />
             </button>
