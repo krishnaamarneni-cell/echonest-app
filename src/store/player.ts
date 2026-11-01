@@ -124,6 +124,12 @@ interface PlayerState {
   setDuration: (d: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+  /**
+   * Go straight to a mode. The UI only ever cycles, but a voice command
+   * names the mode it wants — reaching 'one' by calling cycleRepeat until
+   * it lands there would flicker the player through the modes in between.
+   */
+  setRepeat: (mode: RepeatMode) => void;
   addToQueue: (song: Song) => void;
   removeFromQueue: (id: string) => void;
   clearQueue: () => void;
@@ -258,6 +264,7 @@ export const usePlayerStore = create<PlayerState>()(
       repeat:
         s.repeat === 'off' ? 'all' : s.repeat === 'all' ? 'one' : 'off',
     })),
+  setRepeat: (mode) => set({ repeat: mode }),
 
   addToQueue: (song) =>
     set((s) => ({

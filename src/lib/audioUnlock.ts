@@ -38,6 +38,18 @@ const SILENT_WAV =
 let unlocked = false;
 
 /**
+ * Whether this page has already earned the right to start audio.
+ *
+ * Resets on every load, which is exactly what a caller needs to know: a
+ * cold launch — from the home screen, or from a Siri shortcut — carries no
+ * activation, so a command that arrives before any touch cannot produce
+ * sound and must ask for one tap first.
+ */
+export function isAudioUnlocked(): boolean {
+  return unlocked;
+}
+
+/**
  * Call from a real tap, before anything async. Cheap and idempotent: it
  * does nothing once the element has demonstrably played.
  */

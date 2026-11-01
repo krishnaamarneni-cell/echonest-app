@@ -189,6 +189,21 @@ export async function runVoiceAction(
       return { say: action.on ? 'Shuffle on.' : 'Shuffle off.' };
     }
 
+    case 'repeat': {
+      player.setRepeat(action.mode);
+      if (action.mode === 'off') return { say: 'Repeat off.' };
+      if (action.mode === 'all') return { say: 'Repeating the whole queue.' };
+      // Name the track back. "Repeating this song" is ambiguous at a glance
+      // down at the wheel — hearing the title confirms it caught the right
+      // one, which matters most when the command arrived mid-song.
+      const title = player.currentSong?.title;
+      return {
+        say: title
+          ? `Repeating ${title}.`
+          : "Repeat is on — it'll loop whatever you play next.",
+      };
+    }
+
     case 'play_playlist': {
       const lib = await loadVoiceLibrary();
       const found = lib.playlists.find((p) => p.playlist.id === action.playlistId);

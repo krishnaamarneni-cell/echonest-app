@@ -17,13 +17,13 @@
  *    are commands that will genuinely work rather than invented ones.
  */
 
-import { useState } from 'react';
-import { Mic, X, Volume2, VolumeX, Loader2, Square, ArrowUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Mic, X, Volume2, VolumeX, Loader2, Square, ArrowUp, Play } from 'lucide-react';
 import { usePlayerStore } from '@/store/player';
 import { useVoiceAssistant } from '@/store/voiceAssistant';
 import { useSpeechInput } from '@/lib/useSpeechInput';
 import { loadVoiceLibrary } from '@/lib/voiceExecute';
-import { primeAudioPlayback } from '@/lib/audioUnlock';
+import { primeAudioPlayback, isAudioUnlocked } from '@/lib/audioUnlock';
 import { FloatingOrb } from './FloatingOrb';
 import { VoiceOrb } from '@/components/ui/VoiceOrb';
 
@@ -46,6 +46,8 @@ export function VoiceBubble() {
   const [typed, setTyped] = useState('');
   const [error, setError] = useState('');
   const [examples, setExamples] = useState<string[]>([]);
+  /** A command that arrived in the URL and is waiting for one tap. */
+  const [pendingAsk, setPendingAsk] = useState('');
 
   const mic = useSpeechInput({
     onFinal: (text) => {
@@ -61,6 +63,41 @@ export function VoiceBubble() {
 
   const listening = mic.state === 'listening';
   const busy = mic.state === 'transcribing' || phase === 'thinking';
+
+  /**
+   * Commands arriving in the URL: /?ask=play%20my%20liked%20songs
+   *
+   * This is the door Siri comes through. iOS will not let a voice assistant
+   * talk to a web app, but it will open a URL — so an Apple Shortcut named
+   * "EchoNest" opens this one, and the command runs on arrival rather than
+   * being typed.
+   *
+   * A cold launch carries no user activation, so audio cannot start by
+   * itself. When that is the case the command is staged behind one big
+   * button instead of being run into silence; if the app is already open
+   * and has played something, it just runs.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const ask = url.searchParams.get('ask');
+    if (!ask?.trim()) return;
+
+    // Drop it from the URL so a refresh — or coming back to the tab — does
+    // not replay the command.
+    url.searchParams.delete('ask');
+    window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+
+    const text = ask.trim().slice(0, 200);
+    // Deferred out of the effect body: these are state writes, and running
+    // them synchronously inside an effect is both a lint error here and an
+    // extra render before first paint.
+    const t = window.setTimeout(() => {
+      openPanel();
+      if (isAudioUnlocked()) submit(text);
+      else setPendingAsk(text);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [openPanel, submit]);
 
   /**
    * Build hints from the library. Done on open rather than in an effect so
@@ -123,6 +160,14 @@ export function VoiceBubble() {
     submit(text);
   };
 
+  /** The one tap a Siri launch needs before the browser will make sound. */
+  const runPendingAsk = () => {
+    primeAudioPlayback();
+    const text = pendingAsk;
+    setPendingAsk('');
+    submit(text);
+  };
+
   return (
     <>
       {/* The bubble. Hidden while Now Playing is open: that sheet owns the
@@ -166,7 +211,22 @@ export function VoiceBubble() {
             </div>
 
             <div className="min-h-[120px] flex-1 space-y-3 overflow-y-auto px-4 py-3">
-              {turns.length === 0 && !heard && (
+              {pendingAsk && (
+                <button
+                  onClick={runPendingAsk}
+                  className="flex w-full items-center gap-3 rounded-xl bg-accent px-4 py-4 text-left text-white transition-transform active:scale-[0.98]"
+                >
+                  <Play className="h-5 w-5 shrink-0 fill-current" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">Tap to play</span>
+                    <span className="block truncate text-xs text-white/80">
+                      “{pendingAsk}”
+                    </span>
+                  </span>
+                </button>
+              )}
+
+              {turns.length === 0 && !heard && !pendingAsk && (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">
                     Tap the mic and say what to play.

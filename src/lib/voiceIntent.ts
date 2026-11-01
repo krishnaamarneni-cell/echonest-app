@@ -50,6 +50,7 @@ export type VoiceAction =
   | { kind: 'choose'; index: number }
   | { kind: 'transport'; op: 'pause' | 'resume' | 'next' | 'previous' }
   | { kind: 'shuffle'; on: boolean }
+  | { kind: 'repeat'; mode: 'off' | 'one' | 'all' }
   | { kind: 'unknown' };
 
 export interface VoiceCommand {
@@ -157,6 +158,46 @@ function stripLead(norm: string): string {
 
 const LIKED_RE = /\b(liked|likes|favou?rites?|loved|hearts?)\b/;
 
+/** The words that mean "play it again" rather than "find me something". */
+const LOOP_WORD = /\b(repeat|repeating|loop|looping|again and again|over and over)\b/;
+/** What the loop is being asked about — see readRepeat. */
+const LOOP_SUBJECT =
+  /\b(this|that|it|current|currently|now|song|track|tune|one|single|playlist|queue|album|list|everything|all|mode|on|off)\b/;
+const LOOP_OFF =
+  /\b(off|stop|stopped|cancel|cancell?ed|disable|disabled|don'?t|do not|no longer|never|quit|end|enough)\b/;
+const LOOP_ALL = /\b(playlist|queue|album|list|everything|all)\b/;
+
+/**
+ * Repeat, as a mode change rather than a search.
+ *
+ * Checked before transport because "stop repeating" begins with "stop",
+ * which the pause rule would otherwise swallow — and pausing when you asked
+ * to stop looping is a particularly annoying way to be misheard.
+ */
+function readRepeat(norm: string): VoiceCommand | null {
+  if (!LOOP_WORD.test(norm)) return null;
+
+  // Switching it off is unambiguous without a subject, and must be matched
+  // before the subject check below rejects it: "stop repeating" names no
+  // song, so it would fall through to the pause rule and stop the music
+  // instead of the looping.
+  if (LOOP_OFF.test(norm)) {
+    return { action: { kind: 'repeat', mode: 'off' }, say: 'Repeat off.' };
+  }
+
+  // Turning it ON does need a subject, so that a title carrying the word —
+  // "play Loop by Kygo" — stays a search instead of silently changing the
+  // player's mode. Every natural phrasing of the real command names the
+  // thing: "repeat THIS", "loop the PLAYLIST".
+  if (!LOOP_SUBJECT.test(norm)) return null;
+
+  if (LOOP_ALL.test(norm)) {
+    return { action: { kind: 'repeat', mode: 'all' }, say: 'Repeating everything.' };
+  }
+  // The bare case — "keep this on repeat", "loop it" — means this one song.
+  return { action: { kind: 'repeat', mode: 'one' }, say: 'Repeating this song.' };
+}
+
 /**
  * The fast path. Returns `unknown` for anything it is not confident about,
  * which is the signal to ask Groq.
@@ -164,6 +205,10 @@ const LIKED_RE = /\b(liked|likes|favou?rites?|loved|hearts?)\b/;
 export function parseLocally(transcript: string, ctx: VoiceContext): VoiceCommand {
   const norm = normalize(transcript);
   if (!norm) return { action: { kind: 'unknown' }, say: "I didn't catch that." };
+
+  // --- Repeat, before transport — see readRepeat.
+  const repeat = readRepeat(norm);
+  if (repeat) return repeat;
 
   // --- Transport. Checked first: these are the shortest utterances and the
   // ones that must never be mistaken for a search.
@@ -338,6 +383,20 @@ export function validateCommand(raw: unknown, ctx: VoiceContext): VoiceCommand {
         action: { kind: 'shuffle', on: o.on !== false },
         say: say || (o.on !== false ? 'Shuffle on.' : 'Shuffle off.'),
       };
+    case 'repeat': {
+      const mode = o.mode;
+      if (mode !== 'off' && mode !== 'one' && mode !== 'all') return fallback;
+      return {
+        action: { kind: 'repeat', mode },
+        say:
+          say ||
+          (mode === 'off'
+            ? 'Repeat off.'
+            : mode === 'one'
+              ? 'Repeating this song.'
+              : 'Repeating everything.'),
+      };
+    }
     default:
       return say ? { action: { kind: 'unknown' }, say } : fallback;
   }

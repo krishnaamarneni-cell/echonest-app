@@ -34,7 +34,7 @@ const SYSTEM = `You convert one spoken command for a music app into a single JSO
 
 Reply with ONLY a JSON object:
 {
-  "action": "play_playlist" | "play_liked" | "play_all" | "search" | "choose" | "transport" | "shuffle" | "unknown",
+  "action": "play_playlist" | "play_liked" | "play_all" | "search" | "choose" | "transport" | "shuffle" | "repeat" | "unknown",
   "playlist_id": "<exact id from the PLAYLISTS list>",
   "query": "<what to search for>",
   "autoplay": true | false,
@@ -42,6 +42,7 @@ Reply with ONLY a JSON object:
   "index": <1-based number from PENDING>,
   "op": "pause" | "resume" | "next" | "previous",
   "on": true | false,
+  "mode": "off" | "one" | "all",
   "shuffle": true | false,
   "say": "<one short sentence to read aloud>"
 }
@@ -51,6 +52,7 @@ Rules:
 - Use "search" for anything not already in the user's library — a song, artist, album or film. Set "autoplay": true to play the best match at once. Set "autoplay": false to offer a numbered list, which is right when the user asked for songs FROM something (a film or album) without naming one track.
 - Use "choose" only when PENDING is non-empty and the user is picking from it.
 - Use "transport" for pause/resume/skip, "shuffle" to turn shuffling on or off.
+- Use "repeat" when the user wants something played again rather than something new found: "mode": "one" to loop the current song, "all" to loop the queue or playlist, "off" to stop looping.
 - Use "unknown" if the command is not about playing music. Put a brief explanation in "say".
 - "say" is spoken aloud: under 12 words, no markdown, no emoji.
 - Include only the fields the chosen action needs.`;
