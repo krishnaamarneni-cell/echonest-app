@@ -37,8 +37,15 @@ export default function LibraryPage() {
    * questions ("what have I collected" vs "whose new work do I want").
    */
   const loadFollowed = useFollowedChannels((s) => s.load);
-  const followedArtists = useFollowedChannels((s) =>
-    s.channels.filter((c) => c.category === 'music'),
+  // Selects the stored array and filters OUTSIDE the selector. Filtering
+  // inside returns a new array on every call, and zustand v5 compares
+  // snapshots by identity through useSyncExternalStore — a fresh array
+  // every render reads as "changed", which re-renders, which re-filters,
+  // until React gives up with an infinite-loop error.
+  const allFollowed = useFollowedChannels((s) => s.channels);
+  const followedArtists = useMemo(
+    () => allFollowed.filter((c) => c.category === 'music'),
+    [allFollowed],
   );
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   // Playlists other people shared with me. Separate from `playlists`
