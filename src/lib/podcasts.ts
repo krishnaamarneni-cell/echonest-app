@@ -34,6 +34,8 @@ export interface PodcastEpisode {
   thumbnail: string;
   publishedAt: string;
   duration: number;
+  /** Lifetime plays. Only meaningful when the caller asked to rank by it. */
+  views?: number;
 }
 
 /**
@@ -64,6 +66,17 @@ export const FEATURED_PODCASTS: string[] = [
  * is just a starting point — anything else is reachable through search and
  * "Add to News".
  */
+/**
+ * There is deliberately no featured list for artists.
+ *
+ * The handles above were each checked against the Data API, because a wrong
+ * one does not fail — it resolves to some unrelated channel and sits in the
+ * row looking legitimate. No equivalent list could be verified for music,
+ * and a plausible guess is the worst outcome here, so the Artists page
+ * suggests searches from the artists already in your library instead.
+ */
+export const FEATURED_ARTISTS: string[] = [];
+
 export const FEATURED_NEWS: string[] = [
   'CNN',               // CNN
   'BBCNews',           // BBC News
@@ -112,13 +125,15 @@ export function timeAgo(iso: string): string {
  * looked up in Supabase, and the content_type keeps episodes out of the
  * music rows on Home and in Library.
  *
- * The category must be passed in: a news clip and a podcast episode are
- * the same shape coming back from YouTube, and only the caller knows
- * which list it came from.
+ * The category must be passed in: a news clip, a podcast episode and a
+ * song are the same shape coming back from YouTube, and only the caller
+ * knows which list it came from. It decides more than labelling — the
+ * player shows video for 'podcast' and 'news' and plays audio alone for
+ * 'music', which is why an artist's uploads arrive here as music.
  */
 export function episodeToSong(
   ep: PodcastEpisode,
-  contentType: 'podcast' | 'news' = 'podcast',
+  contentType: 'podcast' | 'news' | 'music' = 'podcast',
 ): Song {
   return {
     id: `yt-${ep.videoId}`,

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * News / Podcasts page — shared by both.
+ * News / Podcasts / Artists page — shared by all three.
  *
  * Leads with the videos from everything you follow (ChannelFeed), with the
  * channel strip at the bottom of that. Adding channels is behind a "+"
@@ -13,20 +13,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import {
-  ArrowLeft,
-  Mic,
-  Newspaper,
-  Search as SearchIcon,
-  X,
-  Plus,
-  Check,
-} from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, X, Plus, Check } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ChannelFeed } from '@/components/ui/ChannelFeed';
 import { PodcastChannel, formatSubscribers } from '@/lib/podcasts';
-import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
+import { channelMeta, type ChannelCategory } from '@/lib/channelCategory';
+import { useFollowedChannels } from '@/store/followedChannels';
+import { createClient } from '@/lib/supabase/client';
 
 // Channels wrap top-to-bottom rather than scrolling sideways. A single
 // horizontal row fitted four of them and left the whole lower half of the
@@ -47,7 +41,7 @@ function FollowButton({
   const followed = useFollowedChannels((s) =>
     s.channels.some((c) => c.channel_id === channel.channelId && c.category === category),
   );
-  const label = category === 'news' ? 'News' : 'Podcasts';
+  const label = channelMeta(category).listLabel;
   const text = followed ? `Remove from ${label}` : `Add to ${label}`;
 
   return (
@@ -81,7 +75,7 @@ function ChannelChip({
   title: string;
   thumbnail: string | null;
   subtitle?: string;
-  icon: typeof Mic;
+  icon: React.ElementType;
   action?: React.ReactNode;
 }) {
   return (
@@ -115,8 +109,18 @@ export function ChannelBrowser({
   heading: string;
   blurb: string;
 }) {
+  const meta = channelMeta(category);
   const router = useRouter();
   const [featured, setFeatured] = useState<PodcastChannel[]>([]);
+  /**
+   * Artist names already in the library, offered as one-tap searches.
+   *
+   * There is no verified featured list for music (see FEATURED_ARTISTS), and
+   * a plausible-looking wrong handle is worse than none. The artists you
+   * already listen to are a better starting point than any list we could
+   * guess at, and they cost no YouTube quota to produce.
+   */
+  const [fromLibrary, setFromLibrary] = useState<string[]>([]);
   const [results, setResults] = useState<PodcastChannel[] | null>(null);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -144,10 +148,36 @@ export function ChannelBrowser({
     };
   }, [category]);
 
-  const runSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
+  // Only music has no featured list to fall back on, so this is the only
+  // category that pays for the query.
+  useEffect(() => {
+    if (category !== 'music') return;
+    let cancelled = false;
+    createClient()
+      .from('artists')
+      .select('name')
+      .limit(40)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const names = Array.from(
+          new Set(
+            (data as { name: string | null }[])
+              .map((a) => a.name?.trim())
+              .filter((n): n is string => Boolean(n)),
+          ),
+        ).slice(0, 12);
+        setFromLibrary(names);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [category]);
+
+  const searchFor = async (raw: string) => {
+    const q = raw.trim();
     if (!q) return;
+    setSearchOpen(true);
+    setQuery(q);
     setSearching(true);
     try {
       const r = await fetch(`/api/podcasts/channels?q=${encodeURIComponent(q)}`);
@@ -160,8 +190,12 @@ export function ChannelBrowser({
     }
   };
 
-  const base = category === 'news' ? '/news' : '/podcasts';
-  const Icon = category === 'news' ? Newspaper : Mic;
+  const runSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    searchFor(query);
+  };
+
+  const { base, icon: Icon } = meta;
 
   return (
     <div className="space-y-8 p-6 animate-fade-in lg:p-8">
@@ -182,7 +216,7 @@ export function ChannelBrowser({
           className="flex shrink-0 items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105"
         >
           <Plus className="h-4 w-4" />
-          Add channel
+          {meta.addLabel}
         </button>
       </div>
 
@@ -193,11 +227,7 @@ export function ChannelBrowser({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              category === 'news'
-                ? 'Search channels — CNN, CNBC, NDTV...'
-                : 'Search podcasts — Joe Rogan, Huberman...'
-            }
+            placeholder={meta.searchPlaceholder}
             className="w-full rounded-full border border-white/10 bg-card py-3 pl-11 pr-11 text-sm outline-none focus:border-accent"
           />
           {query ? (
@@ -251,9 +281,7 @@ export function ChannelBrowser({
       <ChannelFeed category={category} />
 
       <section className="space-y-3">
-        <h2 className="text-lg font-bold">
-          {category === 'news' ? 'Discover news channels' : 'Discover podcasts'}
-        </h2>
+        <h2 className="text-lg font-bold">{meta.discoverHeading}</h2>
         {loadingFeatured ? (
           <div className={CHANNEL_GRID}>
             {Array.from({ length: 12 }).map((_, i) => (
@@ -278,11 +306,32 @@ export function ChannelBrowser({
               />
             ))}
           </div>
+        ) : fromLibrary.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Artists already in your library — tap one to find its channel.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {fromLibrary.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => searchFor(name)}
+                  className="rounded-full border border-white/10 bg-card px-4 py-2 text-sm transition-colors hover:border-accent hover:text-accent"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           <EmptyState
             icon={Icon}
             title="Nothing to show"
-            description="Couldn't reach YouTube for the featured list."
+            description={
+              category === 'music'
+                ? 'Search for an artist or label by name to add them.'
+                : "Couldn't reach YouTube for the featured list."
+            }
           />
         )}
       </section>

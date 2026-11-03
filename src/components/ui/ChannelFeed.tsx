@@ -14,13 +14,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Mic, Newspaper, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 import { VideoList, VideoItem } from '@/components/ui/VideoList';
 import { episodeToSong } from '@/lib/podcasts';
+import { channelMeta, type ChannelCategory } from '@/lib/channelCategory';
 import { usePlayerStore } from '@/store/player';
-import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
+import { useFollowedChannels } from '@/store/followedChannels';
 
 export function ChannelFeed({
   category,
@@ -30,6 +31,7 @@ export function ChannelFeed({
   /** Home shows a "Browse all" link; the full page has its own + button. */
   showBrowseLink?: boolean;
 }) {
+  const meta = channelMeta(category);
   const [feed, setFeed] = useState<VideoItem[]>([]);
   const [feedKey, setFeedKey] = useState('');
   const [view, setView] = useState<'list' | 'grid'>('list');
@@ -68,7 +70,13 @@ export function ChannelFeed({
   useEffect(() => {
     if (!uploadsKey) return;
     let cancelled = false;
-    fetch(`/api/podcasts/feed?uploads=${encodeURIComponent(uploadsKey)}`)
+    const params = new URLSearchParams({ uploads: uploadsKey });
+    if (meta.songsOnly) params.set('songs', '1');
+    if (meta.minDurationSeconds !== 181) {
+      params.set('min', String(meta.minDurationSeconds));
+    }
+
+    fetch(`/api/podcasts/feed?${params.toString()}`)
       .then(async (r) => {
         const body = await r.json().catch(() => null);
         if (cancelled) return;
@@ -81,11 +89,9 @@ export function ChannelFeed({
     return () => {
       cancelled = true;
     };
-  }, [uploadsKey]);
+  }, [uploadsKey, meta.songsOnly, meta.minDurationSeconds]);
 
-  const base = category === 'news' ? '/news' : '/podcasts';
-  const Icon = category === 'news' ? Newspaper : Mic;
-  const plural = category === 'news' ? 'news channels' : 'podcasts';
+  const { base, icon: Icon, plural } = meta;
 
   const latest = feed.slice(0, 30);
   const top = [...feed].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0)).slice(0, 12);
@@ -101,7 +107,7 @@ export function ChannelFeed({
           publishedAt: v.publishedAt,
           duration: v.duration,
         },
-        category,
+        meta.contentType,
       ),
     );
     play(songs[index], songs, 'library');
@@ -119,13 +125,13 @@ export function ChannelFeed({
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold">
-            {category === 'news' ? 'Browse news channels' : 'Browse podcasts'}
-          </p>
+          <p className="text-sm font-semibold">Browse {plural}</p>
           <p className="truncate text-xs text-muted-foreground">
             {category === 'news'
               ? 'CNN, CNBC, NDTV and more — add any channel to your list'
-              : 'Joe Rogan, Huberman and more — add any show to your list'}
+              : category === 'music'
+                ? 'Search any artist or label and add them to your list'
+                : 'Joe Rogan, Huberman and more — add any show to your list'}
           </p>
         </div>
         <ChevronRight className="ml-auto h-5 w-5 shrink-0 text-muted-foreground" />
@@ -137,7 +143,9 @@ export function ChannelFeed({
     <div className="space-y-8">
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold">Latest</h2>
+          <h2 className="text-xl font-bold">
+            {category === 'music' ? 'New releases' : 'Latest'}
+          </h2>
           <div className="flex items-center gap-2">
             {showBrowseLink ? (
               <Link

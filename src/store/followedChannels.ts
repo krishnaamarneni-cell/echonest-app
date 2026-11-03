@@ -1,16 +1,20 @@
 import { create } from 'zustand';
 import { createClient } from '@/lib/supabase/client';
 import { PodcastChannel } from '@/lib/podcasts';
+import type { ChannelCategory } from '@/lib/channelCategory';
 
 /**
- * Channels the user has added to News or Podcasts.
+ * Channels the user has added to News, Podcasts or Artists.
  *
  * The YouTube metadata is copied in at follow time, so rendering someone's
  * followed list costs no YouTube quota — only opening a channel to read its
- * episodes calls the API. Requires supabase-migration-followed-channels.sql.
+ * episodes calls the API. Requires supabase-migration-followed-channels.sql,
+ * and supabase-migration-artist-channels.sql for the 'music' category.
  */
 
-export type ChannelCategory = 'news' | 'podcast';
+// Re-exported so the components importing it from here keep working; it is
+// defined alongside the rest of the per-category knowledge.
+export type { ChannelCategory };
 
 export interface FollowedChannel {
   id: string;

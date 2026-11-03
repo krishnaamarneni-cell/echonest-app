@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PodcastEpisode } from '@/lib/podcasts';
+import { isLikelySong } from '@/lib/ytSearch';
 
 /**
  * Latest episodes for one podcast channel.
  *
  *   GET /api/podcasts/episodes?handle=lexfridman
  *   GET /api/podcasts/episodes?uploads=UU...      (skips the lookup)
+ *   GET /api/podcasts/episodes?handle=T-Series&sort=views&songs=1&min=70
+ *
+ * The three extra parameters are what make an artist channel readable as a
+ * discography rather than a feed: rank by plays instead of recency, drop
+ * uploads that are not songs, and lower the Shorts threshold so a short
+ * track survives it. See lib/channelCategory.ts.
  *
  * Deliberately avoids search.list?channelId=...&order=date (100 units) in
  * favour of resolving the channel's uploads playlist and reading it:
@@ -37,6 +44,11 @@ export async function GET(req: NextRequest) {
   const requested = Math.min(Number(url.searchParams.get('max') || '25'), 50);
   const maxResults = 50;
   const keepShorts = url.searchParams.get('shorts') === '1';
+  const songsOnly = url.searchParams.get('songs') === '1';
+  const rankByViews = url.searchParams.get('sort') === 'views';
+  // YouTube caps Shorts at 3 minutes, so 181 is the default floor. Music
+  // passes something lower, because real tracks live under that line.
+  const minDuration = Math.max(0, Number(url.searchParams.get('min') || '181'));
 
   if (!uploads && !handle) {
     return NextResponse.json({ error: 'handle or uploads required' }, { status: 400 });
@@ -123,31 +135,44 @@ export async function GET(req: NextRequest) {
     // playlistItems carries no duration, so fetch it for the whole page in
     // one videos.list call rather than per episode.
     const durations = new Map<string, number>();
+    const views = new Map<string, number>();
     if (raw.length > 0) {
       const vids = new URL('https://www.googleapis.com/youtube/v3/videos');
-      vids.searchParams.set('part', 'contentDetails');
+      // statistics rides along on the call already being made for duration,
+      // so ranking by plays costs no extra quota.
+      vids.searchParams.set('part', 'contentDetails,statistics');
       vids.searchParams.set('id', raw.map((v) => v.videoId).join(','));
       vids.searchParams.set('key', apiKey);
       const vr = await fetch(vids.toString(), { next: { revalidate: 3_600 } });
       if (vr.ok) {
         const vdata = (await vr.json()) as {
-          items?: { id?: string; contentDetails?: { duration?: string } }[];
+          items?: {
+            id?: string;
+            contentDetails?: { duration?: string };
+            statistics?: { viewCount?: string };
+          }[];
         };
         for (const v of vdata.items || []) {
-          if (v.id) durations.set(v.id, parseIsoDuration(v.contentDetails?.duration));
+          if (!v.id) continue;
+          durations.set(v.id, parseIsoDuration(v.contentDetails?.duration));
+          views.set(v.id, Number(v.statistics?.viewCount || 0));
         }
       }
     }
 
-    // YouTube caps Shorts at 3 minutes, so anything at or under that is
-    // almost always one. duration 0 means videos.list didn't answer for that
-    // id — kept rather than dropped for something we failed to measure.
-    const MIN_DURATION_SECONDS = 181;
+    // duration 0 means videos.list didn't answer for that id — kept rather
+    // than dropped for something we failed to measure.
     const episodes: PodcastEpisode[] = raw
-      .map((v) => ({ ...v, duration: durations.get(v.videoId) || 0 }))
-      .filter(
-        (v) => keepShorts || v.duration === 0 || v.duration >= MIN_DURATION_SECONDS,
-      )
+      .map((v) => ({
+        ...v,
+        duration: durations.get(v.videoId) || 0,
+        views: views.get(v.videoId) || 0,
+      }))
+      .filter((v) => keepShorts || v.duration === 0 || v.duration >= minDuration)
+      .filter((v) => !songsOnly || isLikelySong(v.title))
+      // Sorted before the slice, so "top songs" ranks the whole page of
+      // uploads rather than reordering the newest few.
+      .sort((a, b) => (rankByViews ? b.views - a.views : 0))
       .slice(0, requested);
 
     return NextResponse.json({

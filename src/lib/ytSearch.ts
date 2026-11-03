@@ -95,3 +95,47 @@ export function isCompilation(title: string): boolean {
     /\bcompilation\b/,
   ].some((re) => re.test(t));
 }
+
+/**
+ * Is this upload a song, rather than something else a music label posts?
+ *
+ * A label's channel is not a discography. Between the tracks sit trailers,
+ * teasers, first looks, audio launches, press meets, interviews, making-of
+ * reels and whole films — on a Telugu or Tamil music channel those can
+ * outnumber the songs in any given month. Listing a channel's uploads as
+ * "songs" without this filter puts a two-hour movie and a 40-second teaser
+ * in the same queue as the tracks.
+ *
+ * Rejects by marker, like isCompilation, and errs toward keeping things:
+ * "Lyrical", "Lyric Video", "Video Song" and "Audio Song" are all songs and
+ * must pass. Only an unmistakable non-song marker fails.
+ */
+export function isLikelySong(title: string): boolean {
+  const t = title.toLowerCase();
+  if (isCompilation(t)) return false;
+  return ![
+    /\btrailer\b/,
+    /\bteaser\b/,
+    /\bfirst\s*look\b/,
+    /\bglimpse\b/,
+    /\bmaking\b/, // "making of", "song making"
+    /\bbehind\s*the\s*scenes?\b/,
+    /\bbts\b/,
+    /\binterview\b/,
+    /\bpress\s*(meet|conference)\b/,
+    /\b(audio|music)\s*launch\b/,
+    /\bpre[\s-]?release\b/,
+    /\bsuccess\s*(meet|celebrations?)\b/,
+    /\bthank\s*you\s*meet\b/,
+    /\bpromo\b/,
+    /\bannouncement\b/,
+    /\breaction\b/,
+    /\breview\b/,
+    /\b(movie|comedy|action|deleted|best)\s*scenes?\b/,
+    /\bepisode\s*\d+/,
+    /\bep\.?\s*\d+\b/,
+    /\bshorts?\b/,
+    /\bwhatsapp\s*status\b/,
+    /\blive\s*(stream|performance|concert)\b/,
+  ].some((re) => re.test(t));
+}

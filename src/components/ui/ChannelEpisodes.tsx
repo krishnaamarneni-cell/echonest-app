@@ -1,26 +1,33 @@
 'use client';
 
 /**
- * One channel's latest uploads — shared by /podcasts/[handle] and
- * /news/[handle].
+ * One channel's uploads — shared by /podcasts/[handle], /news/[handle] and
+ * /artists/[handle].
  *
  * Items come from the channel's uploads playlist (see
  * /api/podcasts/episodes), which is always complete and already ordered
  * newest-first, and are converted to ad-hoc Songs so the existing player
  * handles them with no special casing.
+ *
+ * An artist channel reads that same playlist differently: ranked by plays
+ * rather than recency, with trailers, teasers and interviews dropped, so
+ * the page reads as a discography rather than a feed. Those differences
+ * are parameters on one fetch, not a second component — see
+ * lib/channelCategory.ts.
  */
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ArrowLeft, Mic, Newspaper, Play, Plus, Check } from 'lucide-react';
+import { ArrowLeft, Play, Plus, Check } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 import { VideoList } from '@/components/ui/VideoList';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
 import { usePlayerStore } from '@/store/player';
 import { PodcastEpisode, episodeToSong } from '@/lib/podcasts';
-import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
+import { channelMeta, type ChannelCategory } from '@/lib/channelCategory';
+import { useFollowedChannels } from '@/store/followedChannels';
 
 export function ChannelEpisodes({
   handle,
@@ -29,6 +36,7 @@ export function ChannelEpisodes({
   handle: string;
   category: ChannelCategory;
 }) {
+  const meta = channelMeta(category);
   const router = useRouter();
   const play = usePlayerStore((s) => s.play);
   const currentSong = usePlayerStore((s) => s.currentSong);
@@ -73,7 +81,16 @@ export function ChannelEpisodes({
   useEffect(() => {
     if (!handle) return;
     let cancelled = false;
-    fetch(`/api/podcasts/episodes?handle=${encodeURIComponent(handle)}&max=40`)
+    const params = new URLSearchParams({ handle, max: '40' });
+    // Sent only where they differ from the defaults, so news and podcasts
+    // make exactly the request they always did.
+    if (meta.rankByViews) params.set('sort', 'views');
+    if (meta.songsOnly) params.set('songs', '1');
+    if (meta.minDurationSeconds !== 181) {
+      params.set('min', String(meta.minDurationSeconds));
+    }
+
+    fetch(`/api/podcasts/episodes?${params.toString()}`)
       .then(async (r) => {
         const body = await r.json().catch(() => null);
         if (cancelled) return;
@@ -95,18 +112,16 @@ export function ChannelEpisodes({
     return () => {
       cancelled = true;
     };
-  }, [handle]);
+  }, [handle, meta.rankByViews, meta.songsOnly, meta.minDurationSeconds]);
 
   const playFrom = (index: number) => {
     // Deliberately not `.map(episodeToSong)`: map passes (value, index,
     // array), so the array index would land in the category argument.
-    const songs = episodes.map((e) => episodeToSong(e, category));
+    const songs = episodes.map((e) => episodeToSong(e, meta.contentType));
     play(songs[index], songs, 'library');
   };
 
-  const Icon = category === 'news' ? Newspaper : Mic;
-  const label = category === 'news' ? 'News' : 'Podcast';
-  const listHeading = category === 'news' ? 'Latest videos' : 'Latest episodes';
+  const Icon = meta.icon;
 
   const toggleFollow = () => {
     if (!channelId || !uploads) return;
@@ -150,7 +165,7 @@ export function ChannelEpisodes({
         </div>
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {label}
+            {meta.label}
           </p>
           <h1 className="truncate text-2xl font-bold sm:text-4xl">{title || handle}</h1>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -160,7 +175,7 @@ export function ChannelEpisodes({
                 className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-semibold text-white shadow-lg transition-transform hover:scale-105"
               >
                 <Play className="h-4 w-4 fill-current" />
-                Play latest
+                {meta.playLabel}
               </button>
             ) : null}
             {channelId && uploads ? (
@@ -173,7 +188,7 @@ export function ChannelEpisodes({
                 }`}
               >
                 {followed ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                {followed ? `In ${label}` : `Add to ${label}`}
+                {followed ? `In ${meta.listLabel}` : `Add to ${meta.listLabel}`}
               </button>
             ) : null}
           </div>
@@ -181,7 +196,7 @@ export function ChannelEpisodes({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-bold">{listHeading}</h2>
+        <h2 className="text-xl font-bold">{meta.itemsHeading}</h2>
         {episodes.length > 0 ? <ViewToggle view={view} onChange={setViewMode} /> : null}
       </div>
 
@@ -206,8 +221,12 @@ export function ChannelEpisodes({
       ) : (
         <EmptyState
           icon={Icon}
-          title="Nothing published"
-          description="This channel has no uploads we can read."
+          title={meta.songsOnly ? 'No songs here' : 'Nothing published'}
+          description={
+            meta.songsOnly
+              ? 'Nothing on this channel looked like a song — it may post only trailers and interviews.'
+              : 'This channel has no uploads we can read.'
+          }
         />
       )}
     </div>

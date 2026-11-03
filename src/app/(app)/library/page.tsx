@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Song, Album, Artist, Playlist } from '@/types';
 import { SongRow } from '@/components/ui/SongRow';
@@ -9,10 +10,11 @@ import { MediaCard } from '@/components/ui/MediaCard';
 import { ChannelFeed } from '@/components/ui/ChannelFeed';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List, Sparkles, Loader2, Newspaper } from 'lucide-react';
+import { Music, Disc3, Mic2, ListMusic, Mic, ChevronLeft, ChevronRight, LayoutGrid, List, Sparkles, Loader2, Newspaper, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } from '@/lib/importArtistSongs';
+import { useFollowedChannels } from '@/store/followedChannels';
 import { Button } from '@/components/ui/Button';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
@@ -28,6 +30,16 @@ export default function LibraryPage() {
   const [podcastPlaylists, setPodcastPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
+  /**
+   * Artists followed as YouTube channels, which is the manual way to add
+   * one. They sit alongside the artists built from your own uploads and
+   * pulled songs rather than replacing them — the two answer different
+   * questions ("what have I collected" vs "whose new work do I want").
+   */
+  const loadFollowed = useFollowedChannels((s) => s.load);
+  const followedArtists = useFollowedChannels((s) =>
+    s.channels.filter((c) => c.category === 'music'),
+  );
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   // Playlists other people shared with me. Separate from `playlists`
   // because they are not mine to rename or delete — only to leave.
@@ -120,6 +132,10 @@ export default function LibraryPage() {
     setTab('songs');
     setTimeout(() => setTab('artists'), 50);
   };
+
+  useEffect(() => {
+    loadFollowed();
+  }, [loadFollowed]);
 
   // Reset to page 1 when tab changes
   useEffect(() => {
@@ -485,21 +501,59 @@ export default function LibraryPage() {
           )}
 
           {tab === 'artists' && (
-            artists.length > 0 ? (
+            artists.length > 0 || followedArtists.length > 0 ? (
               <div>
+                {followedArtists.length > 0 && (
+                  <section className="mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm text-muted-foreground">
+                        Following {followedArtists.length} artist
+                        {followedArtists.length === 1 ? '' : 's'}
+                      </p>
+                      <Link
+                        href="/artists"
+                        className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        <Plus className="w-4 h-4" /> Add artist
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                      {followedArtists.map((c) => (
+                        <MediaCard
+                          key={c.id}
+                          title={c.title}
+                          subtitle="Top songs"
+                          imageUrl={c.thumbnail}
+                          href={`/artists/${encodeURIComponent(c.handle)}`}
+                          rounded
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm text-muted-foreground">
-                    {artists.length} artist{artists.length === 1 ? '' : 's'}
+                    {artists.length} artist{artists.length === 1 ? '' : 's'} in your library
                     {importProgress && importing && (
                       <span className="ml-2 text-xs">
                         · Importing {importProgress.done}/{importProgress.total} — {importProgress.added} songs added so far
                       </span>
                     )}
                   </p>
+                  <div className="flex items-center gap-2">
+                  {followedArtists.length === 0 && (
+                    <Link
+                      href="/artists"
+                      className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      <Plus className="w-4 h-4" /> Add artist
+                    </Link>
+                  )}
                   <Button
                     variant="secondary"
                     onClick={handlePullForAllArtists}
-                    disabled={importing}
+                    disabled={importing || artists.length === 0}
                     title="For each artist, search YouTube and add their top 10 songs to your library. Sequential, can take a few minutes."
                   >
                     {importing ? (
@@ -512,6 +566,7 @@ export default function LibraryPage() {
                       </>
                     )}
                   </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {artists.map((artist) => (
@@ -527,7 +582,21 @@ export default function LibraryPage() {
                 </div>
               </div>
             ) : (
-              <EmptyState icon={Mic2} title="No artists" description="Artists appear when you upload music" />
+              <div className="space-y-4">
+                <EmptyState
+                  icon={Mic2}
+                  title="No artists"
+                  description="Artists appear when you upload music — or add one from YouTube yourself."
+                />
+                <div className="flex justify-center">
+                  <Link
+                    href="/artists"
+                    className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+                  >
+                    <Plus className="w-4 h-4" /> Add artist
+                  </Link>
+                </div>
+              </div>
             )
           )}
 

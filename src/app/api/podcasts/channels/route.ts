@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FEATURED_PODCASTS, FEATURED_NEWS, PodcastChannel } from '@/lib/podcasts';
+import {
+  FEATURED_PODCASTS,
+  FEATURED_NEWS,
+  FEATURED_ARTISTS,
+  PodcastChannel,
+} from '@/lib/podcasts';
 
 /**
  * Resolve podcast channels for the featured row, or search for new ones.
@@ -124,8 +129,13 @@ export async function GET(req: NextRequest) {
 
   // --- featured / explicit handles ---------------------------------------
   // category picks which curated list to resolve; 'handles' overrides both.
-  const category = url.searchParams.get('category') === 'news' ? 'news' : 'podcast';
-  const seed = category === 'news' ? FEATURED_NEWS : FEATURED_PODCASTS;
+  const category = url.searchParams.get('category') || 'podcast';
+  const seed =
+    category === 'news'
+      ? FEATURED_NEWS
+      : category === 'music'
+        ? FEATURED_ARTISTS
+        : FEATURED_PODCASTS;
   const handlesParam = url.searchParams.get('handles');
   const handles = handlesParam
     ? handlesParam.split(',').map((h) => h.trim()).filter(Boolean).slice(0, 20)
@@ -136,7 +146,8 @@ export async function GET(req: NextRequest) {
 
   // Every handle failing means the API itself is unhappy (bad key, quota),
   // not ten simultaneously retired channels — say so rather than rendering
-  // an empty page that looks like "no podcasts exist".
+  // an empty page that looks like "no podcasts exist". An empty seed is a
+  // different thing entirely (music has none) and is not an error.
   if (channels.length === 0 && handles.length > 0) {
     return NextResponse.json(
       { error: "Couldn't load podcasts from YouTube", channels: [] },

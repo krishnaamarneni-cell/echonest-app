@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isLikelySong } from '@/lib/ytSearch';
 
 /**
  * Merged feed across several channels.
  *
  *   GET /api/podcasts/feed?uploads=UU111,UU222,UU333
+ *   GET /api/podcasts/feed?uploads=UU111&songs=1&min=70   (artists)
  *
  * Powers the Latest / Top rows on the News and Podcasts pages: the client
  * already holds each followed channel's uploads playlist id (copied in when
@@ -140,12 +142,17 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const keepShorts = new URL(req.url).searchParams.get('shorts') === '1';
+  const params = new URL(req.url).searchParams;
+  const keepShorts = params.get('shorts') === '1';
+  const songsOnly = params.get('songs') === '1';
+  // Artists need a lower floor than the Shorts threshold: plenty of real
+  // tracks run under three minutes.
+  const minDuration = Math.max(0, Number(params.get('min') || MIN_DURATION_SECONDS));
   // duration 0 means videos.list didn't answer for that id — keep it rather
   // than silently dropping something we simply failed to measure.
-  const filtered = keepShorts
-    ? merged
-    : merged.filter((v) => v.duration === 0 || v.duration >= MIN_DURATION_SECONDS);
+  const filtered = merged
+    .filter((v) => keepShorts || v.duration === 0 || v.duration >= minDuration)
+    .filter((v) => !songsOnly || isLikelySong(v.title));
 
   filtered.sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
