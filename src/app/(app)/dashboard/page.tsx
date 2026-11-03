@@ -636,24 +636,34 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* === ARTISTS tab: every artist with at least one song === */}
+      {/* === ARTISTS tab: artists you follow, then your own library ===
+          The feed comes first and is the same component the News tab uses,
+          so adding an artist sits exactly where adding a channel does. It
+          degrades to a "Browse artists" card when nothing is followed yet,
+          which is also the empty state. */}
       {tab === 'artists' && (
-        artists.length > 0 ? (
-          <Section title={`Artists (${artists.length})`} icon={Mic2} seeAllHref="/library">
-            {artists.map((artist) => (
-              <MediaCard
-                key={artist.id}
-                title={artist.name}
-                subtitle={`${artist.song_count || 0} songs`}
-                imageUrl={artist.image_url}
-                href={`/artist/${artist.id}`}
-                rounded
-              />
-            ))}
-          </Section>
-        ) : (
-          <p className="text-center text-muted-foreground py-12">No artists yet.</p>
-        )
+        <div className="space-y-8">
+          <ChannelFeed category="music" showBrowseLink />
+
+          {artists.length > 0 && (
+            <Section
+              title={`In your library (${artists.length})`}
+              icon={Mic2}
+              seeAllHref="/library"
+            >
+              {artists.map((artist) => (
+                <MediaCard
+                  key={artist.id}
+                  title={artist.name}
+                  subtitle={`${artist.song_count || 0} songs`}
+                  imageUrl={artist.image_url}
+                  href={`/artist/${artist.id}`}
+                  rounded
+                />
+              ))}
+            </Section>
+          )}
+        </div>
       )}
     </div>
   );

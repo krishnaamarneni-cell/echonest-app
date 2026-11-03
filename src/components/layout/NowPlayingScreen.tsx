@@ -35,6 +35,7 @@ import { QueueSheet } from './QueueSheet';
 import { Gauge } from 'lucide-react';
 import { LyricsPanel } from '@/components/ui/LyricsPanel';
 import { CoverArt } from '@/components/ui/CoverArt';
+import { ArtistLink } from '@/components/ui/ArtistLink';
 import { coverFor } from '@/lib/coverFor';
 
 export function NowPlayingScreen() {
@@ -821,9 +822,10 @@ export function NowPlayingScreen() {
               <h1 className="text-xl sm:text-2xl font-bold truncate">
                 {currentSong.title}
               </h1>
-              <p className="text-sm text-muted-foreground truncate mt-0.5">
-                {currentSong.artist_name}
-              </p>
+              <ArtistLink
+                song={currentSong}
+                className="mt-0.5 max-w-full text-sm text-muted-foreground"
+              />
             </div>
             {onLikeClick && (
               <button

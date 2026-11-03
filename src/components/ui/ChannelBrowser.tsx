@@ -195,6 +195,23 @@ export function ChannelBrowser({
     searchFor(query);
   };
 
+  // Arriving with ?q= — sent by the artist name under the player when the
+  // channel behind a song could not be resolved. Read from location rather
+  // than useSearchParams: this page is statically prerendered, and that
+  // hook would force the whole page into a Suspense boundary for one
+  // optional parameter. Deferred out of the effect body because searchFor
+  // sets state, and runs once on mount so a later render cannot re-run a
+  // search the user has since replaced.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')?.trim();
+    if (!q) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('q');
+    window.history.replaceState({}, '', url.pathname + url.search);
+    const t = window.setTimeout(() => searchFor(q), 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const { base, icon: Icon } = meta;
 
   return (
