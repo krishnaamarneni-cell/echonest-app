@@ -4,6 +4,11 @@ A premium, personal music streaming app — like Spotify, but for *your* music l
 
 Built with Next.js 16, Tailwind CSS, Supabase, and a sticky bottom audio player that handles both your uploaded MP3s and embedded YouTube tracks.
 
+> **Working on the code?** Read **[ARCHITECTURE.md](ARCHITECTURE.md)** first — it
+> maps every page to its file, lists the API routes and stores, and records the
+> conventions and the bugs that have already bitten us. **[RUNBOOK.md](RUNBOOK.md)**
+> covers operations: when playback dies, it is almost always the tunnel, not the code.
+
 ---
 
 ## Highlights
@@ -51,7 +56,17 @@ npm install
 2. In the Supabase dashboard, go to **SQL Editor** → **New query**
 3. Paste the entire contents of [`supabase-schema.sql`](./supabase-schema.sql) and run it
    - This creates all tables, RLS policies, storage buckets, and triggers
-4. (If you previously ran an older version of the schema) also run [`supabase-migration-youtube-embed.sql`](./supabase-migration-youtube-embed.sql)
+4. Then run each `supabase-migration-*.sql` in the repo root
+
+Migrations are applied **by hand** — there is no runner and no ordering table.
+They are written to be safe to re-run, so running them all is fine; a few build
+on earlier ones, so if one fails because a table is missing, run the migration
+that creates that table first and then re-run it.
+
+**A feature whose migration has not been run fails at its first write**, and
+usually looks like nothing happening at all, because an optimistic UI update
+rolls back. When playback, following a channel or saving a setting silently
+does not stick, check this first.
 
 ### 3. Environment variables
 
@@ -83,28 +98,34 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000), sign up, and start uploading.
 
+Both `dev` and `build` pass `--webpack`. Next 16 defaults the dev server to
+Turbopack, which this Serwist config cannot use — remove the flag and the dev
+server will not start.
+
 ---
 
 ## How the app works
 
 ### Pages
 
+Routes live at `src/app/<url>/page.tsx` — `/library` is
+`src/app/(app)/library/page.tsx`. The main ones:
+
 | Route | What it does |
 |---|---|
-| `/` | Landing page — sign up / log in CTAs |
-| `/login` `/signup` | Email/password authentication |
-| `/dashboard` | Greeting, recently played, your playlists, your albums |
-| `/library` | Tabbed view: Songs / Albums / Artists / Playlists |
-| `/search` | Instant search across everything |
-| `/upload` | Drag-and-drop audio upload with metadata editing |
-| `/playlist/[id]` | Playlist detail with play/shuffle |
-| `/playlist/new` | Create a new playlist |
-| `/album/[id]` | Album detail with tracklist |
-| `/artist/[id]` | Artist profile + albums + songs |
-| `/liked` | Liked songs (auto-playlist) |
-| `/recent` | Last 50 tracks you played |
-| `/import` | Add YouTube videos & playlists (embed-only, no downloads) |
-| `/settings` | Profile, sign out |
+| `/` `/login` `/signup` | Landing page and authentication |
+| `/dashboard` | Home — recently played, your music, podcasts, news, artists |
+| `/library` | Your Library, tabbed: Songs / Playlists / Podcasts / News / Albums / Artists |
+| `/search` | Search across your library and YouTube |
+| `/liked` `/recent` `/on-repeat` `/for-you` | Liked, history, most-played, recommendations |
+| `/playlist/[id]` `/album/[id]` `/artist/[id]` | Library detail pages |
+| `/artists` `/podcasts` `/news` | Browse and follow channels; `/<section>/[handle]` opens one |
+| `/charts/[region]` `/latest/[lang]` | Trending by place and language |
+| `/upload` `/import` `/yt-playlist/[id]` | Add music: files, YouTube videos, YouTube playlists |
+| `/downloads` `/listen/[code]` `/stats` `/settings` `/u/[username]` | Offline, listen-along, stats, settings, public profile |
+
+**[ARCHITECTURE.md](ARCHITECTURE.md#pages)** has the full table, with the data
+source behind each page.
 
 ### Audio player
 
@@ -152,6 +173,15 @@ For a *full track list* of a playlist (each video as its own library entry), you
 | `youtube_imports` | Records of imported playlists |
 | `youtube_import_items` | Individual videos within an import, matched against library |
 
+Added by migration:
+
+| Table | Purpose | Migration |
+|---|---|---|
+| `followed_channels` | News / podcast / artist channels you follow | `followed-channels`, plus `artist-channels` for artists |
+| `playback_state` | Resume position, shared across devices | `playback-state` |
+| `collection_shares` | Shared playlists and collections | `shared-collections` |
+| `listening_rooms` | Listen-along sessions | `listening-rooms` |
+
 All tables use **Row-Level Security** so users can only read/write their own data. Storage buckets (`audio`, `covers`) are similarly scoped per-user.
 
 ---
@@ -162,40 +192,27 @@ All tables use **Row-Level Security** so users can only read/write their own dat
 echonest/
 ├─ src/
 │  ├─ app/
-│  │  ├─ (app)/              # Authenticated pages with shared layout
-│  │  │  ├─ dashboard/
-│  │  │  ├─ library/
-│  │  │  ├─ search/
-│  │  │  ├─ upload/
-│  │  │  ├─ playlist/[id]/
-│  │  │  ├─ album/[id]/
-│  │  │  ├─ artist/[id]/
-│  │  │  ├─ liked/
-│  │  │  ├─ recent/
-│  │  │  ├─ import/
-│  │  │  └─ settings/
-│  │  ├─ api/
-│  │  │  ├─ youtube-add/     # Single video / playlist embed
-│  │  │  └─ youtube-import/  # Bulk playlist track-list (needs API key)
-│  │  ├─ login/  signup/  page.tsx (landing)
-│  │  ├─ layout.tsx
-│  │  └─ globals.css
+│  │  ├─ (app)/              # Signed-in pages — one folder per URL
+│  │  ├─ api/                # Server routes; every secret key lives here
+│  │  ├─ login/ signup/ …    # Public pages
+│  │  └─ layout.tsx  globals.css  sw.ts
 │  ├─ components/
-│  │  ├─ layout/             # Sidebar, BottomNav, AudioPlayer, AppLayout
-│  │  └─ ui/                 # Button, Input, MediaCard, SongRow, Logo, Skeleton, EmptyState
-│  ├─ lib/
-│  │  ├─ supabase/           # Browser client, server client, middleware
-│  │  └─ utils.ts
-│  ├─ store/
-│  │  └─ player.ts           # Zustand audio player state
-│  ├─ types/
-│  │  └─ index.ts
-│  └─ middleware.ts
-├─ supabase-schema.sql
-├─ supabase-migration-youtube-embed.sql
-├─ next.config.ts
-└─ package.json
+│  │  ├─ layout/             # AudioPlayer, NowPlayingScreen, nav, VoiceBubble
+│  │  └─ ui/                 # Reusable pieces shared by 2+ pages
+│  ├─ lib/                   # Domain logic, no JSX (parsers, API clients, queries)
+│  │  └─ supabase/           # Browser client, server client, middleware
+│  ├─ store/                 # Zustand — player, likes, followed channels, voice…
+│  ├─ types/                 # Shared types; `Song` is the central one
+│  └─ middleware.ts          # Refreshes the Supabase session on every request
+├─ supabase-schema.sql       # Base schema
+├─ supabase-migration-*.sql  # Run BY HAND in the Supabase SQL editor
+├─ ARCHITECTURE.md           # The map — read this first
+└─ RUNBOOK.md                # When it breaks in production
 ```
+
+Each directory has exactly one job, listed in
+**[ARCHITECTURE.md](ARCHITECTURE.md#where-the-code-lives)**. A file that does
+not match its directory's job is in the wrong place.
 
 ---
 
