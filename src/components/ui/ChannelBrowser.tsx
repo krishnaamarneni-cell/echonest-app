@@ -202,13 +202,20 @@ export function ChannelBrowser({
   // optional parameter. Deferred out of the effect body because searchFor
   // sets state, and runs once on mount so a later render cannot re-run a
   // search the user has since replaced.
+  //
+  // The URL is tidied inside the timeout, not before it. React mounts an
+  // effect twice in development, and stripping ?q= on the first pass left
+  // nothing for the second pass to read — the search silently never ran,
+  // which is what made the picker land on an empty Artists page.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('q')?.trim();
     if (!q) return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete('q');
-    window.history.replaceState({}, '', url.pathname + url.search);
-    const t = window.setTimeout(() => searchFor(q), 0);
+    const t = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('q');
+      window.history.replaceState({}, '', url.pathname + url.search);
+      searchFor(q);
+    }, 0);
     return () => window.clearTimeout(t);
   }, []);
 

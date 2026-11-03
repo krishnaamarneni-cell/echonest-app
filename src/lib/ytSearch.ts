@@ -25,6 +25,36 @@ export async function proxySearch(query: string, signal?: AbortSignal): Promise<
   }
 }
 
+/**
+ * Ask the proxy who is credited on a video.
+ *
+ * Only needed when the artist line is truncated ("… and 3 more") — the
+ * search and mix endpoints run flat, so that is all they ever return.
+ * Costs a full yt-dlp extraction, so it is called on tap and nowhere else.
+ *
+ * An empty list is a normal answer: a plain upload carries no music
+ * credits, and the proxy lives on a laptop that is often simply off.
+ */
+export async function proxyCredits(
+  videoId: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const proxyUrl = process.env.NEXT_PUBLIC_YT_PROXY_URL;
+  const proxySecret = process.env.NEXT_PUBLIC_YT_PROXY_SECRET;
+  if (!proxyUrl || !proxySecret) return [];
+  try {
+    const r = await fetch(
+      `${proxyUrl.replace(/\/+$/, '')}/credits/${encodeURIComponent(videoId)}?s=${encodeURIComponent(proxySecret)}`,
+      { cache: 'no-store', signal },
+    );
+    if (!r.ok) return [];
+    const d = (await r.json()) as { artists?: string[] };
+    return (d.artists || []).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 // Run several related queries and merge into one de-duplicated list — used by
 // the "See all" page to surface more than a single search returns.
 export async function proxySearchMany(queries: string[], signal?: AbortSignal): Promise<YtVideo[]> {

@@ -3,8 +3,13 @@
 /**
  * The artist name under the player, made tappable.
  *
- * Where it goes depends on what the song actually knows about its artist,
- * and the three cases are genuinely different:
+ * A song credited to several artists has no single destination, so the tap
+ * opens a picker instead of choosing for the user — see ArtistPicker, and
+ * artistCredit.ts for why "Divo Music and 3 more" is four artists and not
+ * one oddly-named label.
+ *
+ * For a single artist the tap goes straight through, and where it goes
+ * depends on what the song actually knows, which splits three ways:
  *
  *  - A library song has artist_id, so /artist/<id> is already right.
  *  - A YouTube song knows only the channel's *title*. There is no id or
@@ -24,6 +29,8 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { Song } from '@/types';
 import { usePlayerStore } from '@/store/player';
+import { isMultiArtist, parseArtistCredit } from '@/lib/artistCredit';
+import { ArtistPicker } from './ArtistPicker';
 
 interface ChannelInfo {
   handle: string;
@@ -40,11 +47,18 @@ export function ArtistLink({
   const router = useRouter();
   const closeNowPlaying = usePlayerStore((s) => s.closeNowPlaying);
   const [resolving, setResolving] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const name = song.artist_name || 'Unknown artist';
+  const multi = isMultiArtist(parseArtistCredit(song.artist_name));
 
   const go = async () => {
     if (resolving) return;
+
+    if (multi) {
+      setPicking(true);
+      return;
+    }
 
     // The sheet is a full-screen overlay; leaving it up would hide the page
     // we just navigated to.
@@ -81,17 +95,21 @@ export function ArtistLink({
   };
 
   return (
-    <button
-      onClick={go}
-      title={`Top songs from ${name}`}
-      className={`group flex items-center gap-1 text-left transition-colors hover:text-foreground ${className}`}
-    >
-      <span className="truncate">{name}</span>
-      {resolving ? (
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-      ) : (
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
-      )}
-    </button>
+    <>
+      <button
+        onClick={go}
+        title={multi ? 'See everyone credited on this song' : `Top songs from ${name}`}
+        className={`group flex items-center gap-1 text-left transition-colors hover:text-foreground ${className}`}
+      >
+        <span className="truncate">{name}</span>
+        {resolving ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
+        )}
+      </button>
+
+      {picking && <ArtistPicker song={song} onClose={() => setPicking(false)} />}
+    </>
   );
 }

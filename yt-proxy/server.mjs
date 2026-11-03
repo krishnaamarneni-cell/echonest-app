@@ -155,6 +155,74 @@ app.get('/recommend/:videoId', async (req, res) => {
   }
 });
 
+// Who is actually credited on this track?
+//
+// The search and mix endpoints above run with --flat-playlist, which is
+// fast but gives one byline per entry — and YouTube truncates that byline
+// to "Divo Music and 3 more" as soon as a song credits several people.
+// The names behind that "3 more" exist only in the full extraction, so
+// this endpoint pays for one (1-3s) and is called on tap, never on render.
+//
+// Cached for the life of the process: credits do not change, and the same
+// song gets tapped again.
+const creditsCache = new Map();
+
+app.get('/credits/:videoId', async (req, res) => {
+  const { videoId } = req.params;
+  const auth = req.headers.authorization || '';
+  const secret = req.query.s || '';
+  const ok = auth === `Bearer ${SHARED_SECRET}` || secret === SHARED_SECRET;
+  if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+
+  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    return res.status(400).json({ error: 'Invalid videoId' });
+  }
+
+  const cached = creditsCache.get(videoId);
+  if (cached) return res.json(cached);
+
+  try {
+    const { stdout } = await exec(
+      YTDLP_PATH,
+      [
+        `https://www.youtube.com/watch?v=${videoId}`,
+        '--dump-single-json',
+        '--no-playlist',
+        '--no-warnings',
+        '--skip-download',
+      ],
+      { timeout: 25000, maxBuffer: 1024 * 1024 * 8 },
+    );
+
+    const d = JSON.parse(stdout);
+
+    // yt-dlp exposes music metadata under several names depending on how
+    // the video was published; a plain upload has none of them, which is a
+    // legitimate answer and not an error.
+    const artists = []
+      .concat(d.artists || [])
+      .concat(d.artist ? String(d.artist).split(/\s*,\s*/) : [])
+      .concat(d.creators || [])
+      .concat(d.creator ? [d.creator] : [])
+      .map((a) => String(a).trim())
+      .filter(Boolean);
+
+    const payload = {
+      videoId,
+      artists: [...new Set(artists)],
+      channel: d.channel || d.uploader || '',
+      track: d.track || '',
+      album: d.album || '',
+    };
+
+    creditsCache.set(videoId, payload);
+    return res.json(payload);
+  } catch (e) {
+    console.error('credits failed:', e?.message || e);
+    return res.status(502).json({ error: e?.message || String(e) });
+  }
+});
+
 async function resolveAudioUrl(videoId) {
   const cached = urlCache.get(videoId);
   if (cached && cached.expiresAt > Date.now()) return cached.url;

@@ -151,6 +151,26 @@ playlist and read it, rather than searching — 3 units instead of 100. Keep tha
 property when editing these routes, and prefer adding a `part` to a call that
 is already being made over making a second call.
 
+### The laptop proxy — `yt-proxy/server.mjs`
+
+One Node process on the user's laptop, reached through a named Cloudflare
+tunnel. The client calls it directly (`NEXT_PUBLIC_YT_PROXY_URL` +
+`NEXT_PUBLIC_YT_PROXY_SECRET`), so there is no Next route in front of most
+of it.
+
+| Endpoint | Purpose | Cost |
+|---|---|---|
+| `/health` | Liveness. **Reads `ok` even when yt-dlp is broken** — see RUNBOOK | — |
+| `/search` | `ytsearch12:` via yt-dlp, flat | ~1s |
+| `/recommend/:videoId` | YouTube's own Mix (`RD<id>`) as the autoplay queue | ~1-2s |
+| `/credits/:videoId` | Every artist credited on a track | full extraction, 1-3s |
+| `/audio/:videoId` | The audio stream, with range requests for iOS Safari | cached 4h |
+
+`/search` and `/recommend` run `--flat-playlist`, which is why their artist
+field is one truncated byline ("Divo Music and 3 more") and why `/credits`
+exists at all. Editing this file means **restarting the proxy on the laptop**;
+nothing deploys it.
+
 ---
 
 ## State — `src/store/`
@@ -182,8 +202,9 @@ same `play(song, queue, source)`. Never add a second playback path.
 |---|---|
 | `supabase/` | Browser client, server client, middleware session refresh |
 | `channelCategory.ts` | Per-category config for news / podcasts / artists |
+| `artistCredit.ts` | Splits an artist line into the artists it names. Pure, no imports |
 | `podcasts.ts` | Channel + episode types, `episodeToSong`, featured lists |
-| `ytSearch.ts` | Proxy search, `ytVideoToSong`, `isCompilation`, `isLikelySong` |
+| `ytSearch.ts` | Proxy search and credits, `ytVideoToSong`, `isCompilation`, `isLikelySong` |
 | `youtubeImport.ts` `syncYouTubePlaylist.ts` `extractYouTubePlaylist.ts` | Import paths |
 | `importArtistSongs.ts` | Bulk-pull an artist's or album's top songs |
 | `playlistQueue.ts` `autoplayQueue.ts` `songSort.ts` `reorder.ts` | Queue building and ordering |
