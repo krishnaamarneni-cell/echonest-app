@@ -16,20 +16,53 @@ import { fillPlaylistCovers } from '@/lib/playlistQueue';
 import { importArtistsBulk, importAlbumsBulk, ImportResult, AlbumImportResult } from '@/lib/importArtistSongs';
 import { useFollowedChannels } from '@/store/followedChannels';
 import { Button } from '@/components/ui/Button';
+import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { SortMenu } from '@/components/ui/SortMenu';
 import { sortSongs, SortKey } from '@/lib/songSort';
 import { listSharedWithMe } from '@/lib/shares';
+import { orderTabsByUse, recordTabUse } from '@/lib/tabOrder';
 
 const SONGS_PER_PAGE = 8;
 
 type Tab = 'songs' | 'albums' | 'artists' | 'playlists' | 'podcasts' | 'news';
 
+/**
+ * The order these were designed in, and the order a device with no
+ * history still sees. `orderTabsByUse` moves the ones you actually open
+ * to the front — see lib/tabOrder.ts for why that happens on mount only.
+ */
+const DECLARED_TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+  { id: 'songs', label: 'Songs', icon: Music },
+  { id: 'playlists', label: 'Playlists', icon: ListMusic },
+  { id: 'podcasts', label: 'Podcasts', icon: Mic },
+  { id: 'news', label: 'News', icon: Newspaper },
+  { id: 'albums', label: 'Albums', icon: Disc3 },
+  { id: 'artists', label: 'Artists', icon: Mic2 },
+];
+
 export default function LibraryPage() {
   const [tab, setTab] = useState<Tab>('songs');
+  const [tabs, setTabs] = useState(DECLARED_TABS);
+
+  // Reordered after mount, never during render: localStorage does not
+  // exist on the server, and this page is prerendered, so reading it in
+  // render would hydrate to a different strip than the server sent.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading an
+    // external store that has no server equivalent; runs once, on mount.
+    setTabs(orderTabsByUse('library', DECLARED_TABS));
+  }, []);
+
+  const openTab = (id: Tab) => {
+    recordTabUse('library', id);
+    setTab(id);
+  };
   const [songs, setSongs] = useState<Song[]>([]);
   const [podcastPlaylists, setPodcastPlaylists] = useState<Playlist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
+  /** Every song belonging to a library artist — what Download all works on. */
+  const [artistSongs, setArtistSongs] = useState<Song[]>([]);
   /**
    * Artists followed as YouTube channels, which is the manual way to add
    * one. They sit alongside the artists built from your own uploads and
@@ -231,14 +264,14 @@ export default function LibraryPage() {
         // Show only artists with 2+ songs, ordered by song count desc.
         // For each, use the cover_url of one of their songs as a fallback
         // image when the artist row has none of its own.
+        // Full song rows, not just the two columns the counts need: the
+        // same query then feeds the Download-all button, so adding the
+        // button costs no extra round trip.
         const [{ data: artistRows }, { data: songRows }] = await Promise.all([
           supabase.from('artists').select('*'),
-          supabase
-            .from('songs')
-            .select('artist_id, cover_url')
-            .not('artist_id', 'is', null)
-            .not('cover_url', 'is', null),
+          supabase.from('songs').select('*').not('artist_id', 'is', null),
         ]);
+        setArtistSongs((songRows || []) as Song[]);
 
         const counts = new Map<string, number>();
         const covers = new Map<string, string>();
@@ -277,15 +310,6 @@ export default function LibraryPage() {
     load();
   }, [tab]);
 
-  const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'songs', label: 'Songs', icon: Music },
-    { id: 'playlists', label: 'Playlists', icon: ListMusic },
-    { id: 'podcasts', label: 'Podcasts', icon: Mic },
-    { id: 'news', label: 'News', icon: Newspaper },
-    { id: 'albums', label: 'Albums', icon: Disc3 },
-    { id: 'artists', label: 'Artists', icon: Mic2 },
-  ];
-
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       <h1 className="text-3xl font-bold">Your Library</h1>
@@ -294,7 +318,7 @@ export default function LibraryPage() {
         {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => openTab(t.id)}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors',
               tab === t.id
@@ -573,6 +597,10 @@ export default function LibraryPage() {
                       </>
                     )}
                   </Button>
+                  {/* Every library artist's songs in one tap. Hides itself
+                      when none of them came from YouTube — uploaded files
+                      already play from their own URL. */}
+                  <BulkDownloadButton songs={artistSongs} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">

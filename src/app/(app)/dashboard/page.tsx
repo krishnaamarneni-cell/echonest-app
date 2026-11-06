@@ -17,11 +17,45 @@ import { usePlayerStore } from '@/store/player';
 import { useMusicLanguages } from '@/store/musicLanguages';
 import { LanguageMusicRow } from '@/components/ui/LanguageMusicRow';
 import { LiveSearchBox } from '@/components/ui/LiveSearchBox';
+import { orderTabsByUse, recordTabUse } from '@/lib/tabOrder';
 
 type HomeTab = 'all' | 'songs' | 'podcasts' | 'news' | 'albums' | 'artists' | 'playlists';
 
+/**
+ * Declared order — mirrors Library with 'All' prepended, and what a
+ * device with no history still sees. `orderTabsByUse` then moves the
+ * sections you actually open to the front.
+ */
+const DECLARED_TABS: { id: HomeTab; label: string; icon: React.ElementType }[] = [
+  { id: 'all', label: 'All', icon: TrendingUp },
+  { id: 'songs', label: 'Songs', icon: Music },
+  { id: 'podcasts', label: 'Podcasts', icon: Mic },
+  { id: 'news', label: 'News', icon: Newspaper },
+  { id: 'albums', label: 'Albums', icon: Disc },
+  { id: 'artists', label: 'Artists', icon: Mic2 },
+  { id: 'playlists', label: 'Playlists', icon: ListMusic },
+];
+
+/** 'All' is where Home opens. A landing view sorted into fifth place
+ *  reads as a bug, so it keeps its seat however little it is tapped. */
+const PINNED_TABS = ['all'];
+
 export default function DashboardPage() {
   const [tab, setTab] = useState<HomeTab>('all');
+  const [homeTabs, setHomeTabs] = useState(DECLARED_TABS);
+
+  // After mount only — this page is prerendered and localStorage has no
+  // server equivalent, so ordering during render would hydrate wrong.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading an
+    // external store with no server equivalent; runs once, on mount.
+    setHomeTabs(orderTabsByUse('home', DECLARED_TABS, PINNED_TABS));
+  }, []);
+
+  const openTab = (id: HomeTab) => {
+    recordTabUse('home', id);
+    setTab(id);
+  };
   const [recentSongs, setRecentSongs] = useState<Song[]>([]);
   const [recentlyAdded, setRecentlyAdded] = useState<Song[]>([]);
   const [ytTracks, setYtTracks] = useState<Song[]>([]);
@@ -245,17 +279,6 @@ export default function DashboardPage() {
     (s, i, arr) => arr.findIndex((x) => x.id === s.id) === i,
   );
 
-  // Tab order mirrors Library, with 'All' prepended
-  const homeTabs: { id: HomeTab; label: string; icon: React.ElementType }[] = [
-    { id: 'all', label: 'All', icon: TrendingUp },
-    { id: 'songs', label: 'Songs', icon: Music },
-    { id: 'podcasts', label: 'Podcasts', icon: Mic },
-    { id: 'news', label: 'News', icon: Newspaper },
-    { id: 'albums', label: 'Albums', icon: Disc },
-    { id: 'artists', label: 'Artists', icon: Mic2 },
-    { id: 'playlists', label: 'Playlists', icon: ListMusic },
-  ];
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-fade-in">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -273,7 +296,7 @@ export default function DashboardPage() {
         {homeTabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => openTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               tab === t.id
                 ? 'bg-accent text-white'
