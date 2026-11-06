@@ -16,7 +16,7 @@
  * lib/channelCategory.ts.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ArrowLeft, Play, Plus, Check } from 'lucide-react';
@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 import { VideoList } from '@/components/ui/VideoList';
 import { SongRowSkeleton } from '@/components/ui/Skeleton';
+import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { usePlayerStore } from '@/store/player';
 import { PodcastEpisode, episodeToSong } from '@/lib/podcasts';
 import { channelMeta, type ChannelCategory } from '@/lib/channelCategory';
@@ -114,10 +115,20 @@ export function ChannelEpisodes({
     };
   }, [handle, meta.rankByViews, meta.songsOnly, meta.minDurationSeconds]);
 
+  /**
+   * The same conversion the player gets, reused by the download button.
+   *
+   * Only an artist's uploads are ever downloadable — episodeToSong stamps
+   * them `content_type: 'music'`, and `isDownloadable` rejects podcast and
+   * news. So this needs no category check: on those two pages the button
+   * finds nothing eligible and renders nothing.
+   */
+  const songs = useMemo(
+    () => episodes.map((e) => episodeToSong(e, meta.contentType)),
+    [episodes, meta.contentType],
+  );
+
   const playFrom = (index: number) => {
-    // Deliberately not `.map(episodeToSong)`: map passes (value, index,
-    // array), so the array index would land in the category argument.
-    const songs = episodes.map((e) => episodeToSong(e, meta.contentType));
     play(songs[index], songs, 'library');
   };
 
@@ -191,6 +202,7 @@ export function ChannelEpisodes({
                 {followed ? `In ${meta.listLabel}` : `Add to ${meta.listLabel}`}
               </button>
             ) : null}
+            <BulkDownloadButton songs={songs} className="rounded-full" />
           </div>
         </div>
       </div>

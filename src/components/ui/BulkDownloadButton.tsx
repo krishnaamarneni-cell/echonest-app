@@ -10,6 +10,8 @@ interface BulkDownloadButtonProps {
   songs: Song[];
   /** Optional label override — default is "Download all" */
   label?: string;
+  /** Extra classes for the button itself, e.g. rounded-full to sit in a pill row. */
+  className?: string;
 }
 
 /**
@@ -17,7 +19,11 @@ interface BulkDownloadButtonProps {
  * caching, skips ones already on device, and downloads the rest sequentially.
  * Shows live "X of Y" progress while running.
  */
-export function BulkDownloadButton({ songs, label = 'Download all' }: BulkDownloadButtonProps) {
+export function BulkDownloadButton({
+  songs,
+  label = 'Download all',
+  className,
+}: BulkDownloadButtonProps) {
   const offlineIds = useOfflineStore((s) => s.ids);
   const inProgress = useOfflineStore((s) => s.inProgress);
   const downloadMany = useOfflineStore((s) => s.downloadMany);
@@ -65,6 +71,7 @@ export function BulkDownloadButton({ songs, label = 'Download all' }: BulkDownlo
     <div className="inline-flex flex-col items-start gap-1">
       <Button
         variant="secondary"
+        className={className}
         onClick={onClick}
         disabled={running || isAllDownloaded}
         title={

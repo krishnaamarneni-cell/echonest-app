@@ -9,6 +9,7 @@ import { SongCard } from '@/components/ui/SongCard';
 import { MediaCard } from '@/components/ui/MediaCard';
 import { SongRowSkeleton, CardSkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
+import { BulkDownloadButton } from '@/components/ui/BulkDownloadButton';
 import { usePlayerStore } from '@/store/player';
 import { Play, Shuffle, Mic2, ArrowLeft, List, LayoutGrid, Plus, Loader2 } from 'lucide-react';
 import Image from 'next/image';
@@ -123,6 +124,10 @@ export default function ArtistDetailPage() {
                   )}
                 </Button>
               )}
+              {/* Hides itself when nothing here is downloadable — uploaded
+                  files already play from their own URL, so only songs pulled
+                  from YouTube ever qualify. */}
+              <BulkDownloadButton songs={songs} />
             </div>
             {importResult && (
               <p className="text-xs text-muted-foreground mt-2">{importResult}</p>
