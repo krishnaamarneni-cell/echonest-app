@@ -812,6 +812,54 @@ export function AudioPlayer() {
     else audio.pause();
   }, [isPlaying, isYouTube, useHybrid, offlineAudioUrl]);
 
+  /**
+   * Start the track once it actually has data.
+   *
+   * Both effects above assign `audio.src` and call `play()` on the next
+   * line. Assigning src begins a load, and a play() issued while that load
+   * is still starting is rejected — AbortError, "interrupted by a new load
+   * request". Every one of those calls ends in `.catch(() => {})`, so the
+   * rejection is swallowed and nothing ever tries again: neither effect
+   * re-runs, because the song id has not changed and isPlaying was already
+   * true. The track then sits at 0:00 with seconds of audio buffered,
+   * which is precisely "it opens in the player but does nothing".
+   *
+   * It is a race, so it only shows up when the load is slow — a song the
+   * proxy has cached starts before play() is called and wins, a cold one
+   * needs a yt-dlp resolve first and loses. That is why downloaded and
+   * recently played songs were fine and new ones were not.
+   *
+   * The element itself tells us when the race is over. `isPlaying` is read
+   * from the store rather than closed over, so this listener is attached
+   * once and never goes stale.
+   */
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const startIfWanted = () => {
+      if (!usePlayerStore.getState().isPlaying) return;
+      if (!audio.paused) return;
+      // The store restores isPlaying from the last session, so on a cold
+      // load it can say "playing" while the element holds nothing. Only
+      // ever resume something that genuinely has audio ready to play.
+      if (!audio.currentSrc && !audio.src) return;
+      if (audio.readyState < 2 /* HAVE_CURRENT_DATA */) return;
+      audio.play().catch((err: unknown) => {
+        // Deliberately not silent. A play() that fails after the media is
+        // ready is a real failure the user can see and we could not.
+        console.warn('[player] play() rejected after media was ready:', err);
+      });
+    };
+
+    audio.addEventListener('loadeddata', startIfWanted);
+    audio.addEventListener('canplay', startIfWanted);
+    return () => {
+      audio.removeEventListener('loadeddata', startIfWanted);
+      audio.removeEventListener('canplay', startIfWanted);
+    };
+  }, []);
+
   // Audio element volume — applies whenever audio element is the source
   // (uploads OR hybrid OR offline blob).
   useEffect(() => {
