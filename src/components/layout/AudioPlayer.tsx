@@ -415,7 +415,13 @@ export function AudioPlayer() {
 
     const nextProxyUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${next.youtube_id}?s=${encodeURIComponent(proxySecret)}&direct=1`;
     const timer = setTimeout(() => {
-      fetch(nextProxyUrl, { method: 'HEAD', cache: 'no-store' }).catch(() => {});
+      // no-cors because this request exists only for its side effect: the
+      // proxy runs yt-dlp and caches the resolved URL before answering.
+      // direct=1 then 302s to googlevideo, which sends no CORS headers, so
+      // a normal fetch logs a failure for every pre-warm — twenty red
+      // errors a session that mean nothing and bury the ones that do. The
+      // response is discarded either way; opaque is exactly right here.
+      fetch(nextProxyUrl, { method: 'HEAD', cache: 'no-store', mode: 'no-cors' }).catch(() => {});
     }, 5000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1071,7 +1077,14 @@ export function AudioPlayer() {
 
     // Sync transition for hybrid mode — keeps iOS audio session alive
     const nextSong = nextItem.song;
-    const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}&direct=1`;
+    // Deliberately NOT &direct=1, for the reason spelled out where the
+    // first track's URL is built: direct mode 302s the phone straight to
+    // googlevideo, but yt-dlp resolved that URL bound to the laptop's IP,
+    // so Google rejects the phone's fetch with a 403 while the proxy logs
+    // a healthy "302" — and the track goes silent. This path had kept
+    // direct=1, which is why playback could start fine and then die the
+    // moment it advanced to the next song.
+    const nextUrl = `${proxyUrl.replace(/\/+$/, '')}/audio/${nextSong.youtube_id}?s=${encodeURIComponent(proxySecret)}`;
 
     // Explicitly tell the OS we're still playing — this is the lock-screen
     // session iOS uses to decide whether to allow continued playback. Update
