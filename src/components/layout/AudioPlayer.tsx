@@ -212,6 +212,22 @@ export function AudioPlayer() {
   const [ytReady, setYtReady] = useState(false);
   const [ytError, setYtError] = useState<string | null>(null);
   const [ytView, setYtView] = useState<'hidden' | 'mini' | 'full'>('hidden');
+  /**
+   * Has the YouTube player actually started, as opposed to merely existing?
+   *
+   * Expanding a podcast to video used to tear the <audio> element down the
+   * instant the view changed, on the assumption that the iframe would take
+   * over. iOS does not allow that: a video with sound only starts from a
+   * live user gesture, and the tap that set this view is spent by the time
+   * React has mounted the player. The result was silence plus a paused
+   * video — the audio gone, the video never begun.
+   *
+   * So the handoff now waits for proof. Until YouTube reports PLAYING the
+   * audio keeps going, and the moment it does the audio stands down.
+   */
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  /** Show the tap-to-start prompt once it is clear autoplay was refused. */
+  const [showTapToStart, setShowTapToStart] = useState(false);
   // Once we observe a duration we trust, lock it. Streaming audio can
   // re-estimate duration mid-playback (especially after backgrounding),
   // sometimes doubling it — we ignore those updates per song.
@@ -401,6 +417,29 @@ export function AudioPlayer() {
   // element is the only player → iOS keeps its session alive → real
   // background play works.
   const useIframePlayer = isYouTube && !useHybrid && !offlineAudioUrl && !syncedRoomActive;
+
+  /**
+   * Watch the handoff, and offer a way out if it stalls.
+   *
+   * Leaving the video resets both flags so the next expand starts clean.
+   * Entering it arms a short timer: if the video has not reported PLAYING
+   * by then, autoplay was refused (iOS) and the user is shown a button.
+   * That button's click is a live user gesture, which is exactly what the
+   * YouTube player needs — so it starts where pointing at YouTube's own
+   * controls would not reliably help.
+   */
+  useEffect(() => {
+    if (!watchingVideo) {
+      // Clearing transient handoff flags as the video closes. Both are
+      // deliberate: they exist only while the video view is open.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVideoPlaying(false);
+      setShowTapToStart(false);
+      return;
+    }
+    const t = window.setTimeout(() => setShowTapToStart(true), 1500);
+    return () => window.clearTimeout(t);
+  }, [watchingVideo]);
 
   // Pre-warm the proxy cache for the NEXT song in the queue. A HEAD
   // request triggers yt-dlp resolution server-side so when the song
@@ -615,6 +654,17 @@ export function AudioPlayer() {
           // Sync YT player state with our store
           if (e.data === window.YT.PlayerState.PLAYING) {
             setIsPlaying(true);
+            // The video is really running, so the audio that was covering
+            // the handoff can stop now. Paused directly rather than via
+            // the effect so there is no window of both playing at once.
+            setVideoPlaying(true);
+            setShowTapToStart(false);
+            const a = audioRef.current;
+            if (a && !a.paused) {
+              try {
+                a.pause();
+              } catch {}
+            }
           } else if (e.data === window.YT.PlayerState.PAUSED) {
             setIsPlaying(false);
           } else if (e.data === window.YT.PlayerState.ENDED) {
@@ -801,12 +851,27 @@ export function AudioPlayer() {
       audio.muted = false;
       audio.volume = isMuted ? 0 : volume;
       if (isPlaying) audio.play().catch(() => {});
+    } else if (watchingVideo && !videoPlaying) {
+      // Mid-handoff: the view says video but the video has not started.
+      // Leave the audio exactly as it is — still playing — so expanding to
+      // video never drops you into silence. It stands down in the PLAYING
+      // handler above, or stays on if the video never starts at all.
+      return;
     } else {
       audio.removeAttribute('src');
       audio.load();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong?.id, isYouTube, useHybrid, proxyAudioUrl, offlineAudioUrl, isOfflineAvailable]);
+  }, [
+    currentSong?.id,
+    isYouTube,
+    useHybrid,
+    proxyAudioUrl,
+    offlineAudioUrl,
+    isOfflineAvailable,
+    watchingVideo,
+    videoPlaying,
+  ]);
 
   // Audio element play/pause for upload, hybrid, AND offline-blob modes.
   useEffect(() => {
@@ -1181,6 +1246,17 @@ export function AudioPlayer() {
         currentSong={currentSong}
         queue={queue}
         queueIndex={queueIndex}
+        tapToStartAt={
+          watchingVideo && showTapToStart && !videoPlaying ? formatDuration(progress) : null
+        }
+        onTapToStart={() => {
+          // Called straight from the click, so the gesture is still live —
+          // which is the whole reason this button exists.
+          try {
+            (ytPlayerRef.current as unknown as { playVideo?: () => void })?.playVideo?.();
+          } catch {}
+          setShowTapToStart(false);
+        }}
         onClose={() => setYtView('hidden')}
         onMini={() => setYtView('mini')}
         onFull={() => setYtView('full')}

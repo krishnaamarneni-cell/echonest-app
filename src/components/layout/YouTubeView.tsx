@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Song, QueueItem } from '@/types';
-import { ChevronDown, ChevronLeft, Maximize2, Minimize2, Music, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Maximize2, Minimize2, Music, GripVertical, Play } from 'lucide-react';
 
 const POS_KEY = 'echonest-yt-mini-pos';
 
@@ -16,6 +16,8 @@ export function YouTubeView({
   onMini,
   onFull,
   onPlayQueueItem,
+  tapToStartAt,
+  onTapToStart,
 }: {
   view: 'hidden' | 'mini' | 'full';
   containerRef: RefObject<HTMLDivElement | null>;
@@ -26,6 +28,13 @@ export function YouTubeView({
   onMini: () => void;
   onFull: () => void;
   onPlayQueueItem: (item: QueueItem) => void;
+  /**
+   * Set when the video was opened but never started — iOS refuses to
+   * autoplay sound without a live gesture. Formatted position to continue
+   * from, e.g. "10:51". Null hides the prompt.
+   */
+  tapToStartAt?: string | null;
+  onTapToStart?: () => void;
 }) {
   const isFull = view === 'full';
   const isMini = view === 'mini';
@@ -187,6 +196,24 @@ export function YouTubeView({
             className="w-full h-full [&>iframe]:!w-full [&>iframe]:!h-full"
             style={{ width: '100%', height: '100%' }}
           />
+
+          {/* The audio is still playing underneath this, so the episode has
+              not stopped — the video just needs a tap it can count as a
+              gesture. Covers the frame so it cannot be missed. */}
+          {isFull && tapToStartAt && (
+            <button
+              onClick={onTapToStart}
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/55 backdrop-blur-[2px] text-white"
+            >
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 text-black shadow-2xl">
+                <Play className="h-7 w-7 translate-x-0.5 fill-current" />
+              </span>
+              <span className="text-sm font-semibold">Tap to start the video</span>
+              <span className="text-xs text-white/70">
+                Still playing — picks up at {tapToStartAt}
+              </span>
+            </button>
+          )}
 
           {isMini && (
             <>
