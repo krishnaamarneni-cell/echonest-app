@@ -1247,7 +1247,12 @@ export function AudioPlayer() {
         queue={queue}
         queueIndex={queueIndex}
         tapToStartAt={
-          watchingVideo && showTapToStart && !videoPlaying ? formatDuration(progress) : null
+          // Not when the embed itself was refused (101/150): that video
+          // cannot start at all, so inviting a tap would be a lie. The
+          // error message owns the frame in that case.
+          watchingVideo && showTapToStart && !videoPlaying && !ytError
+            ? formatDuration(progress)
+            : null
         }
         onTapToStart={() => {
           // Called straight from the click, so the gesture is still live —
