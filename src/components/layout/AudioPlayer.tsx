@@ -1225,6 +1225,56 @@ export function AudioPlayer() {
     }
   };
 
+  /**
+   * Collapse the video and keep listening — started from the click itself.
+   *
+   * Closing or minimising only changed the view and left the <audio>
+   * element to be started by an effect a tick later. By then iOS has spent
+   * the tap that caused it, so play() is refused and collapsing the video
+   * dropped you into silence. An autoplay refusal is not a timing problem,
+   * so the canplay retry does not rescue it either: the call has to happen
+   * while the gesture is still live, which means here, in the handler.
+   */
+  const resumeAudioFromGesture = () => {
+    const audio = audioRef.current;
+    if (!audio || !isYouTube || !currentSong?.youtube_id) return;
+    // Only when the <audio> element is what plays next. Music with
+    // background play off stays on the iframe, and starting audio too
+    // would give two sources at once.
+    if (!isWatchContent && !bgMode) return;
+
+    // Where the video had reached, read before its player is torn down.
+    let at = 0;
+    try {
+      at =
+        (ytPlayerRef.current as unknown as { getCurrentTime?: () => number })?.getCurrentTime?.() ||
+        0;
+    } catch {}
+
+    const want =
+      offlineAudioUrl ||
+      (proxyUrl && proxySecret
+        ? `${proxyUrl.replace(/\/+$/, '')}/audio/${currentSong.youtube_id}?s=${encodeURIComponent(proxySecret)}`
+        : null);
+    if (!want) return;
+
+    // Byte-identical to what the source effect builds, so it will not
+    // reassign src underneath and interrupt what we just started.
+    if (audio.src !== want) audio.src = want;
+    if (at > 1) {
+      const seek = () => {
+        try {
+          audio.currentTime = at;
+        } catch {}
+      };
+      if (audio.readyState >= 1) seek();
+      else audio.addEventListener('loadedmetadata', seek, { once: true });
+    }
+    audio.muted = false;
+    audio.volume = isMuted ? 0 : volume;
+    audio.play().catch(() => {});
+  };
+
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
   const showPlayer = isPlayerVisible && currentSong;
 
@@ -1262,8 +1312,14 @@ export function AudioPlayer() {
           } catch {}
           setShowTapToStart(false);
         }}
-        onClose={() => setYtView('hidden')}
-        onMini={() => setYtView('mini')}
+        onClose={() => {
+          resumeAudioFromGesture();
+          setYtView('hidden');
+        }}
+        onMini={() => {
+          resumeAudioFromGesture();
+          setYtView('mini');
+        }}
         onFull={() => setYtView('full')}
         onPlayQueueItem={(item) => {
           play(item.song, queue.map((q) => q.song), item.source as 'playlist' | 'album' | 'library');
