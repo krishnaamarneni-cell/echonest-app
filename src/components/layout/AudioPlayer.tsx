@@ -1409,13 +1409,32 @@ export function AudioPlayer() {
             <button
               type="button"
               onClick={() => {
-                // Video content expands into the player that can actually
-                // show it, rather than a screen built around cover art.
-                if (isWatchContent) setYtView('full');
-                else openNowPlaying();
+                // For video content this bar is a TOGGLE, not a one-way
+                // door. It used to only ever expand, so tapping it while
+                // the video was open did nothing at all and the only way
+                // back to audio was the Back button in the corner —
+                // which is not where anyone taps.
+                //
+                // Collapsing goes through resumeAudioFromGesture so the
+                // audio starts inside this click, while the gesture is
+                // still live; see that function for why that matters.
+                if (!isWatchContent) {
+                  openNowPlaying();
+                } else if (ytView === 'full') {
+                  resumeAudioFromGesture();
+                  setYtView('hidden');
+                } else {
+                  setYtView('full');
+                }
               }}
               className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition-opacity cursor-pointer"
-              aria-label="Open now playing"
+              aria-label={
+                isWatchContent && ytView === 'full'
+                  ? 'Collapse to audio only'
+                  : isWatchContent
+                    ? 'Open the video'
+                    : 'Open now playing'
+              }
             >
               <div className="w-12 h-12 rounded-lg bg-card overflow-hidden flex-shrink-0 relative">
                 {coverFor(currentSong) ? (
