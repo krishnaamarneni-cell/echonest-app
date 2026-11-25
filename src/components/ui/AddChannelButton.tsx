@@ -12,6 +12,7 @@
 import { Plus, Check } from 'lucide-react';
 import { PodcastChannel } from '@/lib/podcasts';
 import { useFollowedChannels, ChannelCategory } from '@/store/followedChannels';
+import { channelMeta } from '@/lib/channelCategory';
 
 export function AddChannelButton({
   channel,
@@ -26,8 +27,11 @@ export function AddChannelButton({
     s.channels.some((c) => c.channel_id === channel.channelId && c.category === category),
   );
 
-  const label = category === 'news' ? 'News' : 'Pod';
-  const full = category === 'news' ? 'News' : 'Podcasts';
+  // From the category table, not a ternary: with two categories spelled
+  // out by hand a third one silently rendered as "Pod", so adding an
+  // artist from search offered to file them under Podcasts.
+  const full = channelMeta(category).listLabel;
+  const label = category === 'podcast' ? 'Pod' : full;
 
   return (
     <button

@@ -619,7 +619,13 @@ function SearchPageInner() {
       {/* Channels — news / podcast shows, not songs */}
       {query.trim().length >= 3 && (channelsLoading || channels.length > 0) && (
         <section>
-          <h2 className="text-lg font-semibold mb-3">Channels</h2>
+          {/* Named for what it is FOR, not what it contains. "Channels"
+              told you nothing about this being the way to build your
+              Artists, Podcasts and News lists, so nobody used it. */}
+          <h2 className="text-lg font-semibold">Add to your lists</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Tap a pill to follow this channel as an artist, a podcast or a news source.
+          </p>
           {channelsLoading && channels.length === 0 ? (
             <p className="text-sm text-muted-foreground">Looking for channels...</p>
           ) : (
@@ -643,9 +649,10 @@ function SearchPageInner() {
                       {formatSubscribers(c.subscriberCount)}
                     </p>
                   </Link>
-                  <div className="mt-1 flex justify-center gap-1">
-                    <AddChannelButton channel={c} category="news" />
+                  <div className="mt-1 flex flex-wrap justify-center gap-1">
+                    <AddChannelButton channel={c} category="music" />
                     <AddChannelButton channel={c} category="podcast" />
+                    <AddChannelButton channel={c} category="news" />
                   </div>
                 </div>
               ))}
