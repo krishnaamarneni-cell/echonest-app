@@ -1380,7 +1380,23 @@ export function AudioPlayer() {
         </div>
       )}
 
-      {showPlayer && currentSong && (<div className={`fixed h-[var(--player-height)] glass border-t border-border animate-slide-up ${
+      {showPlayer && currentSong && (<div
+        onClick={(e) => {
+          // The whole bar toggles, not just the artwork and title. That
+          // button is ~155px of a 375px screen, so tapping "the player"
+          // anywhere else did nothing and the toggle looked broken.
+          // Empty space works in both directions; anything that is
+          // itself a control is left alone.
+          if (!isWatchContent) return;
+          if ((e.target as HTMLElement).closest('button,a,input')) return;
+          if (ytView === 'full') {
+            resumeAudioFromGesture();
+            setYtView('hidden');
+          } else {
+            setYtView('full');
+          }
+        }}
+        className={`fixed h-[var(--player-height)] glass border-t border-border animate-slide-up ${
         ytView === 'full'
           // Expanded video overlay covers the sidebar/bottom-nav, so span the
           // full width at the very bottom and sit above the overlay.
