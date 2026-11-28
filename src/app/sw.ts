@@ -16,7 +16,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { NetworkOnly, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -26,12 +26,37 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+/**
+ * The audio stream must reach the network untouched.
+ *
+ * `defaultCache` ends with a catch-all for cross-origin requests on a
+ * NetworkFirst strategy, and the extractor's /audio/<id> endpoint is
+ * cross-origin — so the worker was sitting in front of the one request
+ * that cannot tolerate it. <audio> streams by RANGE request: the proxy
+ * forwards Range and answers 206 precisely so Safari can seek. The Cache
+ * API cannot store a 206, and NetworkFirst's timeout drops a slow cold
+ * resolve (3-5s of yt-dlp) onto an empty cache.
+ *
+ * Installed as a home-screen app this is the normal path, which is why
+ * playback could behave differently there than in a browser tab with no
+ * worker registered. Media goes straight to the network, always.
+ */
+const streamStraightToNetwork = {
+  matcher: ({ url, request }: { url: URL; request: Request }) =>
+    request.destination === "audio" ||
+    request.destination === "video" ||
+    /\/audio\/[A-Za-z0-9_-]{11}/.test(url.pathname),
+  handler: new NetworkOnly(),
+};
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  // Ordered: the media rule has to win before defaultCache's cross-origin
+  // catch-all gets a chance to claim the request.
+  runtimeCaching: [streamStraightToNetwork, ...defaultCache],
   fallbacks: {
     entries: [
       {
