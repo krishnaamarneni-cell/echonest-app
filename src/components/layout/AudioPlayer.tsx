@@ -228,6 +228,16 @@ export function AudioPlayer() {
   const [videoPlaying, setVideoPlaying] = useState(false);
   /** Show the tap-to-start prompt once it is clear autoplay was refused. */
   const [showTapToStart, setShowTapToStart] = useState(false);
+  /**
+   * Song id whose proxy stream failed, so playback can fall back.
+   *
+   * The extractor does not resolve every video — googlevideo answers 403
+   * for some, and the laptop it runs on is not always awake. Without a way
+   * back, those songs play nothing at all, which is strictly worse than
+   * the iframe they used to fall to. Keyed by song id so the next song
+   * starts over on the good path.
+   */
+  const [proxyFailedFor, setProxyFailedFor] = useState<string | null>(null);
   // Once we observe a duration we trust, lock it. Streaming audio can
   // re-estimate duration mid-playback (especially after backgrounding),
   // sometimes doubling it — we ignore those updates per song.
@@ -394,6 +404,9 @@ export function AudioPlayer() {
     !syncedRoomActive &&
     !offlineAudioUrl && // downloaded songs supersede streaming
     !watchingVideo &&
+    // This song's stream already failed — let the iframe have it rather
+    // than retry a source that answered 403 and play nothing.
+    proxyFailedFor !== currentSong?.id &&
     proxyConfigured &&
     (bgMode || isWatchContent) &&
     isYouTube &&
@@ -1287,6 +1300,14 @@ export function AudioPlayer() {
         onLoadedMetadata={handleLoadedMetadata}
         onDurationChange={handleLoadedMetadata}
         onEnded={handleEnded}
+        onError={() => {
+          // Only meaningful while the proxy is the source: a failure here
+          // means that stream is unplayable, so hand this song to the
+          // iframe instead of leaving the user with silence.
+          if (!useHybrid || !currentSong?.id) return;
+          console.warn('[player] proxy stream failed, falling back to the YouTube player');
+          setProxyFailedFor(currentSong.id);
+        }}
         preload="metadata"
       />
       {/* YT iframe — always rendered to keep iframe alive */}
